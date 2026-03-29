@@ -184,7 +184,10 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
         return Unknown;
     }
 
-    public static IsoLanguage Unknown => new("Unknown", "Unknown", "??", ["???"]);
+    public const string UnknownName = "Unknown";
+    public const string UndeterminedName = "Undetermined";
+
+    public static IsoLanguage Unknown => new(UnknownName, UnknownName, "??", ["???"]);
 
     // Equality members
     public bool Equals(IsoLanguage? other)

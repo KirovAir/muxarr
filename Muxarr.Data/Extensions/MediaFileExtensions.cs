@@ -111,8 +111,8 @@ public static class MediaFileExtensions
 
         var result = new List<MediaTrack>();
         result.AddRange(file.Tracks.GetVideoTracks());
-        result.AddRange(GetAllowedTracks(file.Tracks.GetAudioTracks(), p.AudioSettings, file.OriginalLanguage ?? "English"));
-        result.AddRange(GetAllowedTracks(file.Tracks.GetSubtitleTracks(), p.SubtitleSettings, file.OriginalLanguage ?? "English"));
+        result.AddRange(GetAllowedTracks(file.Tracks.GetAudioTracks(), p.AudioSettings, file.OriginalLanguage));
+        result.AddRange(GetAllowedTracks(file.Tracks.GetSubtitleTracks(), p.SubtitleSettings, file.OriginalLanguage));
 
         return result;
     }
@@ -128,8 +128,8 @@ public static class MediaFileExtensions
                                   && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
         var tracksByLanguage = tracks.GroupBy(t =>
-            t.LanguageName == "Unknown" ? (originalLanguage ?? "English")
-            : (assumeUndetermined && t.LanguageName == "Undetermined") ? originalLanguage!
+            t.LanguageName == IsoLanguage.UnknownName ? (originalLanguage ?? IsoLanguage.UnknownName)
+            : (assumeUndetermined && t.LanguageName == IsoLanguage.UndeterminedName) ? originalLanguage!
             : t.LanguageName);
 
         var allowedTracks = new List<T>();
@@ -171,7 +171,9 @@ public static class MediaFileExtensions
             allowedTracks.AddRange(filteredTracks);
         }
 
-        if (allowedTracks.Count == 0)
+        // If all tracks would be removed, keep at least one for audio (silence is never correct).
+        // For subtitles, having none is fine — don't force-keep an unwanted language.
+        if (allowedTracks.Count == 0 && tracks[0].Type != MediaTrackType.Subtitles)
         {
             var bestTracks = tracks
                 .OrderByDescending(t =>
