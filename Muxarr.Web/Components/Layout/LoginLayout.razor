@@ -1,0 +1,48 @@
+@inherits LayoutComponentBase
+
+<div class="mux-login-wrapper" data-bs-theme="dark">
+    <div class="mux-login-card">
+        @Body
+    </div>
+</div>
+
+<style>
+    .mux-login-wrapper {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #0d0d1a;
+        background-image:
+            radial-gradient(ellipse 60% 50% at 50% 0%, rgba(240, 112, 48, 0.06) 0%, transparent 70%);
+        padding: 1rem;
+    }
+
+    .mux-login-card {
+        width: 100%;
+        max-width: 380px;
+    }
+
+    .mux-login-card .card {
+        background: var(--mux-navy-light, #1e1e32);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 0.75rem;
+    }
+
+    .mux-login-card .form-control {
+        background: var(--mux-surface, #232338);
+        border-color: rgba(255, 255, 255, 0.06);
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .mux-login-card .form-control:focus {
+        border-color: var(--mux-accent, #f07030);
+        box-shadow: 0 0 0 2px rgba(240, 112, 48, 0.2);
+    }
+
+    .mux-login-card .form-label {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.6);
+    }
+</style>

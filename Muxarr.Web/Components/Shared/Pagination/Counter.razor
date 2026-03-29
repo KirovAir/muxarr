@@ -1,0 +1,21 @@
+<span class="text-muted">
+	@if (Parent.IsLoading) {
+		<span>Searching...</span>
+	} else if (Parent.TotalItems == 0) {
+		<span>No results found</span>
+	} else if (Parent.TotalItems == 1) {
+		<span>1 result found</span>
+	} else {
+		<span>
+			@Parent.TotalItems results found
+
+			@if (Parent.TotalPages > 1) {
+				<span>(page @Parent.Page of @Parent.TotalPages)</span>
+			}
+		</span>
+	}
+</span>
+
+@code {
+	[Parameter, EditorRequired] public required PaginatedListComponentBase Parent { get; set; }
+}

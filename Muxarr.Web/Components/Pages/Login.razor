@@ -1,0 +1,41 @@
+@page "/login"
+@using Muxarr.Web.Helpers
+@using Muxarr.Web.Components.Layout
+@layout LoginLayout
+
+<PageTitle>@TitleHelper.GetTitle("Login")</PageTitle>
+
+<div class="card">
+    <div class="card-body p-4">
+        <div class="text-center mb-4">
+            <img src="logo.png?v=@AppInfo.Version" alt="Muxarr" style="height: 72px" class="mb-3"/>
+        </div>
+
+        @if (HasError)
+        {
+            <div class="alert alert-danger py-2" role="alert">
+                <small>Invalid username or password.</small>
+            </div>
+        }
+
+        <form method="post" action="/api/auth/login">
+            <AntiforgeryToken />
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required autofocus />
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required />
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Sign in</button>
+        </form>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private bool HasError => !string.IsNullOrEmpty(Error);
+}

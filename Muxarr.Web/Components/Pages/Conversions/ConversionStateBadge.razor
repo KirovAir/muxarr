@@ -1,0 +1,14 @@
+﻿<span class="badge @GetStateBadgeClass(Conversion.State)">@Conversion.State</span>
+
+@code {
+    [Parameter, EditorRequired] public required MediaConversion Conversion  { get; set; }
+
+    private string GetStateBadgeClass(ConversionState state) => state switch
+    {
+        ConversionState.New => "bg-secondary",
+        ConversionState.Processing => "bg-primary",
+        ConversionState.Completed => "bg-success",
+        ConversionState.Failed => "bg-danger",
+        _ => "bg-secondary"
+    };
+}

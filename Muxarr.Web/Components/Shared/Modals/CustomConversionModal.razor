@@ -1,0 +1,208 @@
+@using Muxarr.Core.Language
+@using Muxarr.Data.Entities
+@using Muxarr.Web.Components.Pages.Library
+
+<div class="modal-content">
+    <div class="modal-body">
+        <p class="mb-3">Select which tracks to keep and edit their names for the output file.</p>
+
+        @if (_validationError)
+        {
+            <div class="alert alert-danger py-2">
+                <i class="bi bi-exclamation-triangle me-2"></i>At least one audio track must be selected.
+            </div>
+        }
+
+        <table class="table table-sm align-middle">
+            <thead>
+                <tr>
+                    <th style="width: 40px;"></th>
+                    <th>ID</th>
+                    <th>Language</th>
+                    <th>Format</th>
+                    <th>Track Name</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var track in _editableTracks)
+                {
+                    var isVideo = track.Type == MediaTrackType.Video;
+                    var isChecked = _selectedTrackIds.Contains(track.TrackNumber);
+                    <tr class="@(!isChecked && !isVideo ? "opacity-50" : "")">
+                        <td>
+                            <input type="checkbox"
+                                   class="form-check-input"
+                                   checked="@isChecked"
+                                   disabled="@isVideo"
+                                   @onchange="() => ToggleTrack(track)"/>
+                        </td>
+                        <td>@track.TrackNumber</td>
+                        <td>
+                            @if (!isVideo)
+                            {
+                                <select class="form-select form-select-sm"
+                                        value="@track.LanguageName"
+                                        @onchange="e => OnLanguageChanged(track, e.Value?.ToString())">
+                                    @foreach (var lang in _languages)
+                                    {
+                                        <option value="@lang.Name">@lang.Name</option>
+                                    }
+                                </select>
+                            }
+                            else
+                            {
+                                <MediaTrackLabel Track="track"/>
+                            }
+                        </td>
+                        <td>
+                            <code>@track.Codec</code>
+                            @if (track.GetChannelLayout() is { } channels)
+                            {
+                                <span class="text-muted small ms-1">@channels</span>
+                            }
+                        </td>
+                        <td>
+                            @if (!isVideo)
+                            {
+                                <input type="text"
+                                       class="form-control form-control-sm"
+                                       placeholder="(none)"
+                                       value="@track.TrackName"
+                                       @onchange="e => track.TrackName = e.Value?.ToString()"/>
+                            }
+                            else
+                            {
+                                <span class="text-muted small">@track.TrackName</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="d-flex justify-content-between mt-3">
+            <div>
+                @if (_hasTemplate)
+                {
+                    <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ApplyProfileTemplate">
+                        <i class="bi bi-magic me-2"></i>Apply Profile Template
+                    </button>
+                }
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+                <button class="btn btn-primary" @onclick="Confirm">
+                    <i class="bi bi-check-lg me-2"></i>Add to Queue
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [CascadingParameter] public required BlazoredModalInstance BlazoredModal { get; set; }
+    [Parameter] public ICollection<MediaTrack> Tracks { get; set; } = new List<MediaTrack>();
+    [Parameter] public List<MediaTrack> DefaultAllowedTracks { get; set; } = new();
+    [Parameter] public Profile? Profile { get; set; }
+
+    private List<TrackSnapshot> _editableTracks = new();
+    private readonly HashSet<int> _selectedTrackIds = new();
+    private List<IsoLanguage> _languages = new();
+    private bool _validationError;
+    private bool _hasTemplate;
+
+    protected override void OnInitialized()
+    {
+        // Build language list: current track languages first, then all others.
+        var trackLanguages = Tracks
+            .Where(t => t.Type != MediaTrackType.Video)
+            .Select(t => t.LanguageName)
+            .Distinct()
+            .ToHashSet();
+
+        _languages = IsoLanguage.Languages
+            .OrderByDescending(l => trackLanguages.Contains(l.Name))
+            .ThenBy(l => l.Name)
+            .ToList();
+
+        // Create editable copies of all tracks so we don't mutate the originals.
+        _editableTracks = Tracks.Select(t => t.ToSnapshot()).ToList();
+
+        // Always include video tracks
+        foreach (var track in _editableTracks.Where(t => t.Type == MediaTrackType.Video))
+        {
+            _selectedTrackIds.Add(track.TrackNumber);
+        }
+
+        // Pre-select profile defaults
+        foreach (var track in DefaultAllowedTracks)
+        {
+            _selectedTrackIds.Add(track.TrackNumber);
+        }
+
+        _hasTemplate = Profile != null &&
+            (Profile.AudioSettings.StandardizeTrackNames || Profile.SubtitleSettings.StandardizeTrackNames);
+    }
+
+    private void ApplyProfileTemplate()
+    {
+        if (Profile == null)
+        {
+            return;
+        }
+
+        foreach (var track in _editableTracks)
+        {
+            if (track.Type == MediaTrackType.Audio && Profile.AudioSettings.StandardizeTrackNames)
+            {
+                track.TrackName = track.ApplyTrackNameTemplate(Profile.AudioSettings.TrackNameTemplate);
+            }
+            else if (track.Type == MediaTrackType.Subtitles && Profile.SubtitleSettings.StandardizeTrackNames)
+            {
+                track.TrackName = track.ApplyTrackNameTemplate(Profile.SubtitleSettings.TrackNameTemplate);
+            }
+        }
+    }
+
+    private void OnLanguageChanged(TrackSnapshot track, string? languageName)
+    {
+        if (string.IsNullOrEmpty(languageName))
+        {
+            return;
+        }
+
+        var iso = IsoLanguage.Find(languageName);
+        track.LanguageName = iso.Name;
+        track.LanguageCode = iso.ThreeLetterCode ?? track.LanguageCode;
+    }
+
+    private void ToggleTrack(TrackSnapshot track)
+    {
+        if (track.Type == MediaTrackType.Video)
+        {
+            return;
+        }
+
+        if (!_selectedTrackIds.Add(track.TrackNumber))
+        {
+            _selectedTrackIds.Remove(track.TrackNumber);
+        }
+
+        _validationError = false;
+    }
+
+    private async Task Cancel() => await BlazoredModal.CloseAsync(ModalResult.Cancel());
+
+    private async Task Confirm()
+    {
+        var hasAudio = _editableTracks.Any(t => t.Type == MediaTrackType.Audio && _selectedTrackIds.Contains(t.TrackNumber));
+        if (!hasAudio)
+        {
+            _validationError = true;
+            return;
+        }
+
+        var selectedTracks = _editableTracks.Where(t => _selectedTrackIds.Contains(t.TrackNumber)).ToList();
+        await BlazoredModal.CloseAsync(ModalResult.Ok(selectedTracks));
+    }
+}

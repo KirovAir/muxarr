@@ -1,0 +1,31 @@
+@page "/settings"
+@using Muxarr.Core.Api
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Settings")</PageTitle>
+
+<div class="container-fluid">
+    <h2 class="border-bottom pb-2 mb-4"><i class="bi bi-gear me-2"></i>Settings</h2>
+
+    <TabSet>
+        <Tab Title="Media Profiles">
+            <ProfileSettingsTab />
+        </Tab>
+
+        <Tab Title="*Arr Settings">
+            <ArrSettingsTab />
+        </Tab>
+
+        <Tab Title="Webhooks">
+            <WebhookSettingsTab />
+        </Tab>
+
+        <Tab Title="Post-Processing">
+            <PostProcessingSettingsTab />
+        </Tab>
+
+        <Tab Title="Security">
+            <AuthSettingsTab />
+        </Tab>
+    </TabSet>
+</div>

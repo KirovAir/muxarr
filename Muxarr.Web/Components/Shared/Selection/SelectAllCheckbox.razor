@@ -1,0 +1,31 @@
+﻿@typeparam TType where TType : class
+
+<div class="form-check">
+    <input type="checkbox"
+           class="form-check-input"
+           checked="@IsAllSelected"
+           @onchange="HandleSelectionChange" />
+</div>
+
+@code {
+	[Parameter, EditorRequired] public required SelectablePaginatedListComponent<TType> Parent { get; set; }
+
+	private bool IsAllSelected => Parent.Items.All(item => Parent.SelectedItems.Contains(item));
+
+	private async Task HandleSelectionChange(ChangeEventArgs args)
+	{
+		if (args.Value is not bool selected) {
+			return;
+		}
+
+		if (selected) {
+			foreach (var baseEntity in Parent.Items) {
+				Parent.SelectedItems.Add(baseEntity);
+			}
+		} else {
+			Parent.SelectedItems.Clear();
+		}
+
+		await Parent.OnSelectAll();
+	}
+}

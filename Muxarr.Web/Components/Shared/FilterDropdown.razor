@@ -1,0 +1,23 @@
+@using Muxarr.Core.Api
+
+<select class="form-select form-select-sm" style="width: auto;" value="@Value"
+        @onchange="OnChange">
+    <option value="">@Placeholder</option>
+    @foreach (var item in Items)
+    {
+        <option value="@item.Label">@item.Label (@item.Count)</option>
+    }
+</select>
+
+@code {
+    [Parameter, EditorRequired] public string Placeholder { get; set; } = "";
+    [Parameter] public string Value { get; set; } = "";
+    [Parameter] public EventCallback<string> ValueChanged { get; set; }
+    [Parameter] public List<DistributionEntry> Items { get; set; } = [];
+
+    private async Task OnChange(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString() ?? "";
+        await ValueChanged.InvokeAsync(val);
+    }
+}

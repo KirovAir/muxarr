@@ -1,0 +1,168 @@
+@using System.IO
+@using Microsoft.Extensions.Caching.Memory
+
+<div>
+    @foreach (var directory in Directories)
+    {
+        <div class="input-group mb-2">
+            <input type="text" class="form-control" value="@directory"
+                   @onchange="@(e => UpdateDirectory(directory, e.Value!.ToString()!))" />
+            <button type="button" class="btn btn-outline-secondary" @onclick="@(() => OpenDirectoryPicker(directory))">
+                <i class="bi bi-folder2-open"></i>
+            </button>
+            <button type="button" class="btn btn-outline-danger" @onclick="@(() => RemoveDirectory(directory))">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    }
+    <button type="button" class="btn btn-outline-primary" @onclick="AddDirectory">Add Directory</button>
+</div>
+
+@if (_showDirectoryPicker)
+{
+    <div class="modal fade show" style="display: block;" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Select Directory</h5>
+                    <button type="button" class="btn-close" @onclick="CloseDirectoryPicker"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" value="@_currentDirectory"
+                               @onchange="@(e => NavigateDirectory(e.Value!.ToString()!))"
+                               @onkeydown="@HandleKeyPress"
+                               placeholder="Enter path or browse directories" />
+                        <button class="btn btn-outline-secondary" type="button"
+                                @onclick="@(() => NavigateDirectory(_currentDirectory))">
+                            <i class="bi bi-arrow-repeat"></i>
+                        </button>
+                    </div>
+                    <div class="directory-list" style="height: 400px; overflow-y: auto;">
+                        <div class="list-group">
+                            @if (_currentDirectory != null)
+                            {
+                                var parentDir = Path.GetDirectoryName(_currentDirectory);
+                                <button type="button"
+                                        class="list-group-item list-group-item-action d-flex align-items-center"
+                                        @onclick="() => NavigateDirectory(parentDir)">
+                                    <i class="bi bi-arrow-up me-2"></i>
+                                    ..
+                                </button>
+                            }
+                            @foreach (var dir in _currentDirectories)
+                            {
+                                <button type="button"
+                                        class="list-group-item list-group-item-action d-flex align-items-center"
+                                        @onclick="() => NavigateDirectory(dir)">
+                                    <i class="bi bi-folder-fill me-2"></i>
+                                    @(!string.IsNullOrWhiteSpace(_currentDirectory) ? Path.GetFileName(dir) : dir)
+                                </button>
+                            }
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CloseDirectoryPicker">Cancel</button>
+                    <button type="button" class="btn btn-primary" @onclick="SelectCurrentDirectory">Select Directory</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+}
+
+@code {
+    [Parameter] public List<string> Directories { get; set; } = new();
+    [Parameter] public EventCallback<List<string>> DirectoriesChanged { get; set; }
+    [Inject] public required IMemoryCache Cache { get; set; }
+
+    private bool _showDirectoryPicker;
+    private string? _currentDirectory;
+    private string? _directoryToUpdate;
+    private List<string> _currentDirectories = new();
+
+    private async Task AddDirectory()
+    {
+        if (Directories.Any(string.IsNullOrEmpty))
+        {
+            return;
+        }
+        Directories.Add(string.Empty);
+        OpenDirectoryPicker(string.Empty);
+        await DirectoriesChanged.InvokeAsync(Directories);
+    }
+
+    private void HandleKeyPress(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            NavigateDirectory(_currentDirectory);
+        }
+    }
+
+    private async Task RemoveDirectory(string directory)
+    {
+        Directories.Remove(directory);
+        await DirectoriesChanged.InvokeAsync(Directories);
+    }
+
+    private async Task UpdateDirectory(string oldDirectory, string newDirectory)
+    {
+        var index = Directories.IndexOf(oldDirectory);
+        if (index != -1)
+        {
+            Directories[index] = newDirectory;
+            await DirectoriesChanged.InvokeAsync(Directories);
+        }
+    }
+
+    private void OpenDirectoryPicker(string directory)
+    {
+        _directoryToUpdate = directory;
+        _showDirectoryPicker = true;
+        NavigateDirectory(directory);
+    }
+
+    private void CloseDirectoryPicker()
+    {
+        _showDirectoryPicker = false;
+        _currentDirectory = null;
+        _directoryToUpdate = null;
+    }
+
+    private void NavigateDirectory(string? directory)
+    {
+        try
+        {
+            _currentDirectory = directory;
+            if (string.IsNullOrEmpty(directory))
+            {
+                _currentDirectories = DriveInfo.GetDrives()
+                    .Where(d => d.IsReady)
+                    .Select(d => d.RootDirectory.FullName)
+                    .ToCachedList(Cache, nameof(DriveInfo), TimeSpan.FromMinutes(1)); // This operation can be expensive.
+            }
+            else if (Directory.Exists(directory))
+            {
+                _currentDirectories = Directory.GetDirectories(directory)
+                    .Where(x => !Path.GetFileName(x).StartsWith("."))
+                    .OrderBy(d => d)
+                    .ToList();
+            }
+        }
+        catch (UnauthorizedAccessException)
+        {
+            _currentDirectories = new List<string>();
+        }
+    }
+
+    private async Task SelectCurrentDirectory()
+    {
+        if (_currentDirectory != null && _directoryToUpdate != null)
+        {
+            await UpdateDirectory(_directoryToUpdate, _currentDirectory);
+        }
+        CloseDirectoryPicker();
+    }
+}

@@ -1,0 +1,31 @@
+﻿@inject IHttpContextAccessor HttpContextAccessor
+
+@{
+    var isLoginPage = HttpContextAccessor.HttpContext?.Request.Path.StartsWithSegments("/login") == true;
+    IComponentRenderMode? renderMode = isLoginPage ? null : InteractiveServer;
+    var v = AppInfo.Version;
+}
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <base href="/"/>
+    <link rel="stylesheet" href="lib/bootstrap/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="lib/bootstrap-icons/font/bootstrap-icons.min.css"/>
+    <link rel="stylesheet" href="@Assets["app.css"]"/>
+    <link rel="stylesheet" href="@Assets["Muxarr.Web.styles.css"]"/>
+    <link rel="icon" type="image/png" href="favicon.png?v=@v"/>
+    <link rel="apple-touch-icon" href="apple-touch-icon.png?v=@v"/>
+    <HeadOutlet @rendermode="renderMode"/>
+</head>
+
+<body>
+<Routes @rendermode="renderMode" />
+<script src="_framework/blazor.web.js"></script>
+<script src="lib/bootstrap/js/bootstrap.bundle.min.js"></script>
+</body>
+
+</html>

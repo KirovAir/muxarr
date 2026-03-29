@@ -1,0 +1,89 @@
+﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+
+<BlazoredToasts />
+
+<CascadingBlazoredModal>
+<div class="mux-page-wrapper" data-bs-theme="@(IsDarkMode ? "dark" : "light")">
+    <CascadingValue Value="this">
+        <!-- Mobile Header -->
+        <div class="mux-mobile-header d-md-none">
+            <button class="btn btn-link text-light p-2" @onclick="ToggleNavMenu">
+                <i class="bi bi-list fs-4"></i>
+            </button>
+            <div class="d-flex align-items-center gap-2">
+                <img src="logo.png?v=@AppInfo.Version" alt="Muxarr" class="mux-logo"/>
+                <span class="text-light fw-semibold">Muxarr</span>
+            </div>
+            <div class="d-flex align-items-center">
+                <button class="btn btn-link text-light p-2" @onclick="ToggleTheme">
+                    <i class="bi @(IsDarkMode ? "bi-sun" : "bi-moon")"></i>
+                </button>
+                @if (_isAuthenticated)
+                {
+                    <form method="post" action="/api/auth/logout">
+                        <button type="submit" class="btn btn-link text-light p-2" title="Sign out">
+                            <i class="bi bi-box-arrow-right"></i>
+                        </button>
+                    </form>
+                }
+            </div>
+        </div>
+
+        <NavMenu @ref="navMenu" />
+        <main class="mux-main-content">
+            <div class="container-fluid">
+                @Body
+            </div>
+        </main>
+    </CascadingValue>
+</div>
+</CascadingBlazoredModal>
+
+<div id="blazor-error-ui" class="mux-error-ui">
+    <div class="alert alert-warning m-0 rounded-0">
+        <div class="container-fluid d-flex align-items-center">
+            <div class="flex-grow-1">An unhandled error has occurred.</div>
+            <a href="" class="btn btn-warning btn-sm mx-2">Reload</a>
+            <button class="btn-close" data-dismiss="alert" aria-label="Close"></button>
+        </div>
+    </div>
+</div>
+
+@code {
+    public bool IsDarkMode { get; set; }
+    private bool _isAuthenticated;
+    private NavMenu? navMenu;
+
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public AuthenticationStateProvider? AuthStateProvider { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        IsDarkMode = context.Configs.Get<bool>("DarkMode");
+
+        if (AuthStateProvider != null)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        }
+    }
+    
+    public async Task ToggleTheme()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        IsDarkMode = !IsDarkMode;
+        context.Configs.Set(IsDarkMode,"DarkMode");
+        await context.SaveChangesAsync();
+        StateHasChanged();
+    }
+    
+    private void ToggleNavMenu()
+    {
+        if (navMenu is not null)
+        {
+            navMenu.ToggleMobileMenu();
+        }
+    }
+}

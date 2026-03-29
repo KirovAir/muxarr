@@ -1,0 +1,9 @@
+﻿<div class="progress mt-1" style="height: 1.2rem;">
+    <div class="progress-bar px-2 d-flex align-items-center justify-content-center" role="progressbar" style="width: @(Conversion.Progress)%">
+        @(Conversion.Progress)%
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required MediaConversion Conversion { get; set; }
+}

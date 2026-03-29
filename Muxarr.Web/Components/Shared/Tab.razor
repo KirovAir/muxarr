@@ -1,0 +1,21 @@
+@code {
+    [CascadingParameter] private TabSet Parent { get; set; } = null!;
+    [Parameter, EditorRequired] public required string Title { get; set; } = "";
+    [Parameter] public RenderFragment ChildContent { get; set; } = null!;
+    public string Name => Title.ToLower().Replace(" ", "");
+    
+    protected override void OnInitialized()
+    {
+        if (Parent == null)
+            throw new Exception("Tab must exist within a TabSet");
+        
+        Parent.AddTab(this);
+    }
+}
+
+<div class="tab-pane fade @(Parent.ActiveTab == Name ? "show active" : "")"
+     id="@Name"
+     role="tabpanel"
+     aria-labelledby="@($"{Name}-tab")">
+    @ChildContent
+</div>

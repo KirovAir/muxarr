@@ -1,0 +1,207 @@
+@page "/conversions/{Id:int}"
+@using Muxarr.Web.Components.Pages.Library
+@inherits DisposableComponent
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Conversion Details")</PageTitle>
+
+<div class="container-fluid">
+    @if (Conversion == null)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Conversion not found
+        </div>
+        return;
+    }
+
+    <nav class="mb-2">
+        <a href="/conversions" class="text-muted small text-decoration-none">
+            <i class="bi bi-arrow-left me-1"></i>Conversions
+        </a>
+    </nav>
+    <h2 class="border-bottom pb-3 mb-4">
+        <i class="bi bi-arrow-repeat me-2"></i>@Conversion.Name
+    </h2>
+
+
+
+    <div class="row g-4">
+        <!-- Progress -->
+        @if (Conversion.State == ConversionState.Processing)
+        {
+            <div class="col-md-12">
+                <div class="border rounded p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="text-primary spinner-border me-2"></i>
+                        <h5 class="mb-0">Converting..</h5>
+                    </div>
+                    <ConversionProgressBar Conversion="Conversion" />
+                </div>
+            </div>
+        }
+        
+        <!-- Conversion Status -->
+        <div class="col-md-12">
+            <div class="border rounded p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-info-circle text-primary me-2"></i>
+                    <h5 class="mb-0">Conversion Info</h5>
+                </div>
+
+                <div class="row g-3">
+                    <!-- Status Column -->
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="text-muted small mb-1">Status</div>
+                        <div class="d-flex align-items-center">
+                            <ConversionStateBadge Conversion="Conversion"/>
+                        </div>
+                        <div class="mt-3">
+                            <div class="text-muted small mb-1">File</div>
+                            @if (Conversion.MediaFile != null)
+                            {
+                                <a href="" class="small" @onclick="@NavigateToFile">@(Path.GetFileName(Conversion.MediaFile?.Path))</a>
+                            }
+                            else
+                            {
+                                <span>File not found.</span>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Dates Column -->
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Started</div>
+                            <TimeAgo DateTime="Conversion.CreatedDate"/>
+                        </div>
+                        <div>
+                            <div class="text-muted small mb-1">Last Updated</div>
+                            <TimeAgo DateTime="Conversion.UpdatedDate"/>
+                        </div>
+                    </div>
+
+                    <!-- Size Information Column -->
+                    <div class="col-12 col-md-6 col-lg-4">
+                        <div class="mb-3">
+                            <div class="text-muted small mb-1">Size Before</div>
+                            <FileSize SizeInBytes="Conversion.SizeBefore"/>
+                        </div>
+                        @if (Conversion.State == ConversionState.Completed)
+                        {
+                            <div>
+                                <div class="text-muted small mb-1">Size After</div>
+                                <div>
+                                    <FileSize SizeInBytes="Conversion.SizeAfter"/>
+                                    <span
+                                        class="text-success ms-2">(@Conversion.GetSizeChangePercentage() change)</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tracks Information -->
+        <div class="col-md-6">
+            <div class="border rounded p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-collection text-primary me-2"></i>
+                    <h5 class="mb-0">Tracks Before</h5>
+                </div>
+                <div class="table-responsive">
+                    <MediaTrackDetailTable Tracks="Conversion.TracksBefore"
+                                           OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="border rounded p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-collection-fill text-primary me-2"></i>
+                    <h5 class="mb-0">Tracks After</h5>
+                </div>
+                <div class="table-responsive">
+                    <MediaTrackDetailTable Tracks="Conversion.TracksAfter"
+                                           OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
+                </div>
+            </div>
+        </div>
+
+        <!-- Conversion Log -->
+        <div class="col-md-12">
+            <div class="border rounded p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-terminal text-primary me-2"></i>
+                    <h5 class="mb-0">Conversion Log</h5>
+                </div>
+                <div class="border rounded">
+                    <pre class="m-0 p-3 small bg-body-secondary"
+                         style="height: 500px;"><code>@Conversion.Log</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+    [Inject] public required MediaConverterService MediaConverter { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    [Parameter] public int Id { get; set; }
+
+    protected MediaConversion? Conversion { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        MediaConverter.ConverterStateChanged += OnConverterStateChanged;
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        Conversion = await context.MediaConversions
+            .AsNoTracking()
+            .Include(x => x.MediaFile)
+            .FirstOrDefaultAsync(f => f.Id == Id);
+    }
+
+    private void NavigateToFile()
+    {
+        NavigationManager.NavigateTo($"/library/{Conversion!.MediaFileId}");
+    }
+
+    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (Conversion == null || e.Conversion.Id != Conversion.Id)
+            {
+                return;
+            }
+
+            if (e.Conversion is { State: ConversionState.Completed, MediaFile: not null })
+            {
+                Conversion.SizeAfter = e.Conversion.MediaFile.Size;
+                Conversion.TracksAfter = e.Conversion.MediaFile.Tracks.ToSnapshots();
+                Conversion.SizeDifference = e.Conversion.SizeDifference;
+                ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
+            }
+
+            Conversion.Log = e.Conversion.Log;
+            Conversion.Progress = e.Conversion.Progress;
+            Conversion.State = e.Conversion.State;
+
+            StateHasChanged();
+        });
+    }
+
+    public override void Dispose()
+    {
+        MediaConverter.ConverterStateChanged -= OnConverterStateChanged;
+        base.Dispose();
+    }
+
+}

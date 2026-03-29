@@ -1,0 +1,131 @@
+@attribute [StreamRendering]
+
+<p class="text-muted">Manage your media profiles and configurations. Each profile can have its own set of directories and scanning rules.</p>
+@if (Profiles.Count == 0)
+{
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle me-2"></i>
+        No profiles found. Click "Add Profile" to create one.
+    </div>
+}
+else
+{
+    <table class="table table-striped">
+        <thead>
+        <tr>
+            <th>Name</th>
+            <th>Directories</th>
+            <th>Video</th>
+            <th>Allowed Audio</th>
+            <th>Allowed Subtitles</th>
+            <th class="text-center text-nowrap" style="width: 140px">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        @foreach (var profile in Profiles)
+        {
+            <tr>
+                <td>@profile.Name</td>
+                <td>
+                    <DirectoryDisplay Directories="profile.Directories" />
+                </td>
+                <td>
+                    @if (profile.ClearVideoTrackNames)
+                    {
+                        <ToolTip Tip="Video track names will be cleared">
+                            <span class="badge text-bg-warning me-1">
+                                <i class="bi bi-x-lg me-1"></i>
+                                <i class="bi bi-fonts"></i>
+                            </span>
+                        </ToolTip>
+                    }
+                    else
+                    {
+                        <ToolTip Tip="Video tracks are unmodified">
+                            <span class="badge text-bg-success me-1">Unmodified</span>
+                        </ToolTip>
+                    }
+                </td>
+                <td>
+                    <TrackSettingsDisplay Settings="@profile.AudioSettings"/>
+                </td>
+                <td>
+                    <TrackSettingsDisplay Settings="@profile.SubtitleSettings"/>
+                </td>
+                <td class="text-center text-nowrap">
+                    <div class="btn-group btn-group-sm">
+                        <a class="btn btn-outline-primary" title="Edit"
+                           href="/settings/profile/@profile.Id">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <button class="btn btn-outline-secondary" title="Clone"
+                                @onclick="() => CloneProfile(profile)">
+                            <i class="bi bi-copy"></i>
+                        </button>
+                        <button class="btn btn-outline-danger" title="Delete"
+                                @onclick="() => DeleteProfile(profile)">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+<StickyBar>
+    <a class="btn btn-primary" href="/settings/profile/new">
+        <i class="bi bi-plus-lg me-2"></i>Add Profile
+    </a>
+</StickyBar>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+    [CascadingParameter] public required IModalService Modal { get; set; }
+
+    private List<Profile> Profiles { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        Profiles = await context.Profiles.ToListAsync().ConfigureAwait(false);
+    }
+
+    private async Task CloneProfile(Profile profile)
+    {
+        if (!await Modal.ShowConfirm($"Clone profile '{profile.Name}'?"))
+        {
+            return;
+        }
+
+        var clone = profile.Clone();
+        clone.Id = 0;
+        clone.Name = $"{profile.Name} (Copy)";
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        context.Add(clone);
+        await context.SaveChangesAsync();
+        Profiles.Add(clone);
+
+        ToastService.ShowSuccess($"Profile '{clone.Name}' created.");
+    }
+
+    private async Task DeleteProfile(Profile profile)
+    {
+        if (!await Modal.ShowConfirm($"Delete profile '{profile.Name}'? All associated media files will also be removed."))
+        {
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        Profiles.Remove(profile);
+        if (profile.Id > 0)
+        {
+            await context.Profiles.Where(x => x.Id == profile.Id).ExecuteDeleteAsync();
+            await context.SaveChangesAsync();
+        }
+        ToastService.ShowWarning($"Profile '{profile.Name}' deleted.");
+    }
+}

@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net9.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+        <Version>0.1.0</Version>
+    </PropertyGroup>
+
+<ItemGroup>
+      <ProjectReference Include="..\Muxarr.Core\Muxarr.Core.csproj" />
+      <ProjectReference Include="..\Muxarr.Data\Muxarr.Data.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <_ContentIncludedByDefault Remove="wwwroot\bootstrap\bootstrap.min.css" />
+      <_ContentIncludedByDefault Remove="wwwroot\bootstrap\bootstrap.min.css.map" />
+      <_ContentIncludedByDefault Remove="Components\Shared\Pagination\Pagination.razor" />
+      <_ContentIncludedByDefault Remove="Components\Shared\Pagination\PaginationItem.razor" />
+      <_ContentIncludedByDefault Remove="Components\Pages\Profiles\Index.razor" />
+      <_ContentIncludedByDefault Remove="Components\Shared\Selectable\SelectAllCheckbox.razor" />
+      <_ContentIncludedByDefault Remove="Components\Shared\Selectable\SelectionCheckbox.razor" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Blazored.Modal" />
+      <PackageReference Include="Blazored.Toast" />
+      <PackageReference Include="Microsoft.Web.LibraryManager.Build" />
+      <PackageReference Include="Serilog.AspNetCore" />
+    </ItemGroup>
+
+</Project>

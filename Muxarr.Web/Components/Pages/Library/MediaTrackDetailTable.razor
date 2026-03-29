@@ -1,0 +1,54 @@
+﻿<table class="table table-sm">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Language</th>
+            <th>Format</th>
+            <th>Info</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var track in Tracks)
+        {
+            <MediaTrackDetail Track="track"
+                              IsAllowed="AllowedTracks == null || track.Type == MediaTrackType.Video || track.IsAllowed(AllowedTracks)"
+                              OriginalLanguage="@OriginalLanguage"
+                              ExpectedTrackName="@GetExpectedName(track)"/>
+        }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired]
+    public IEnumerable<IMediaTrack> Tracks { get; set; } = default!;
+
+    [Parameter]
+    public IEnumerable<IMediaTrack>? AllowedTracks { get; set; }
+
+    [Parameter, EditorRequired]
+    public string? OriginalLanguage { get; set; }
+
+    [Parameter]
+    public Profile? Profile { get; set; }
+
+    private string? GetExpectedName(IMediaTrack track)
+    {
+        if (Profile == null)
+        {
+            return null;
+        }
+
+        if (track.Type == MediaTrackType.Video)
+        {
+            return Profile.ClearVideoTrackNames ? "" : null;
+        }
+
+        var settings = track.Type == MediaTrackType.Audio
+            ? Profile.AudioSettings
+            : Profile.SubtitleSettings;
+
+        return settings.StandardizeTrackNames
+            ? track.ApplyTrackNameTemplate(settings.TrackNameTemplate)
+            : null;
+    }
+}

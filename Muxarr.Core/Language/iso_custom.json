@@ -1,0 +1,11 @@
+[
+  { "threeLetterCodes": ["frc"], "twoLetterCode": "fr-ca", "name": "French (Canada)", "nativeName": "Français (Canada)" },
+  { "threeLetterCodes": ["pob"], "twoLetterCode": "pt-br", "name": "Portuguese (Brazil)", "nativeName": "Português (Brasil)" },
+  { "threeLetterCodes": ["pop"], "twoLetterCode": "pt-pt", "name": "Portuguese (Portugal)", "nativeName": "Português (Portugal)" },
+  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "ze", "name": "Chinese (Bilingual)", "nativeName": "中文" },
+  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "zh-tw", "name": "Chinese (Traditional)", "nativeName": "中文（繁體）" },
+  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "zh-hk", "name": "Chinese (Hong Kong)", "nativeName": "中文（香港）" },
+  { "threeLetterCodes": ["spa"], "twoLetterCode": "es-mx", "name": "Spanish (Latin America)", "nativeName": "Español (Latinoamérica)" },
+  { "threeLetterCodes": ["cmn"], "name": "Mandarin Chinese", "nativeName": "普通话" },
+  { "threeLetterCodes": ["yue"], "name": "Cantonese", "nativeName": "廣東話" }
+]

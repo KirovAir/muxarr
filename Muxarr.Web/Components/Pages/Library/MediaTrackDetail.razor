@@ -1,0 +1,56 @@
+﻿<tr>
+    <td>
+        @Track.TrackNumber
+    </td>
+    <td>
+        <MediaTrackLabel Track="Track"></MediaTrackLabel>
+
+        @if (Track.LanguageName == OriginalLanguage)
+        {
+            <ToolTip Tip="Original Language">
+                <i class="bi bi-star-fill text-warning ms-2"></i>
+            </ToolTip>
+        }
+        @if (!IsAllowed)
+        {
+            <ToolTip Tip="Redundant track - will be removed">
+                <i class="bi bi-x-circle-fill text-danger ms-2"></i>
+            </ToolTip>
+        }
+    </td>
+    <td><code>@Track.Codec</code>@if (Track.GetChannelLayout() is { } channels) {<span class="text-muted small ms-1">@channels</span>}</td>
+    <td>
+        @if (HasMetadataChange)
+        {
+            <ToolTip Tip="@MetadataChangeTip">
+                <i class="bi bi-pencil-square text-info me-2"></i>
+            </ToolTip>
+        }
+        @if (!string.IsNullOrEmpty(Track.TrackName))
+        {
+            <span class="text-muted small me-2 @(HasMetadataChange ? "text-decoration-line-through" : "")">@Track.TrackName</span>
+        }
+        @if (HasMetadataChange && !string.IsNullOrEmpty(ExpectedTrackName))
+        {
+            <span class="small text-info">@ExpectedTrackName</span>
+        }
+    </td>
+</tr>
+
+@code {
+    [Parameter, EditorRequired] public IMediaTrack Track { get; set; } = default!;
+
+    [Parameter, EditorRequired] public bool IsAllowed { get; set; }
+
+    [Parameter, EditorRequired] public string? OriginalLanguage { get; set; }
+
+    [Parameter] public string? ExpectedTrackName { get; set; }
+
+    private bool HasMetadataChange =>
+        IsAllowed && ExpectedTrackName != null &&
+        !string.Equals(Track.TrackName ?? "", ExpectedTrackName, StringComparison.Ordinal);
+
+    private string MetadataChangeTip => string.IsNullOrEmpty(ExpectedTrackName)
+        ? "Track name will be cleared"
+        : $"Track name will be renamed to: {ExpectedTrackName}";
+}

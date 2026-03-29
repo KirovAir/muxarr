@@ -1,0 +1,70 @@
+@using Muxarr.Core.Api
+
+@if (Items.Count > 0)
+{
+    <div class="card h-100">
+        <div class="card-header">
+            <i class="bi @Icon me-2"></i>@Title
+        </div>
+        <div class="card-body p-0">
+            <div class="list-group list-group-flush">
+                @foreach (var item in _displayItems)
+                {
+                    <div class="list-group-item px-3 py-2 @(_clickable ? "list-group-item-action" : "")"
+                         style="@(_clickable ? "cursor: pointer;" : "")"
+                         @onclick="() => HandleClick(item.Label)">
+                        <div class="d-flex justify-content-between align-items-center mb-1">
+                            <span class="small fw-medium">@item.Label</span>
+                            <span class="small text-muted">@item.Count</span>
+                        </div>
+                        <div class="progress" style="height: 6px;">
+                            <div class="progress-bar" role="progressbar"
+                                 style="width: @(item.Percentage.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture))%">
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public string Icon { get; set; } = "bi-bar-chart";
+    [Parameter] public List<DistributionEntry> Items { get; set; } = [];
+    [Parameter] public int MaxItems { get; set; } = 10;
+    [Parameter] public EventCallback<string> OnItemClick { get; set; }
+
+    private List<DisplayItem> _displayItems = [];
+    private bool _clickable;
+
+    protected override void OnParametersSet()
+    {
+        _clickable = OnItemClick.HasDelegate;
+        var total = Items.Sum(e => e.Count);
+        _displayItems = total == 0
+            ? []
+            : Items.Take(MaxItems).Select(e => new DisplayItem
+            {
+                Label = e.Label,
+                Count = e.Count,
+                Percentage = (double)e.Count / total * 100
+            }).ToList();
+    }
+
+    private async Task HandleClick(string label)
+    {
+        if (_clickable)
+        {
+            await OnItemClick.InvokeAsync(label);
+        }
+    }
+
+    private class DisplayItem
+    {
+        public required string Label { get; set; }
+        public int Count { get; set; }
+        public double Percentage { get; set; }
+    }
+}

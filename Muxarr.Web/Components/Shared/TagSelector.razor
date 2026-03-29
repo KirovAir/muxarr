@@ -1,0 +1,45 @@
+@using Muxarr.Core.Language
+@typeparam TItem where TItem : class
+
+<div class="form-control tagselector-control">
+    @foreach (var item in SelectedItems)
+    {
+        <span class="badge bg-light text-dark tagselector-tag">
+         @TagTemplate(item)
+            <span class="tagselector-removebutton" role="button"><i class="tagselector-icon bi bi-x-lg" @onclick="() => OnRemove(item)"></i></span>
+        </span>
+    }
+
+    <AutoComplete SearchInput="@SearchInput" TItem="TItem" OnSearchInput="OnSearchInput" OnSelectItem="OnSelect">
+        <ListTemplate>@ListTemplate(context)</ListTemplate>
+    </AutoComplete>
+
+
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required RenderFragment<TItem> ListTemplate { get; set; }
+
+    [Parameter, EditorRequired] public required RenderFragment<TItem> TagTemplate { get; set; }
+
+    [Parameter, EditorRequired] public required List<TItem> SelectedItems { get; set; }
+
+    [Parameter, EditorRequired] public required Func<string, Task<List<TItem>>> OnSearchInput { get; set; }
+
+    public required string SearchInput { get; set; }
+
+    private void OnSelect(TItem item)
+    {
+        SearchInput = string.Empty;
+        if (!SelectedItems.Exists(x => x == item))
+        {
+            SelectedItems.Add(item);
+        }
+    }
+
+    private void OnRemove(TItem item)
+    {
+        SelectedItems.Remove(item);
+    }
+
+}

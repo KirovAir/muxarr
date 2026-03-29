@@ -1,0 +1,19 @@
+.autocomplete {
+    position: relative;
+    flex-grow: 1;
+    flex-basis: 3em;
+}
+
+.autocomplete input {
+    width: 100%;
+}
+
+.dropdown-menu {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+}

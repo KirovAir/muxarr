@@ -1,0 +1,100 @@
+@using Muxarr.Web.Attributes
+@typeparam TItem
+@attribute [type: RenderModeInteractiveServer]
+
+
+<div class="autocomplete">
+    <input @bind="@SearchInput"
+           @oninput="HandleInput"
+           @onkeydown="HandleKeyDown"
+           @onclick:preventDefault
+           class="form-control"
+           type="text" />
+    @if (ItemList is not null)
+    {
+        <div class="dropdown-menu show">
+            @if (ItemList.Any())
+            {
+                @for (var i = 0; i < ItemList.Count(); i++)
+                {
+                    var item = ItemList.ElementAt(i);
+                    var isSelected = i == _selectedIndex;
+                    <button type="button"
+                            class="dropdown-item @(isSelected ? "active" : "")"
+                            @onclick="() => SelectItem(item)"
+                            @onclick:preventDefault>
+                        @ListTemplate(item)
+                    </button>
+                }
+            }
+            else
+            {
+                <span class="dropdown-item disabled">No results</span>
+            }
+        </div>
+    }
+</div>
+
+
+
+@code {
+    private IEnumerable<TItem>? ItemList { get; set; }
+
+    [Parameter, EditorRequired] public required RenderFragment<TItem> ListTemplate { get; set; }
+
+    [Parameter, EditorRequired] public EventCallback<TItem> OnSelectItem { get; set; }
+
+    [Parameter, EditorRequired] public required Func<string, Task<List<TItem>>> OnSearchInput { get; set; }
+    
+    [Parameter, EditorRequired] public required string SearchInput { get; set; }
+    
+    private int _selectedIndex = -1;
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (ItemList == null || !ItemList.Any()) return;
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                _selectedIndex = Math.Min(_selectedIndex + 1, ItemList.Count() - 1);
+                break;
+
+            case "ArrowUp":
+                _selectedIndex = Math.Max(_selectedIndex - 1, 0);
+                break;
+
+            case "Enter" when _selectedIndex >= 0:
+                var selectedItem = ItemList.ElementAt(_selectedIndex);
+                await SelectItem(selectedItem);
+                break;
+
+            case "Escape":
+                ItemList = null;
+                _selectedIndex = -1;
+                break;
+        }
+    }
+
+    private async Task HandleInput(ChangeEventArgs e)
+    {
+        var filter = e.Value?.ToString();
+        if (filter?.Length > 0)
+        {
+            ItemList = await OnSearchInput.Invoke(filter);
+            _selectedIndex = -1; // Reset selection when input changes
+        }
+        else
+        {
+            ItemList = null;
+            _selectedIndex = -1;
+        }
+    }
+
+    private async Task SelectItem(TItem item)
+    {
+        ItemList = null;
+        _selectedIndex = -1;
+        await OnSelectItem.InvokeAsync(item);
+    }
+}

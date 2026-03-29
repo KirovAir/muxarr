@@ -1,0 +1,173 @@
+@page "/settings/profile/{Id:int}"
+@page "/settings/profile/new"
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle(_profile?.Name ?? "Profile")</PageTitle>
+
+<div class="container-fluid">
+    @if (_profile == null)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Profile not found
+        </div>
+        return;
+    }
+
+    <nav class="mb-2">
+        <a href="/settings" class="text-muted small text-decoration-none">
+            <i class="bi bi-arrow-left me-1"></i>Settings
+        </a>
+    </nav>
+    <h2 class="border-bottom pb-3 mb-4">
+        <i class="bi bi-sliders me-2"></i>@(IsNew ? "New Profile" : $"Edit Profile: {_profile.Name}")
+    </h2>
+
+    <EditForm Model="_profile">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+
+        <div class="row">
+            <!-- Vertical nav -->
+            <div class="col-md-3 col-lg-2 mb-3 mb-md-0">
+                <div class="nav flex-column nav-pills" role="tablist">
+                    <button type="button"
+                            class="nav-link text-start @(_tab == "general" ? "active" : "")"
+                            @onclick='() => _tab = "general"'>
+                        <i class="bi bi-gear me-2"></i>General
+                    </button>
+                    <button type="button"
+                            class="nav-link text-start @(_tab == "video" ? "active" : "")"
+                            @onclick='() => _tab = "video"'>
+                        <i class="bi bi-film me-2"></i>Video
+                    </button>
+                    <button type="button"
+                            class="nav-link text-start @(_tab == "audio" ? "active" : "")"
+                            @onclick='() => _tab = "audio"'>
+                        <i class="bi bi-volume-up me-2"></i>Audio
+                    </button>
+                    <button type="button"
+                            class="nav-link text-start @(_tab == "subtitles" ? "active" : "")"
+                            @onclick='() => _tab = "subtitles"'>
+                        <i class="bi bi-chat-text me-2"></i>Subtitles
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab content -->
+            <div class="col-md-9 col-lg-10">
+                <div class="border rounded p-4">
+                    @if (_tab == "general")
+                    {
+                        <h5 class="mb-3"><i class="bi bi-gear text-primary me-2"></i>General</h5>
+                        <div class="mb-3">
+                            <label for="profile-name" class="form-label">Profile Name</label>
+                            <InputText id="profile-name" class="form-control" @bind-Value="_profile.Name" />
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Monitored Directories</label>
+                            <DirectoryEditor @bind-Directories="_profile.Directories" />
+                            <small class="form-text text-muted">Directories to scan for media files using this profile.</small>
+                        </div>
+                    }
+                    else if (_tab == "video")
+                    {
+                        <h5 class="mb-3"><i class="bi bi-film text-primary me-2"></i>Video Settings</h5>
+                        <div class="mb-3 form-check form-switch">
+                            <InputCheckbox id="clearVideoNames" class="form-check-input" @bind-Value="_profile.ClearVideoTrackNames" />
+                            <label class="form-check-label" for="clearVideoNames">Clear video track names</label>
+                            <small class="form-text text-muted d-block">Remove release group branding and other junk from video track descriptions during conversion.</small>
+                        </div>
+                    }
+                    else if (_tab == "audio")
+                    {
+                        <h5 class="mb-3"><i class="bi bi-volume-up text-primary me-2"></i>Audio Settings</h5>
+                        <TrackSettingsEditor Settings="_profile.AudioSettings" TrackType="Audio" />
+                    }
+                    else if (_tab == "subtitles")
+                    {
+                        <h5 class="mb-3"><i class="bi bi-chat-text text-primary me-2"></i>Subtitle Settings</h5>
+                        <TrackSettingsEditor Settings="_profile.SubtitleSettings" TrackType="Subtitle" />
+                    }
+                </div>
+            </div>
+        </div>
+
+        <StickyBar>
+            <button type="button" class="btn btn-primary" @onclick="Save">
+                <i class="bi bi-save me-2"></i>Save Profile
+            </button>
+        </StickyBar>
+    </EditForm>
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required IModalService ModalService { get; set; }
+    [Inject] public required MediaScannerService MediaScanner { get; set; }
+
+    [Parameter] public int Id { get; set; }
+
+    private Profile? _profile;
+    private string _tab = "general";
+    private bool IsNew => Id == 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (IsNew)
+        {
+            _profile = new Profile
+            {
+                Name = "New Profile",
+                AudioSettings = { AssumeUndeterminedIsOriginal = true }
+            };
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var original = await context.Profiles.FirstOrDefaultAsync(p => p.Id == Id);
+        _profile = original?.Clone();
+    }
+
+    private async Task Save()
+    {
+        if (_profile == null)
+        {
+            return;
+        }
+
+        _profile.Directories = _profile.Directories.Where(x => !string.IsNullOrEmpty(x)).ToList();
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        if (IsNew)
+        {
+            context.Add(_profile);
+        }
+        else
+        {
+            var existing = await context.Profiles.FirstAsync(x => x.Id == _profile.Id);
+            existing.Name = _profile.Name;
+            existing.Directories = _profile.Directories;
+            existing.ClearVideoTrackNames = _profile.ClearVideoTrackNames;
+            existing.AudioSettings = _profile.AudioSettings;
+            existing.SubtitleSettings = _profile.SubtitleSettings;
+            context.Update(existing);
+        }
+
+        await context.SaveChangesAsync();
+        ToastService.ShowSuccess($"Profile '{_profile.Name}' saved successfully.");
+
+        if (await ModalService.ShowConfirm(
+                "Would you like to scan the library now? This will apply the updated profile settings to your media files.",
+                "Scan Library?"))
+        {
+            await MediaScanner.ScanAll(false);
+            ToastService.ShowInfo("Library scan started.");
+        }
+
+        NavigationManager.NavigateTo("/settings");
+    }
+}

@@ -1,0 +1,99 @@
+@using Muxarr.Core.Api
+
+<div class="border rounded p-4">
+    <div class="d-flex align-items-center mb-3">
+        <i class="bi @IconClass text-primary me-2"></i>
+        <h5 class="mb-0">@Name Configuration</h5>
+        @if (_testResult != null)
+        {
+            <span class="badge ms-2 @(_testResult.Value ? "text-bg-success" : "text-bg-danger")">
+                <i class="bi @(_testResult.Value ? "bi-check-circle" : "bi-x-circle") me-1"></i>
+                @(_testResult.Value ? "Connected" : "Failed")
+            </span>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label for="@($"url-{Name}")" class="form-label">URL</label>
+        <InputText id="@($"url-{Name}")" class="form-control" @bind-Value="Config.Url"/>
+        <ValidationMessage For="@(() => Config.Url)"/>
+        <small class="form-text text-muted">Example: @Example</small>
+    </div>
+
+    <div class="mb-3">
+        <label for="@($"apiKey-{Name}")" class="form-label">API Key</label>
+        <InputText id="@($"apiKey-{Name}")" class="form-control" @bind-Value="Config.ApiKey"/>
+        <ValidationMessage For="@(() => Config.ApiKey)"/>
+        <small class="form-text text-muted">Found in @Name &gt; Settings &gt; General &gt; Security</small>
+    </div>
+
+    <button type="button" class="btn btn-outline-primary btn-sm" @onclick="TestConnection" disabled="@_isTesting">
+        @if (_isTesting)
+        {
+            <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            <span>Testing...</span>
+        }
+        else
+        {
+            <i class="bi bi-plug me-1"></i>
+            <span>Test Connection</span>
+        }
+    </button>
+</div>
+
+@code {
+    private string Example => $"http://{Name.ToLower()}.instance:{(Name.ToLower() == "sonarr" ? 8989 : 7878)}";
+    private string IconClass => Name.ToLower() == "sonarr" ? "bi-tv" : "bi-film";
+
+    private bool _isTesting;
+    private bool? _testResult;
+
+    [Parameter, EditorRequired] public required ArrConfig Config { get; set; }
+    [Parameter, EditorRequired] public required string Name { get; set; }
+    [Inject] public required ArrApiClient ArrApi { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    private async Task TestConnection()
+    {
+        if (string.IsNullOrWhiteSpace(Config.Url) || string.IsNullOrWhiteSpace(Config.ApiKey))
+        {
+            ToastService.ShowWarning($"Please enter a URL and API key for {Name}.");
+            return;
+        }
+
+        _isTesting = true;
+        _testResult = null;
+        StateHasChanged();
+
+        try
+        {
+            // Sanitize URL before testing
+            Config.Url = SanitizeUrl(Config.Url);
+            _testResult = await ArrApi.CanConnect(Config);
+
+            if (_testResult.Value)
+            {
+                ToastService.ShowSuccess($"{Name} connection successful!");
+            }
+            else
+            {
+                ToastService.ShowError($"Could not connect to {Name}. Check URL and API key.");
+            }
+        }
+        catch
+        {
+            _testResult = false;
+            ToastService.ShowError($"Could not connect to {Name}. Check URL and API key.");
+        }
+        finally
+        {
+            _isTesting = false;
+        }
+    }
+
+    public static string SanitizeUrl(string url)
+    {
+        // Remove all whitespace, then trim trailing slashes
+        return new string(url.Where(c => !char.IsWhiteSpace(c)).ToArray()).TrimEnd('/');
+    }
+}

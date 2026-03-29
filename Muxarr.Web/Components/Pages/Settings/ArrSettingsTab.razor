@@ -1,0 +1,59 @@
+@using Muxarr.Core.Api
+
+<p class="text-muted">Configure your Radarr and Sonarr connections. These are required to detect original audio language.</p>
+
+<EditForm Model="ArrConfigs" OnValidSubmit="HandleSettingsSubmit">
+    <DataAnnotationsValidator/>
+    <div class="row g-4">
+        <div class="col-md-6">
+            <ArrConfigEditor Name="Radarr" Config="@ArrConfigs.Radarr"/>
+        </div>
+        <div class="col-md-6">
+            <ArrConfigEditor Name="Sonarr" Config="@ArrConfigs.Sonarr"/>
+        </div>
+    </div>
+
+    <ValidationSummary/>
+
+    <StickyBar>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-2"></i>Save Settings
+        </button>
+    </StickyBar>
+</EditForm>
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    // System Settings
+    private ArrConfigs ArrConfigs { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        // Load settings
+        ArrConfigs.Radarr = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.RadarrKey);
+        ArrConfigs.Sonarr = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.SonarrKey);
+    }
+
+    // Settings Handlers
+    private async Task HandleSettingsSubmit()
+    {
+        try
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+
+            ArrConfigs.Radarr.Url = ArrConfigEditor.SanitizeUrl(ArrConfigs.Radarr.Url);
+            ArrConfigs.Sonarr.Url = ArrConfigEditor.SanitizeUrl(ArrConfigs.Sonarr.Url);
+
+            context.Configs.Set(ArrConfigs.Radarr, ArrConfig.RadarrKey);
+            context.Configs.Set(ArrConfigs.Sonarr, ArrConfig.SonarrKey);
+            await context.SaveChangesAsync();
+            ToastService.ShowSuccess("*Arr settings were saved successfully!");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to save settings: {ex.Message}");
+        }
+    }
+}

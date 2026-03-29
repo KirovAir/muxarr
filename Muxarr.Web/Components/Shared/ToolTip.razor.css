@@ -1,0 +1,110 @@
+.tooltip-container {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip-content {
+    display: inline-block;
+}
+
+.tooltip-text {
+    position: absolute;
+    background-color: #555;
+    color: #fff;
+    text-align: center;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s, transform 0.2s;
+    z-index: 999999;
+    pointer-events: none;
+    max-width: 500px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* Handle long content */
+@media (min-width: 768px) {
+    .tooltip-text {
+        white-space: normal;
+        word-wrap: break-word;
+    }
+}
+
+/* Position Variants */
+.tooltip-text.top {
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    margin-bottom: 5px;
+}
+
+.tooltip-text.bottom {
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%) translateY(-10px);
+    margin-top: 5px;
+}
+
+.tooltip-text.left {
+    right: 100%;
+    top: 50%;
+    transform: translateY(-50%) translateX(10px);
+    margin-right: 5px;
+}
+
+.tooltip-text.right {
+    left: 100%;
+    top: 50%;
+    transform: translateY(-50%) translateX(-10px);
+    margin-left: 5px;
+}
+
+/* Visible State */
+.tooltip-text.visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.tooltip-text.top.visible {
+    transform: translateX(-50%) translateY(0);
+}
+
+.tooltip-text.bottom.visible {
+    transform: translateX(-50%) translateY(0);
+}
+
+.tooltip-text.left.visible {
+    transform: translateY(-50%) translateX(0);
+}
+
+.tooltip-text.right.visible {
+    transform: translateY(-50%) translateX(0);
+}
+
+/* Ensure tooltip stays within viewport */
+.tooltip-container {
+    overflow: visible;
+}
+
+@media (max-width: 767px) {
+    .tooltip-text {
+        max-width: 400px;
+    }
+
+    /* Adjust position for small screens to prevent cutoff */
+    .tooltip-text.left, .tooltip-text.right {
+        left: 50%;
+        right: auto;
+        top: 100%;
+        transform: translateX(-50%) translateY(-10px);
+        margin: 5px 0 0 0;
+    }
+
+    .tooltip-text.left.visible, .tooltip-text.right.visible {
+        transform: translateX(-50%) translateY(0);
+    }
+}

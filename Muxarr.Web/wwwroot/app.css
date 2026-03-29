@@ -1,0 +1,362 @@
+/* ============================================
+   Muxarr — Minimal theme layer
+   Only sidebar, branding, and dark mode.
+   Bootstrap handles everything else.
+   ============================================ */
+
+:root {
+    --mux-sidebar-width: 224px;
+    --mux-sidebar-width-collapsed: 64px;
+    --mux-header-height: 56px;
+    --mux-navy: #0d0d1a;
+    --mux-navy-light: #1e1e32;
+    --mux-surface: #232338;
+    --mux-accent: #f07030;
+    --mux-accent-dim: #d4612a;
+    --mux-border: rgba(255, 255, 255, 0.06);
+}
+
+/* ---- Layout ---- */
+
+.mux-page-wrapper {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* ---- Mobile Header ---- */
+
+.mux-mobile-header {
+    height: var(--mux-header-height);
+    background: var(--mux-navy);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    position: sticky;
+    top: 0;
+    z-index: 1030;
+}
+
+/* ---- Sidebar ---- */
+
+.mux-sidebar {
+    background: var(--mux-navy);
+    background-image: none;
+    display: flex;
+    flex-direction: column;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1040;
+    border-right: 1px solid var(--mux-border);
+}
+
+.mux-sidebar-header {
+    height: var(--mux-header-height);
+    padding: 0 1.125rem;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--mux-border);
+    flex-shrink: 0;
+}
+
+.mux-logo {
+    width: 40px;
+    height: 40px;
+    object-fit: contain;
+}
+
+.mux-logo-text {
+    font-size: 0.9375rem;
+    letter-spacing: 0.04em;
+}
+
+.mux-nav-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.75rem 0.625rem;
+}
+
+/* ---- Sidebar Footer ---- */
+
+.mux-sidebar-footer {
+    padding: 0.625rem 1rem;
+    border-top: 1px solid var(--mux-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+}
+
+.mux-footer-btn {
+    opacity: 0.5;
+    font-size: 0.9375rem;
+    transition: opacity 0.15s ease;
+}
+
+.mux-footer-btn:hover {
+    opacity: 1;
+}
+
+.mux-version {
+    font-size: 0.6875rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.mux-sidebar.collapsed .mux-version {
+    display: none;
+}
+
+.mux-sidebar.collapsed .mux-sidebar-footer {
+    justify-content: center;
+    padding: 0.625rem;
+}
+
+.mux-sidebar.collapsed .mux-sidebar-footer > .d-flex {
+    display: none !important;
+}
+
+/* ---- Nav Links ---- */
+
+.mux-sidebar .nav-link {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    color: rgba(255, 255, 255, 0.75);
+    padding: 0.6rem 0.875rem;
+    border-radius: 8px;
+    transition: color 0.15s ease, background 0.15s ease;
+    margin-bottom: 2px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    position: relative;
+}
+
+.mux-sidebar .nav-link i {
+    font-size: 1.125rem;
+    flex-shrink: 0;
+    width: 1.25rem;
+    text-align: center;
+    transition: transform 0.15s ease;
+}
+
+.mux-sidebar .nav-link span {
+    white-space: nowrap;
+}
+
+.mux-sidebar .nav-link:hover {
+    color: rgba(255, 255, 255, 0.9);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.mux-sidebar .nav-link.active {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* ---- Desktop ---- */
+
+@media (min-width: 768px) {
+    .mux-page-wrapper {
+        flex-direction: row;
+    }
+
+    .mux-sidebar {
+        width: var(--mux-sidebar-width);
+        height: 100vh;
+        position: sticky;
+        top: 0;
+    }
+
+    .mux-sidebar.collapsed {
+        width: var(--mux-sidebar-width-collapsed);
+    }
+
+    .mux-sidebar.collapsed .nav-link span,
+    .mux-sidebar.collapsed .mux-logo-text {
+        display: none;
+    }
+
+    .mux-sidebar.collapsed .mux-sidebar-header {
+        justify-content: center;
+    }
+
+    .mux-sidebar.collapsed .nav-link {
+        justify-content: center;
+        padding: 0.6rem;
+    }
+}
+
+/* ---- Mobile ---- */
+
+@media (max-width: 767.98px) {
+    .mux-main-content {
+        padding-top: 0.75rem;
+    }
+
+    .mux-sidebar {
+        position: fixed;
+        top: var(--mux-header-height);
+        bottom: 0;
+        left: 0;
+        width: var(--mux-sidebar-width);
+        transform: translateX(-100%);
+        transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .mux-sidebar.mux-mobile-open {
+        transform: translateX(0);
+    }
+
+    /* Page action headers: allow wrapping so buttons don't overflow */
+    .mux-page-header {
+        flex-wrap: wrap !important;
+        gap: 0.5rem;
+    }
+
+    /* Filter rows: search bar takes full width, other items wrap below */
+    .mux-filter-row {
+        row-gap: 0.5rem !important;
+    }
+
+    .mux-filter-row > .col {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
+
+.mux-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1035;
+}
+
+/* ---- Main Content ---- */
+
+.mux-main-content {
+    flex: 1;
+    min-width: 0;
+    padding: 1.5rem;
+}
+
+/* ---- Dark Theme — only what Bootstrap can't handle ---- */
+
+[data-bs-theme="dark"] {
+    --bs-body-color: rgba(255, 255, 255, 0.87);
+    --bs-heading-color: #fff;
+}
+
+[data-bs-theme="dark"] .mux-main-content {
+    background: #0d0d1a;
+}
+
+[data-bs-theme="dark"] .card {
+    background: var(--mux-navy-light);
+    border-color: var(--mux-border) !important;
+}
+
+[data-bs-theme="dark"] .card-header {
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom-color: var(--mux-border);
+}
+
+[data-bs-theme="dark"] .table {
+    --bs-table-bg: transparent;
+}
+
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .form-select {
+    background: var(--mux-surface);
+    border-color: var(--mux-border);
+}
+
+[data-bs-theme="dark"] .form-check-input {
+    background-color: var(--mux-surface);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-bs-theme="dark"] .form-check-input:checked {
+    background-color: var(--mux-accent);
+    border-color: var(--mux-accent);
+}
+
+[data-bs-theme="dark"] .form-check-label,
+[data-bs-theme="dark"] .form-label,
+[data-bs-theme="dark"] label {
+    color: rgba(255, 255, 255, 0.87);
+}
+
+[data-bs-theme="dark"] .form-control:focus,
+[data-bs-theme="dark"] .form-select:focus {
+    border-color: var(--mux-accent);
+    box-shadow: 0 0 0 2px rgba(240, 112, 48, 0.2);
+}
+
+[data-bs-theme="dark"] .modal-content {
+    background: var(--mux-navy-light);
+    border-color: var(--mux-border);
+}
+
+/* Light theme sidebar stays dark */
+[data-bs-theme="light"] .mux-sidebar,
+[data-bs-theme="light"] .mux-mobile-header {
+    background: var(--mux-navy);
+}
+
+/* Buttons, links, badges, progress — all default Bootstrap blue */
+
+/* ---- Sidebar scrollbar ---- */
+
+.mux-nav-content::-webkit-scrollbar {
+    width: 3px;
+}
+
+.mux-nav-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.mux-nav-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+}
+
+/* ---- Dashboard Stat Cards ---- */
+
+.mux-stat-card {
+    color: inherit;
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.mux-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    color: inherit;
+}
+
+/* ---- Sticky Bar ---- */
+
+.mux-sticky-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 2rem;
+    padding: 0.75rem 0;
+    background: var(--bs-body-bg);
+    border-top: 1px solid var(--bs-border-color);
+    z-index: 10;
+}
+
+[data-bs-theme="dark"] .mux-sticky-bar {
+    background: #0d0d1a;
+    border-top-color: var(--mux-border);
+}
+
+/* ---- Error UI ---- */
+
+.mux-error-ui {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1050;
+    display: none;
+}

@@ -1,0 +1,28 @@
+<span class="badge text-bg-@GetFileSizeLabel(Suffix)">@($"{Size:0.##} {Suffix}")</span>
+
+@code {
+    protected override void OnParametersSet()
+    {
+        var (size, suffix) = SizeInBytes.GetFileSize();
+        Size = size;
+        Suffix = suffix;
+    }
+
+    private string GetFileSizeLabel(string suffix)
+    {
+        return suffix switch
+        {
+            "B" => "warning",
+            "KB" => "warning",
+            "MB" => "success",
+            "GB" => "success",
+            "TB" or "PB" or "EB" => "danger",
+            _ => "secondary"
+        };
+    }
+
+    [Parameter, EditorRequired] public long SizeInBytes { get; set; }
+
+    private double Size { get; set; }
+    private string Suffix { get; set; } = "KB";
+}

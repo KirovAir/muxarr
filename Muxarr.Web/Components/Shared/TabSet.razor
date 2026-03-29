@@ -1,0 +1,45 @@
+@code {
+    [Parameter] public string ActiveTab { get; set; } = "";
+    [Parameter] public RenderFragment ChildContent { get; set; } = null!;
+    private List<Tab> _tabs = [];
+
+    public void ActivateTab(string tabName)
+    {
+        ActiveTab = tabName;
+    }
+
+    public void AddTab(Tab tab)
+    {
+        _tabs.Add(tab);
+        if (_tabs.Count == 1)
+        {
+            ActiveTab = tab.Name;
+        }
+        StateHasChanged();
+    }
+}
+
+<div class="container-fluid mt-4">
+    <ul class="nav nav-tabs" id="myTab" role="tablist">
+        @foreach (var tab in _tabs)
+        {
+            <li class="nav-item" role="presentation">
+                <button class="nav-link @(ActiveTab == tab.Name ? "active" : "")"
+                        id="@($"{tab.Name}-tab")"
+                        data-bs-toggle="tab"
+                        data-bs-target="#@tab.Name"
+                        type="button"
+                        role="tab"
+                        aria-controls="@tab.Name"
+                        aria-selected="@(ActiveTab == tab.Name ? "true" : "false")">
+                    @tab.Title
+                </button>
+            </li>
+        }
+    </ul>
+    <div class="tab-content mt-3">
+        <CascadingValue Value="this">
+            @ChildContent
+        </CascadingValue>
+    </div>
+</div>

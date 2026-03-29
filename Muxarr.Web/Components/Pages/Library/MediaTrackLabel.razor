@@ -1,0 +1,49 @@
+<span class="me-1 badge @GetTrackTypeBadgeClass(Track.Type)">
+    <i class="bi @GetTrackTypeIcon(Track.Type) me-1"></i>@(Track.Type == MediaTrackType.Video ? "Video" : Track.LanguageName)@if (Track.GetChannelLayout() is { } channels) {<span class="opacity-75 ms-1">@channels</span>}
+    @if (Track.IsHearingImpaired)
+    {
+        <i class="bi bi-ear ms-1" title="Hearing Impaired"></i>
+    }
+    @if (Track.IsCommentary)
+    {
+        <i class="bi bi-chat-quote ms-1" title="Commentary"></i>
+    }
+    @if (Track.IsOriginal)
+    {
+        <i class="bi bi-check-circle ms-1" title="Original"></i>
+    }
+    @if (Track.IsVisualImpaired)
+    {
+        <i class="bi bi-eye ms-1" title="Visual Impaired"></i>
+    }
+    @if (Track.IsForced)
+    {
+        <i class="bi bi-lock ms-1" title="Forced"></i>
+    }
+</span>
+
+@code {
+    [Parameter, EditorRequired] public required IMediaTrack Track { get; set; }
+
+    private static string GetTrackTypeIcon(MediaTrackType trackType)
+    {
+        return trackType switch
+        {
+            MediaTrackType.Video => "bi-film",
+            MediaTrackType.Audio => "bi-volume-up",
+            MediaTrackType.Subtitles => "bi-chat-text",
+            _ => "bi-question-circle" // Fallback for unknown types
+        };
+    }
+
+    private static string GetTrackTypeBadgeClass(MediaTrackType trackType)
+    {
+        return trackType switch
+        {
+            MediaTrackType.Video => "bg-success text-white",    // Blue for Video
+            MediaTrackType.Audio => "bg-primary text-white",   // Green for Audio
+            MediaTrackType.Subtitles => "bg-warning text-dark", // Yellow for Subtitles
+            _ => "bg-secondary text-white"                     // Grey for Unknown
+        };
+    }
+}

@@ -1,0 +1,262 @@
+﻿@page "/library/{Id:int}"
+@using Muxarr.Web.Components.Pages.Conversions
+@inherits DisposableComponent
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Media Details")</PageTitle>
+
+<div class="container-fluid">
+    @if (File == null)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            File not found
+        </div>
+        return;
+    }
+    <nav class="mb-2">
+        <a href="/library" class="text-muted small text-decoration-none">
+            <i class="bi bi-arrow-left me-1"></i>Library
+        </a>
+    </nav>
+    <h2 class="mb-3">
+        <i class="bi bi-file-earmark-play me-2"></i>@File.GetName()
+    </h2>
+    <div class="d-flex gap-2 border-bottom pb-3 mb-4">
+        <button class="btn btn-primary" @onclick="AddToQueue">
+            <i class="bi bi-plus-lg me-2"></i>Add to Queue
+        </button>
+        <button class="btn btn-outline-primary" @onclick="CustomConversion">
+            <i class="bi bi-sliders me-2"></i>Custom Conversion
+        </button>
+        <button class="btn btn-outline-secondary" @onclick="AnalyzeFile">
+            <i class="bi bi-search me-2"></i>Analyze File
+        </button>
+    </div>
+
+    <div class="row g-4">
+        <!-- File Information -->
+        <div class="col-md-6">
+            <div class="border rounded p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-file-earmark text-primary me-2"></i>
+                    <h5 class="mb-0">File Info</h5>
+                </div>
+
+                <div class="list-group list-group-flush">
+                    <div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Filename</div>
+                        <code class="small">@Path.GetFileName(File.Path)</code>
+                    </div>
+                    <div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Directory</div>
+                        <span class="small">@Path.GetDirectoryName(File.Path)</span>
+                    </div>
+                    <div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Created</div>
+                        <TimeAgo DateTime="File.FileCreationTime"/>
+                    </div>
+                    @*<div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Format</div>
+                        @if (File.GetVideoTracks().FirstOrDefault() is { } video)
+                        {
+                            <code>@video.Codec</code>
+                            @if (!string.IsNullOrEmpty(video.TrackName))
+                            {
+                                <span class="text-muted small ms-2">@video.TrackName</span>
+                            }
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </div>*@
+                    <div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Original Language</div>
+                        <span>@(string.IsNullOrEmpty(File.OriginalLanguage) ? "-" : File.OriginalLanguage)</span>
+                    </div>
+                    <div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Profile</div>
+                        @if (File.Profile != null)
+                        {
+                            <a href="/settings/profile/@File.ProfileId">@File.Profile.Name</a>
+                        }
+                        else
+                        {
+                            <span>-</span>
+                        }
+                    </div>
+                    <div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Size</div>
+                        <FileSize SizeInBytes="File.Size"/>
+                    </div>
+                    <div class="list-group-item px-0">
+                        <div class="text-muted small mb-1">Added</div>
+                        <TimeAgo DateTime="File.CreatedDate"/>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Media Information -->
+        <div class="col-6">
+            <div class="border rounded p-4">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-collection text-primary me-2"></i>
+                    <h5 class="mb-0">Media Tracks</h5>
+                </div>
+                <div class="table-responsive">
+                    @if (File.Tracks.Any())
+                    {
+                        <MediaTrackDetailTable Tracks="File.Tracks"
+                                               AllowedTracks="AllowedTracks"
+                                               OriginalLanguage="@File.OriginalLanguage"
+                                               Profile="File.Profile"/>
+                    }
+                    else
+                    {
+                        <span>No tracks found!</span>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (File.Conversions.Count > 0)
+        {
+            <div class="col-12">
+                <div class="border rounded p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-terminal text-primary me-2"></i>
+                        <h5 class="mb-0">Conversions</h5>
+                    </div>
+                    <ConversionTable Items="File.Conversions"></ConversionTable>
+                </div>
+            </div>
+        }
+
+        <!-- MKVMerge Output -->
+        @if (!string.IsNullOrEmpty(File.MkvMergeOutput))
+        {
+            <div class="col-12">
+                <div class="border rounded p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-terminal text-primary me-2"></i>
+                        <h5 class="mb-0">MKVMerge Output</h5>
+                    </div>
+                    <div class="border rounded">
+                        <pre class="m-0 p-3 small bg-body-secondary"
+                             style="height: 500px;"><code>@File.MkvMergeOutput</code></pre>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+    [Inject] public required MediaConverterService MediaConverter { get; set; }
+    [Inject] public required MediaScannerService MediaScanner { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required IModalService ModalService { get; set; }
+
+    [Parameter] public int Id { get; set; }
+
+    protected MediaFile? File { get; set; }
+    protected List<MediaTrack> AllowedTracks { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        MediaConverter.ConverterStateChanged += OnConverterStateChanged;
+        await LoadFile();
+    }
+
+    private async Task LoadFile()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        File = await context.MediaFiles
+            .WithTracksAndProfile()
+            .Include(
+                x => x.Conversions
+                    .OrderByDescending(y => y.CreatedDate)
+                    .Take(5)
+            ).FirstOrDefaultAsync(f => f.Id == Id);
+        if (File == null)
+        {
+            return;
+        }
+        // Needed to fix order.
+        File.Conversions = File.Conversions.OrderByDescending(x => x.CreatedDate).ToList();
+        AllowedTracks = File.GetAllowedTracks(File.Profile);
+    }
+    
+    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            var conversions = File?.Conversions;
+            var conversion = conversions?.FirstOrDefault(x => x.Id == e.Conversion.Id);
+            if (conversion == null)
+            {
+                return;
+            }
+
+            if (e.Conversion is { State: ConversionState.Completed, MediaFile: not null })
+            {
+                conversion.SizeAfter = e.Conversion.MediaFile.Size;
+                conversion.TracksAfter = e.Conversion.MediaFile.Tracks.ToSnapshots();
+                conversion.SizeDifference = e.Conversion.SizeDifference;
+                ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
+            }
+
+            conversion.Progress = e.Conversion.Progress;
+            conversion.State = e.Conversion.State;
+
+            StateHasChanged();
+        });
+    }
+
+    private async Task AddToQueue()
+    {
+        if (!await MediaConverter.AddMediaToQueue(File!))
+        {
+            ToastService.ShowError($"'{File!.GetName()}' is not accessible. The file or its mount may be offline.");
+            return;
+        }
+        await LoadFile();
+        ToastService.ShowSuccess($"File {File!.GetName()} was added to conversion queue!");
+    }
+
+    private async Task CustomConversion()
+    {
+        var selectedTracks = await ModalService.ShowCustomConversion(File!.Tracks, AllowedTracks, File.Profile);
+        if (selectedTracks == null)
+        {
+            return;
+        }
+
+        if (!await MediaConverter.AddMediaToQueue(File!, selectedTracks))
+        {
+            ToastService.ShowError($"'{File!.GetName()}' is not accessible. The file or its mount may be offline.");
+            return;
+        }
+        await LoadFile();
+        ToastService.ShowSuccess($"Custom conversion for {File!.GetName()} was added to queue!");
+    }
+
+    private async Task AnalyzeFile()
+    {
+        ToastService.ShowInfo($"Analyzing {File!.GetName()}...");
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        await MediaScanner.ScanMediaFile(File!, true, context, File!.Profile);
+        await LoadFile();
+        ToastService.ShowSuccess($"Analysis complete for {File!.GetName()}.");
+    }
+
+    public override void Dispose()
+    {
+        MediaConverter.ConverterStateChanged -= OnConverterStateChanged;
+        base.Dispose();
+    }
+}

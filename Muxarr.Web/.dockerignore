@@ -1,0 +1,12 @@
+**/.git
+**/.env
+**/.vs
+**/.vscode
+**/.idea
+**/bin
+**/obj
+**/node_modules
+**/Dockerfile*
+**/docker-compose*
+**/*.*proj.user
+*.md

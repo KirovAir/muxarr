@@ -1,0 +1,25 @@
+@if (!Tracks.Any())
+{
+    <span class="badge text-bg-warning me-1">None</span>
+}
+else
+{
+    @foreach (var track in (_expand ? Tracks : Tracks.Take(3)))
+    {
+        <ToolTip Tip="@track.TrackName">
+                <MediaTrackLabel Track="track" />
+        </ToolTip>
+    }
+
+    @if (Tracks.Count() > 3)
+    {
+        <button class="btn btn-link btn-sm p-0" @onclick="() => { _expand = !_expand; }">
+            <i class="bi @(_expand ? "bi-chevron-left" : "bi-chevron-right")"></i>
+        </button>
+    }
+}
+
+@code {
+    bool _expand;
+    [Parameter, EditorRequired] public required IEnumerable<IMediaTrack> Tracks { get; set; }
+}

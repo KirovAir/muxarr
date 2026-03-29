@@ -1,0 +1,14 @@
+@using Muxarr.Core.Language
+<TagSelector TItem="IsoLanguage" SelectedItems="SelectedItems" OnSearchInput="OnSearchInput">
+    <TagTemplate>@context.Name (@context.ThreeLetterCode)</TagTemplate>
+    <ListTemplate>@context.Name — @context.NativeName (@context.ThreeLetterCode / @context.TwoLetterCode)</ListTemplate>
+</TagSelector>
+
+@code {
+    [Parameter, EditorRequired] public required List<IsoLanguage> SelectedItems { get; set; }
+
+    private async Task<List<IsoLanguage>> OnSearchInput(string arg)
+    {
+        return await Task.FromResult(IsoLanguage.Search(arg).Take(10).ToList());
+    }
+}

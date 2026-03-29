@@ -1,0 +1,155 @@
+@page "/statistics"
+@using Muxarr.Core.Api
+@using Muxarr.Core.Extensions
+@using Muxarr.Web.Components.Shared
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Statistics")</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4 mux-page-header">
+        <h2 class="mb-0">
+            <i class="bi bi-bar-chart me-2"></i>Statistics
+        </h2>
+        <div class="btn-group btn-group-sm">
+            @if (_stats != null)
+            {
+                <span class="btn btn-outline-secondary disabled">
+                    Updated <TimeAgo DateTime="_stats.ComputedAtUtc" />
+                </span>
+            }
+            <button class="btn btn-outline-primary" @onclick="RefreshStats" disabled="@_refreshing">
+                @if (_refreshing)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                }
+                else
+                {
+                    <i class="bi bi-arrow-clockwise me-1"></i>
+                }
+                Refresh
+            </button>
+        </div>
+    </div>
+
+    @if (_stats == null)
+    {
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle me-2"></i>
+            No statistics available. Run a scan to generate library insights, or click Refresh.
+        </div>
+    }
+    else
+    {
+        @* Summary Cards *@
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg-3">
+                <div class="card text-center">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Files</div>
+                        <div class="fs-3 fw-bold">@_stats.TotalFiles</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card text-center">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Total Size</div>
+                        <div class="fs-3 fw-bold">@_stats.TotalSizeBytes.DisplayFileSize()</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card text-center">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Duration</div>
+                        <div class="fs-3 fw-bold">@_stats.TotalDurationMs.FormatDuration()</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg-3">
+                <div class="card text-center">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Profiles</div>
+                        <div class="fs-3 fw-bold">@_stats.ProfileCount</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        @* Distribution Charts *@
+        <div class="row g-4 mb-4">
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Video Codecs" Icon="bi-camera-video" Items="_stats.VideoCodecs" OnItemClick="@(v => NavigateToFilter("videoCodec", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Audio Codecs" Icon="bi-volume-up" Items="_stats.AudioCodecs" OnItemClick="@(v => NavigateToFilter("audioCodec", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Resolutions" Icon="bi-aspect-ratio" Items="_stats.Resolutions" OnItemClick="@(v => NavigateToFilter("resolution", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Channel Layouts" Icon="bi-speaker" Items="_stats.ChannelLayouts" OnItemClick="@(v => NavigateToFilter("channelLayout", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Audio Languages" Icon="bi-translate" Items="_stats.AudioLanguages" OnItemClick="@(v => NavigateToFilter("audioLanguage", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Subtitle Languages" Icon="bi-badge-cc" Items="_stats.SubtitleLanguages" OnItemClick="@(v => NavigateToFilter("subtitleLanguage", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Containers" Icon="bi-box" Items="_stats.Containers" OnItemClick="@(v => NavigateToFilter("container", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Bit Depth" Icon="bi-palette" Items="_stats.VideoBitDepths" OnItemClick="@(v => NavigateToFilter("bitDepth", v))" />
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required LibraryStatsService StatsService { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+
+    private LibraryStatsConfig? _stats;
+    private bool _refreshing;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStats();
+    }
+
+    private async Task LoadStats()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        _stats = context.Configs.Get<LibraryStatsConfig>();
+    }
+
+    private void NavigateToFilter(string filterType, string value)
+    {
+        NavigationManager.NavigateTo($"/library?{filterType}={Uri.EscapeDataString(value)}");
+    }
+
+    private async Task RefreshStats()
+    {
+        _refreshing = true;
+        StateHasChanged();
+
+        try
+        {
+            await StatsService.ComputeAndCacheAsync();
+            await LoadStats();
+            ToastService.ShowSuccess("Statistics refreshed.");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to refresh statistics: {ex.Message}");
+        }
+        finally
+        {
+            _refreshing = false;
+        }
+    }
+}

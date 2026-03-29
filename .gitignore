@@ -1,0 +1,13 @@
+bin/
+obj/
+/packages/
+riderModule.iml
+/_ReSharper.Caches/
+.idea
+.vs
+Muxarr.sln.DotSettings.user
+**/muxarr.db*
+**/wwwroot/lib
+**/Properties/launchSettings.json
+appsettings.Development.json
+.DS_Store

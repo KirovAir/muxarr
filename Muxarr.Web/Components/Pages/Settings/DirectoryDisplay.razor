@@ -1,0 +1,24 @@
+@if (!Directories.Any())
+{
+    <ToolTip Tip="You will need to select this profile manually">
+        <span class="badge text-bg-info me-1">None</span>
+    </ToolTip>
+}
+@foreach (var dir in Directories)
+{
+    @if (!Directory.Exists(dir))
+    {
+        <ToolTip Tip="@($"Directory not found: {dir}")">
+            <span class="badge text-bg-danger me-1"><i class="bi bi-exclamation-circle-fill"></i> @Path.GetFileName(dir)</span>
+        </ToolTip>
+    }
+    else
+    {
+        <ToolTip Tip="@dir">
+            <span class="badge text-bg-info me-1">@Path.GetFileName(dir)</span>
+        </ToolTip>
+    }
+}
+@code {
+    [Parameter, EditorRequired] public List<string> Directories { get; set; } = new();
+}

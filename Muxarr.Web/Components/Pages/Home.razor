@@ -1,0 +1,309 @@
+@page "/"
+@using Muxarr.Web.Components.Pages.Conversions
+@using Muxarr.Web.Components.Shared
+@inherits DisposableComponent
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Dashboard")</PageTitle>
+<div class="container-fluid">
+    @if (!HasProfile)
+    {
+        <h2 class="border-bottom pb-2 mb-4">Welcome!</h2>
+
+        <Alert>
+            It looks like you haven't set up any profiles yet.
+            <a href="/settings">Click here to create one!</a>
+        </Alert>
+    }
+    else
+    {
+        <h2 class="border-bottom pb-2 mb-4 mux-page-header"><i class="bi bi-house-door me-2"></i>Dashboard</h2>
+
+        @* Stats Row *@
+        <div class="row g-3 mb-4">
+            <div class="col-6 col-lg">
+                <a href="/library" class="card text-center text-decoration-none mux-stat-card">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Total Files</div>
+                        <div class="fs-3 fw-bold">@TotalFiles</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a href="/library?filter=tracks" class="card text-center text-decoration-none mux-stat-card">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Redundant Tracks</div>
+                        <div class="fs-3 fw-bold text-warning">@RedundantTrackFiles</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a href="/library?filter=metadata" class="card text-center text-decoration-none mux-stat-card">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Metadata Issues</div>
+                        <div class="fs-3 fw-bold text-warning">@MetadataIssueFiles</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a href="/conversions" class="card text-center text-decoration-none mux-stat-card">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Completed</div>
+                        <div class="fs-3 fw-bold text-success">@TotalConversions</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a href="/conversions" class="card text-center text-decoration-none mux-stat-card">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Active</div>
+                        <div class="fs-3 fw-bold text-primary">@ActiveConversions</div>
+                    </div>
+                </a>
+            </div>
+            <div class="col-6 col-lg">
+                <a href="/conversions" class="card text-center text-decoration-none mux-stat-card">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Space Saved</div>
+                        <div class="fs-3 fw-bold text-success">@SpaceSaved</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        @* Active Conversion *@
+        @if (_activeConversion != null)
+        {
+            <div class="card border-primary mb-4">
+                <div class="card-header bg-primary text-white">
+                    <i class="bi bi-arrow-repeat me-2"></i>Active Conversion
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <a href="/conversions/@_activeConversion.Id" class="fw-semibold text-decoration-none">
+                            @_activeConversion.Name
+                        </a>
+                        <small class="text-muted">
+                            Started <TimeAgo DateTime="_activeConversion.CreatedDate"/>
+                        </small>
+                    </div>
+                    <ConversionProgressBar Conversion="_activeConversion"/>
+                </div>
+            </div>
+        }
+
+        <div class="row g-4">
+            @* Latest Conversions *@
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-arrow-repeat me-2"></i>Latest Conversions</span>
+                        <a href="/conversions" class="btn btn-sm btn-outline-primary">View all</a>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (_latestConversions.Count == 0)
+                        {
+                            <p class="text-muted p-3 mb-0">No conversions yet.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>State</th>
+                                        <th>Time</th>
+                                        <th>Size Change</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    @foreach (var conversion in _latestConversions)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <a href="/conversions/@conversion.Id" class="small">
+                                                    @conversion.Name
+                                                </a>
+                                            </td>
+                                            <td><ConversionStateBadge Conversion="conversion"/></td>
+                                            <td><TimeAgo DateTime="conversion.CreatedDate"/></td>
+                                            <td>
+                                                @if (conversion.State == ConversionState.Completed)
+                                                {
+                                                    @conversion.GetSizeChangePercentage()
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @* Latest Media Files *@
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-collection-play me-2"></i>Latest Files</span>
+                        <a href="/library" class="btn btn-sm btn-outline-primary">View all</a>
+                    </div>
+                    <div class="card-body p-0">
+                        @if (_latestMediaFiles.Count == 0)
+                        {
+                            <p class="text-muted p-3 mb-0">No media files yet.</p>
+                        }
+                        else
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead>
+                                    <tr>
+                                        <th>File</th>
+                                        <th>Size</th>
+                                        <th>Scanned</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    @foreach (var file in _latestMediaFiles)
+                                    {
+                                        <tr>
+                                            <td>
+                                                <a href="/library/@file.Id" class="small">
+                                                    @file.GetName()
+                                                </a>
+                                            </td>
+                                            <td><FileSize SizeInBytes="file.Size"/></td>
+                                            <td><TimeAgo DateTime="file.CreatedDate"/></td>
+                                        </tr>
+                                    }
+                                    </tbody>
+                                </table>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required MediaConverterService MediaConverter { get; set; }
+
+    private bool HasProfile { get; set; }
+    private int TotalFiles { get; set; }
+    private int RedundantTrackFiles { get; set; }
+    private int MetadataIssueFiles { get; set; }
+    private int TotalConversions { get; set; }
+    private int ActiveConversions { get; set; }
+    private string SpaceSaved { get; set; } = "0 B";
+
+    private bool _disposed;
+    private MediaConversion? _activeConversion;
+    private List<MediaConversion> _latestConversions = new();
+    private List<MediaFile> _latestMediaFiles = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        MediaConverter.ConverterStateChanged += OnConverterStateChanged;
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        HasProfile = await context.Profiles.AnyAsync();
+
+        if (!HasProfile)
+        {
+            return;
+        }
+
+        TotalFiles = await context.MediaFiles.CountAsync();
+        RedundantTrackFiles = await context.MediaFiles.CountAsync(f => f.HasRedundantTracks);
+        MetadataIssueFiles = await context.MediaFiles.CountAsync(f => f.HasNonStandardMetadata);
+        TotalConversions = await context.MediaConversions.CountAsync(c => c.State == ConversionState.Completed);
+        ActiveConversions = await context.MediaConversions.CountAsync(c => c.State == ConversionState.Processing);
+        var totalSavedBytes = await context.MediaConversions
+            .Where(c => c.State == ConversionState.Completed)
+            .SumAsync(c => c.SizeDifference);
+        SpaceSaved = totalSavedBytes.DisplayFileSize();
+
+        _activeConversion = await context.MediaConversions
+            .Where(c => c.State == ConversionState.Processing)
+            .OrderByDescending(c => c.CreatedDate)
+            .FirstOrDefaultAsync();
+
+        _latestConversions = await context.MediaConversions
+            .OrderByDescending(c => c.CreatedDate)
+            .Take(5)
+            .ToListAsync();
+
+        _latestMediaFiles = await context.MediaFiles
+            .OrderByDescending(f => f.CreatedDate)
+            .Take(5)
+            .ToListAsync();
+    }
+
+    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_activeConversion != null && _activeConversion.Id == e.Conversion.Id)
+            {
+                _activeConversion.Progress = e.Conversion.Progress;
+                _activeConversion.State = e.Conversion.State;
+
+                if (_activeConversion.State != ConversionState.Processing)
+                {
+                    _activeConversion = null;
+                }
+            }
+            else if (e.Conversion.State == ConversionState.Processing && _activeConversion == null)
+            {
+                // Create a detached copy to avoid holding a reference to an entity from another DbContext scope
+                _activeConversion = new MediaConversion
+                {
+                    Id = e.Conversion.Id,
+                    Name = e.Conversion.Name,
+                    CreatedDate = e.Conversion.CreatedDate,
+                    Progress = e.Conversion.Progress,
+                    State = e.Conversion.State
+                };
+            }
+
+            // Update active count
+            if (e.Conversion.State == ConversionState.Processing)
+            {
+                ActiveConversions = Math.Max(1, ActiveConversions);
+            }
+            else if (e.Conversion.State is ConversionState.Completed or ConversionState.Failed)
+            {
+                ActiveConversions = Math.Max(0, ActiveConversions - 1);
+                if (e.Conversion.State == ConversionState.Completed)
+                {
+                    TotalConversions++;
+                }
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    public override void Dispose()
+    {
+        _disposed = true;
+        MediaConverter.ConverterStateChanged -= OnConverterStateChanged;
+    }
+}

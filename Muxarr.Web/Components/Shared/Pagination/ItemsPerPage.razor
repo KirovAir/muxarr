@@ -1,0 +1,21 @@
+<div class="form-group">
+	<select id="itemsPerPage" class="form-select form-select-sm" @onchange="OnSelectionChanged" value="@Parent.PageSize">
+		@foreach (var option in Options)
+		{
+			<option value="@option">@option</option>
+		}
+	</select>
+</div>
+
+@code {
+    [Parameter] public int[] Options { get; set; } = [10, 50, 100, 500, 1000, 5000, 10000];
+    [Parameter, EditorRequired] public required PaginatedListComponentBase Parent { get; set; }
+
+    private async Task OnSelectionChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out int selectedValue))
+        {
+	        await Parent.ChangePageSize(selectedValue);
+        }
+    }
+}

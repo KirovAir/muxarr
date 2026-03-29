@@ -1,0 +1,61 @@
+﻿@typeparam TType where TType : class
+
+<div class="form-group">
+    <select class="form-select" @onchange="OnSelectionChanged" value="@(Value?.GetType().GetProperty(DisplayProperty)?.GetValue(Value)?.ToString() ?? "")">
+        <option value="">@(EmptyValue ?? "Select")</option>
+        @foreach (var item in Items)
+        {
+            var displayValue = item.GetType().GetProperty(DisplayProperty)?.GetValue(item)?.ToString();
+            <option value="@displayValue">@displayValue</option>
+        }
+    </select>
+</div>
+
+@code {
+    [Parameter]
+    public TType? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<TType?> ValueChanged { get; set; }
+
+    [Parameter]
+    public string? EmptyValue { get; set; }
+
+    [Parameter, EditorRequired]
+    public IEnumerable<TType> Items { get; set; } = [];
+
+    [Parameter, EditorRequired]
+    public string DisplayProperty { get; set; } = null!;
+
+    protected override void OnInitialized()
+    {
+        if (string.IsNullOrEmpty(DisplayProperty))
+        {
+            throw new ArgumentNullException(nameof(DisplayProperty), "DisplayProperty must be specified");
+        }
+
+        // Validate that the property exists on type T
+        var propertyInfo = typeof(TType).GetProperty(DisplayProperty);
+        if (propertyInfo == null)
+        {
+            throw new ArgumentException($"Property {DisplayProperty} does not exist on type {typeof(TType).Name}");
+        }
+    }
+
+    private async Task OnSelectionChanged(ChangeEventArgs e)
+    {
+        var selectedValue = e.Value?.ToString();
+
+        if (string.IsNullOrEmpty(selectedValue))
+        {
+            await ValueChanged.InvokeAsync(null);
+            return;
+        }
+
+        // Find the item in the collection that matches the selected display value
+        var selectedItem = Items.FirstOrDefault(item =>
+            item.GetType().GetProperty(DisplayProperty)?.GetValue(item)?.ToString() == selectedValue);
+
+        await ValueChanged.InvokeAsync(selectedItem);
+    }
+}

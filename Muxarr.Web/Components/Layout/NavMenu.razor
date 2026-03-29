@@ -1,0 +1,124 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+<nav class="mux-sidebar @(_isDesktopCollapsed ? "collapsed" : "") @(_isMobileOpen ? "mux-mobile-open" : "")">
+    <div class="mux-sidebar-header d-none d-md-flex">
+        <a href="/" class="d-flex align-items-center gap-2 text-decoration-none">
+            <img src="logo.png?v=@AppInfo.Version" alt="Muxarr" class="mux-logo"/>
+            <span class="text-light fw-semibold mux-logo-text">Muxarr</span>
+        </a>
+    </div>
+
+    <div class="mux-nav-content">
+        <ul class="nav flex-column">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All" @onclick="CloseMobileMenu">
+                    <i class="bi bi-house-door"></i>
+                    <span>Dashboard</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="conversions" @onclick="CloseMobileMenu">
+                    <i class="bi bi-arrow-repeat"></i>
+                    <span>Conversions</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="library" @onclick="CloseMobileMenu">
+                    <i class="bi bi-collection"></i>
+                    <span>Library</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="statistics" @onclick="CloseMobileMenu">
+                    <i class="bi bi-bar-chart"></i>
+                    <span>Statistics</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="logs" @onclick="CloseMobileMenu">
+                    <i class="bi bi-journal-text"></i>
+                    <span>Logs</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="settings" @onclick="CloseMobileMenu">
+                    <i class="bi bi-gear"></i>
+                    <span>Settings</span>
+                </NavLink>
+            </li>
+        </ul>
+    </div>
+
+    <div class="mux-sidebar-footer">
+        <div class="d-flex align-items-center gap-2">
+            <button class="btn btn-link text-light p-0 mux-footer-btn" @onclick="() => Layout.ToggleTheme()"
+                    title="@(Layout.IsDarkMode ? "Light mode" : "Dark mode")">
+                <i class="bi @(Layout.IsDarkMode ? "bi-sun" : "bi-moon")"></i>
+            </button>
+            @if (_isAuthenticated)
+            {
+                <form method="post" action="/api/auth/logout">
+                    <button type="submit" class="btn btn-link text-light p-0 mux-footer-btn" title="Sign out">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
+                </form>
+            }
+            <a href="https://github.com/KirovAir/muxarr" target="_blank" class="mux-version text-decoration-none">v@(AppInfo.Version)</a>
+        </div>
+        <button class="btn btn-link text-light p-0 mux-footer-btn d-none d-md-inline-flex" @onclick="ToggleDesktopCollapse"
+                title="@(_isDesktopCollapsed ? "Expand" : "Collapse")">
+            <i class="bi @(_isDesktopCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
+        </button>
+    </div>
+</nav>
+
+@if (_isMobileOpen)
+{
+    <div class="mux-sidebar-backdrop d-md-none" @onclick="ToggleMobileMenu"></div>
+}
+
+@code {
+    private bool _isDesktopCollapsed;
+    private bool _isMobileOpen;
+    private bool _isAuthenticated;
+
+    [CascadingParameter]
+    public MainLayout Layout { get; set; } = default!;
+
+    [Inject]
+    public AuthenticationStateProvider? AuthStateProvider { get; set; }
+
+    public void ToggleMobileMenu()
+    {
+        _isMobileOpen = !_isMobileOpen;
+        StateHasChanged();
+    }
+
+    public void ToggleDesktopCollapse()
+    {
+        _isDesktopCollapsed = !_isDesktopCollapsed;
+        StateHasChanged();
+    }
+
+    private void CloseMobileMenu()
+    {
+        if (_isMobileOpen)
+        {
+            _isMobileOpen = false;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Layout is null)
+        {
+            throw new Exception("NavMenu requires a MainLayout cascading parameter");
+        }
+
+        if (AuthStateProvider != null)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            _isAuthenticated = authState.User.Identity?.IsAuthenticated == true;
+        }
+    }
+}

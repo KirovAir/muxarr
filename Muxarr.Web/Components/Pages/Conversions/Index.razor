@@ -1,0 +1,365 @@
+@page "/conversions"
+@using Muxarr.Web.Components.Pages.Library
+@inherits PaginatedListComponent<MediaConversion>
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Conversions")</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4 mux-page-header">
+        <h2 class="mb-0">
+            <i class="bi bi-arrow-repeat me-2"></i>Conversions
+        </h2>
+        <div class="btn-group btn-group-sm">
+            <button class="btn @(MediaConverter.IsPaused ? "btn-success" : "btn-warning")"
+                    @onclick="OnTogglePause" title="@(MediaConverter.IsPaused ? "Resume queue" : "Pause queue")">
+                <i class="bi @(MediaConverter.IsPaused ? "bi-play-fill" : "bi-pause-fill") me-1"></i>
+                @(MediaConverter.IsPaused ? "Resume" : "Pause")
+            </button>
+            @if (_activeConversions.Any(c => c.State == ConversionState.Processing))
+            {
+                <button class="btn btn-outline-danger" @onclick="OnCancelCurrent" title="Cancel current conversion">
+                    <i class="bi bi-x-circle me-1"></i>Cancel Current
+                </button>
+            }
+            @if (_activeConversions.Any(c => c.State == ConversionState.New))
+            {
+                <button class="btn btn-outline-danger" @onclick="OnClearQueue" title="Clear all queued conversions">
+                    <i class="bi bi-trash me-1"></i>Clear Queue
+                </button>
+            }
+        </div>
+    </div>
+
+    @if (MediaConverter.IsPaused)
+    {
+        <Alert Type="warning">
+            The conversion queue is paused. New conversions will not start until resumed.
+        </Alert>
+    }
+
+    @* Active Conversions Section *@
+    @if (_activeConversions.Count > 0)
+    {
+        <div class="card border-primary mb-4">
+            <div class="card-header bg-primary text-white">
+                <i class="bi bi-arrow-repeat me-2"></i>Active Conversions
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead>
+                        <tr>
+                            <th>File</th>
+                            <th>State</th>
+                            <th>Progress</th>
+                            <th>Started</th>
+                            <th class="text-center" style="width: 50px"></th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        @foreach (var conversion in _activeConversions)
+                        {
+                            <tr>
+                                <td>
+                                    <a href="" @onclick="@(() => Navigate(conversion))" @onclick:preventDefault>
+                                        <span class="small">@conversion.Name</span>
+                                    </a>
+                                </td>
+                                <td><ConversionStateBadge Conversion="conversion"/></td>
+                                <td><ConversionProgressBar Conversion="conversion"/></td>
+                                <td><TimeAgo DateTime="conversion.CreatedDate"/></td>
+                                <td class="text-center">
+                                    @if (conversion.State == ConversionState.Processing)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm" title="Cancel"
+                                                @onclick="OnCancelCurrent">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    }
+                                    else if (conversion.State == ConversionState.New)
+                                    {
+                                        <button class="btn btn-outline-danger btn-sm" title="Cancel"
+                                                @onclick="() => OnCancelQueued(conversion)">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row mb-3 g-2 mux-filter-row">
+        <div class="col">
+            <SearchBar Parent="this"></SearchBar>
+        </div>
+        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
+            <div class="btn-group btn-group-sm">
+                @foreach (var state in _stateOptions)
+                {
+                    <button class="btn @(state == _stateFilter ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="() => FilterByState(state)">
+                        @state
+                    </button>
+                }
+            </div>
+        </div>
+        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
+            <ResetFilters Parent="this"></ResetFilters>
+        </div>
+        <div class="col-auto">
+            <ItemsPerPage Parent="this"/>
+        </div>
+    </div>
+    <Loader IsLoading="IsLoading">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                <tr>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="Name">
+                            File
+                        </SortHeader>
+                    </th>
+                    <th>State</th>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="Progress">
+                            Progress
+                        </SortHeader>
+                    </th>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="SizeDifference">
+                            Size Reduction
+                        </SortHeader>
+                    </th>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="CreatedDate">
+                            Started
+                        </SortHeader>
+                    </th>
+                    <th>Tracks Before</th>
+                    <th>Tracks After</th>
+                    <th class="text-center" style="width: 50px"></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var conversion in Items)
+                {
+                    <tr>
+                        <td>
+                            <a href="" @onclick="@(() => Navigate(conversion))" @onclick:preventDefault>
+                            <span class="small">
+                                @(conversion.Name)
+                            </span>
+                            </a>
+                        </td>
+                        <td>
+                            <ConversionStateBadge Conversion="conversion"/>
+                        </td>
+                        <td>
+                            <ConversionProgressBar Conversion="conversion"/>
+                        </td>
+                        <td>
+                            @if (conversion.State == ConversionState.Completed)
+                            {
+                                <span>@conversion.GetSizeChangePercentage()</span>
+                            }
+                        </td>
+                        <td>
+                            <TimeAgo DateTime="conversion.CreatedDate"/>
+                        </td>
+                        <td>
+                            <MediaTrackLabels Tracks="conversion.TracksBefore"></MediaTrackLabels>
+                        </td>
+                        <td>
+                            <MediaTrackLabels Tracks="conversion.TracksAfter"></MediaTrackLabels>
+                        </td>
+                        <td class="text-center">
+                            <div class="btn-group btn-group-sm">
+                                @if (conversion.State != ConversionState.Processing)
+                                {
+                                    <button class="btn btn-outline-danger" title="Delete"
+                                            @onclick="() => OnDeleteConversion(conversion)">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <Pagination Parent="this"/>
+    </Loader>
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+    [Inject] public required MediaConverterService MediaConverter { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    [Filter]
+    private string _stateFilter = "All";
+
+    private readonly string[] _stateOptions = ["All", "New", "Processing", "Completed", "Failed"];
+    private List<MediaConversion> _activeConversions = new();
+
+    protected override void OnInitialized()
+    {
+        CurrentSortProperty = "CreatedDate";
+        IsAscending = false;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        MediaConverter.ConverterStateChanged += OnConverterStateChanged;
+        MediaConverter.QueueStateChanged += OnQueueStateChanged;
+        await LoadFilters();
+    }
+
+    protected override async Task UpdateListCore()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        // Load active conversions
+        _activeConversions = await context.MediaConversions
+            .Include(c => c.MediaFile)
+            .Where(c => c.State == ConversionState.Processing || c.State == ConversionState.New)
+            .OrderByDescending(c => c.CreatedDate)
+            .ToListAsync();
+
+        // Main query
+        var query = context.MediaConversions
+            .Include(c => c.MediaFile)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            query = query.Where(c =>
+                (c.MediaFile != null &&
+                 EF.Functions.Like(c.MediaFile.Path, $"%{SearchTerm}%")) ||
+                EF.Functions.Like(c.Name, $"%{SearchTerm}%")
+            );
+        }
+
+        if (_stateFilter != "All" && Enum.TryParse<ConversionState>(_stateFilter, out var state))
+        {
+            query = query.Where(c => c.State == state);
+        }
+
+        var result = await query.Sort(CurrentSortProperty, IsAscending).FindPagedAsync(Page, PageSize, true);
+        TotalItems = result.Total;
+        TotalPages = result.TotalPages;
+        Items = await result.Data.ToListAsync().ConfigureAwait(false);
+    }
+
+    private async Task FilterByState(string state)
+    {
+        _stateFilter = state;
+        Page = 1;
+        await UpdateList();
+    }
+
+    private void OnTogglePause()
+    {
+        MediaConverter.TogglePause();
+        StateHasChanged();
+    }
+
+    private void OnCancelCurrent()
+    {
+        MediaConverter.CancelCurrentConversion();
+        ToastService.ShowWarning("Cancelling current conversion.");
+    }
+
+    private async Task OnCancelQueued(MediaConversion conversion)
+    {
+        await MediaConverter.CancelQueuedConversion(conversion.Id);
+        _activeConversions.Remove(conversion);
+        await UpdateList();
+        ToastService.ShowWarning($"Cancelled {conversion.Name}.");
+    }
+
+    private async Task OnClearQueue()
+    {
+        await MediaConverter.ClearQueue();
+        await UpdateList();
+        ToastService.ShowWarning("Queue cleared.");
+    }
+
+    private void OnQueueStateChanged(object? sender, EventArgs e)
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private void Navigate(MediaConversion conversion)
+    {
+        NavigationManager.NavigateTo($"/conversions/{conversion.Id}");
+    }
+
+    private async Task OnDeleteConversion(MediaConversion conversion)
+    {
+        if (conversion.State == ConversionState.Processing)
+        {
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        await context.MediaConversions.Where(x => x.Id == conversion.Id).ExecuteDeleteAsync();
+        await UpdateList();
+
+        ToastService.ShowWarning("Conversion removed.");
+    }
+
+    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    {
+        _ = InvokeAsync(() =>
+        {
+            if (e.Conversion is { State: ConversionState.Completed, MediaFile: not null })
+            {
+                ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
+            }
+
+            // Update in main list
+            var conversion = Items.FirstOrDefault(x => x.Id == e.Conversion.Id);
+            if (conversion != null)
+            {
+                conversion.Progress = e.Conversion.Progress;
+                conversion.State = e.Conversion.State;
+            }
+
+            // Update in active list
+            var active = _activeConversions.FirstOrDefault(x => x.Id == e.Conversion.Id);
+            if (active != null)
+            {
+                active.Progress = e.Conversion.Progress;
+                active.State = e.Conversion.State;
+
+                if (active.State is ConversionState.Completed or ConversionState.Failed)
+                {
+                    _activeConversions.Remove(active);
+                }
+            }
+            else if (e.Conversion.State is ConversionState.Processing or ConversionState.New)
+            {
+                _activeConversions.Add(e.Conversion);
+            }
+
+            StateHasChanged();
+        });
+    }
+
+    public override void Dispose()
+    {
+        MediaConverter.ConverterStateChanged -= OnConverterStateChanged;
+        MediaConverter.QueueStateChanged -= OnQueueStateChanged;
+        base.Dispose();
+    }
+}

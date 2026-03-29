@@ -1,0 +1,79 @@
+@using Muxarr.Core.Api
+
+<p class="text-muted">Run a custom command after each successful conversion. Useful for refreshing media servers, cleaning subtitles, or other automation.</p>
+
+<EditForm Model="Config" OnValidSubmit="HandleSubmit">
+    <div class="border rounded p-4">
+        <div class="mb-3 form-check form-switch">
+            <InputCheckbox id="pp-enabled" class="form-check-input" @bind-Value="Config.Enabled" />
+            <label for="pp-enabled" class="form-check-label">Enable post-processing</label>
+        </div>
+
+        <div class="mb-3">
+            <label for="pp-command" class="form-label">Command</label>
+            <InputTextArea id="pp-command" class="form-control font-monospace" rows="3" @bind-Value="Config.Command" />
+            <small class="form-text text-muted">The command to execute after a successful conversion.</small>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Available variables</label>
+            <table class="table table-sm table-bordered">
+                <thead>
+                <tr>
+                    <th>Variable</th>
+                    <th>Description</th>
+                </tr>
+                </thead>
+                <tbody>
+                <tr><td><code>@("{{file}}")</code></td><td>Full path of the media file</td></tr>
+                <tr><td><code>@("{{filename}}")</code></td><td>Filename without path or extension</td></tr>
+                <tr><td><code>@("{{directory}}")</code></td><td>Parent directory of the media file</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        @if (!string.IsNullOrWhiteSpace(Config.Command))
+        {
+            <div class="mb-3">
+                <label class="form-label text-muted">Preview</label>
+                <div class="bg-dark text-light p-2 rounded font-monospace small">
+                    @Config.ResolveCommand("/media/movies/Example Movie (2024)/Example.Movie.2024.1080p.mkv")
+                </div>
+            </div>
+        }
+    </div>
+
+    <StickyBar>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-2"></i>Save Settings
+        </button>
+    </StickyBar>
+</EditForm>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    private PostProcessingConfig Config { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        Config = context.Configs.GetOrDefault<PostProcessingConfig>();
+    }
+
+    private async Task HandleSubmit()
+    {
+        try
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            context.Configs.Set(Config);
+            await context.SaveChangesAsync();
+            ToastService.ShowSuccess("Post-processing settings saved.");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to save settings: {ex.Message}");
+        }
+    }
+}

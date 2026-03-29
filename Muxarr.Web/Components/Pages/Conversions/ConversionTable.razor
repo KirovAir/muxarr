@@ -1,0 +1,59 @@
+<table class="table table-striped">
+    <thead>
+    <tr>
+        <th>State</th>
+        <th>Progress</th>
+        <th>Size Reduction</th>
+        <th>Started</th>
+        <th></th>
+    </tr>
+    </thead>
+    <tbody>
+    @if (Items?.Any() == true)
+    {
+        @foreach (var conversion in Items)
+        {
+            <tr>
+                <td>
+                    <ConversionStateBadge Conversion="conversion"/>
+                </td>
+                <td>
+                    <ConversionProgressBar Conversion="conversion"/>
+                </td>
+                <td>
+                    @if (conversion.State == ConversionState.Completed)
+                    {
+                        <span>@conversion.GetSizeChangePercentage()</span>
+                    }
+                </td>
+                <td>
+                    <TimeAgo DateTime="conversion.CreatedDate"/>
+                </td>
+                <td>
+                    <button class="btn btn-outline-primary btn-sm" title="View"
+                            @onclick="() => Navigate(conversion.Id)">
+                        <i class="bi bi-search"></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    }
+    else
+    {
+        <tr>
+            <td colspan="7" class="text-center">No conversions available.</td>
+        </tr>
+    }
+    </tbody>
+</table>
+
+@code {
+    [Parameter, EditorRequired] public required ICollection<MediaConversion> Items { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+
+    private void Navigate(int id)
+    {
+        NavigationManager.NavigateTo($"/conversions/{id}");
+    }
+
+}

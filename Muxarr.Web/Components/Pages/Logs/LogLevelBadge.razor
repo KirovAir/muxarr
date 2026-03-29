@@ -1,0 +1,19 @@
+@{
+    var (badgeClass, label) = Level switch
+    {
+        "VRB" => ("bg-secondary", "VRB"),
+        "DBG" => ("bg-secondary", "DBG"),
+        "INF" => ("bg-info", "INF"),
+        "WRN" => ("bg-warning text-dark", "WRN"),
+        "ERR" => ("bg-danger", "ERR"),
+        "FTL" => ("bg-danger", "FTL"),
+        _ => ("bg-secondary", Level)
+    };
+}
+
+<span class="badge @badgeClass">@label</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Level { get; set; } = string.Empty;
+}

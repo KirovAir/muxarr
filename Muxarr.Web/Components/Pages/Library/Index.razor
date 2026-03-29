@@ -1,0 +1,488 @@
+@page "/library"
+@using Microsoft.AspNetCore.WebUtilities
+@using Muxarr.Core.Api
+@inherits SelectablePaginatedListComponent<MediaFile>
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Library")</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4 mux-page-header">
+        <h2 class="mb-0">
+            <i class="bi bi-collection me-2"></i>Library
+        </h2>
+        <div class="btn-group btn-group-sm">
+            @if (MediaScanner.IsScanning)
+            {
+                <button @onclick="CancelRefresh" class="btn btn-danger" type="button">
+                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    Cancel scan
+                </button>
+            }
+            else
+            {
+                <button @onclick="Refresh" class="btn btn-outline-primary" type="button">
+                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                </button>
+                <button @onclick="ForceRefresh" class="btn btn-outline-primary" type="button" title="Force rescan all files">
+                    <i class="bi bi-arrow-repeat me-1"></i>Force
+                </button>
+            }
+        </div>
+    </div>
+
+    <div class="row mb-3 g-2 mux-filter-row">
+        @if (SelectedItems.Count > 0)
+        {
+            <div class="col-auto">
+                <button @onclick="QueueSelected" class="btn btn-success btn-sm" type="button">
+                    <i class="bi bi-plus-circle me-1"></i>Queue @SelectedItems.Count to conversion
+                </button>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(FileFilter) && TotalItems > 0)
+        {
+            <div class="col-auto">
+                <button @onclick="QueueAllFiltered" class="btn btn-outline-success btn-sm" type="button" disabled="@_isQueueing">
+                    @if (_isQueueing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-collection-play me-1"></i>
+                    }
+                    Queue all @TotalItems to conversion
+                </button>
+            </div>
+        }
+        <div class="col">
+            <SearchBar Parent="this"></SearchBar>
+        </div>
+        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
+            <ResetFilters Parent="this"></ResetFilters>
+            <select class="form-select form-select-sm" style="width: auto;" @bind="FileFilter">
+                <option value="">All Files</option>
+                <option value="tracks">Needs Track Removal</option>
+                <option value="metadata">Needs Metadata Fix</option>
+                <option value="any">Needs Any Work</option>
+            </select>
+            <button class="btn btn-sm @(_showAdvanced || HasAdvancedFilters ? "btn-primary" : "btn-outline-primary")"
+                    @onclick="() => _showAdvanced = !_showAdvanced">
+                <i class="bi bi-funnel me-1"></i>Advanced
+            </button>
+        </div>
+        <div class="col-auto">
+            <ItemsPerPage Parent="this"/>
+        </div>
+    </div>
+
+    @if (_showAdvanced || HasAdvancedFilters)
+    {
+        <div class="row mb-3 g-2">
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Video Codec" @bind-Value="VideoCodecFilter" Items="_filterOptions?.VideoCodecs ?? []" />
+            </div>
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Audio Codec" @bind-Value="AudioCodecFilter" Items="_filterOptions?.AudioCodecs ?? []" />
+            </div>
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Resolution" @bind-Value="ResolutionFilter" Items="_filterOptions?.Resolutions ?? []" />
+            </div>
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Channel Layout" @bind-Value="ChannelLayoutFilter" Items="_filterOptions?.ChannelLayouts ?? []" />
+            </div>
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Audio Language" @bind-Value="AudioLanguageFilter" Items="_filterOptions?.AudioLanguages ?? []" />
+            </div>
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Subtitle Language" @bind-Value="SubtitleLanguageFilter" Items="_filterOptions?.SubtitleLanguages ?? []" />
+            </div>
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Container" @bind-Value="ContainerFilter" Items="_filterOptions?.Containers ?? []" />
+            </div>
+            <div class="col-auto">
+                <FilterDropdown Placeholder="Bit Depth" @bind-Value="BitDepthFilter" Items="_filterOptions?.VideoBitDepths ?? []" />
+            </div>
+        </div>
+    }
+
+    <Loader IsLoading="IsLoading">
+        <table class="table table-striped">
+            <thead>
+            <tr>
+                <th>
+                    <SelectAllCheckbox Parent="this"/>
+                </th>
+                <th>
+                    <SortHeader Parent="this" SortProperty="Path">
+                        File
+                    </SortHeader>
+                </th>
+                <th>
+                    <SortHeader Parent="this" SortProperty="Size">
+                        Size
+                    </SortHeader>
+                </th>
+                <th>
+                    <SortHeader Parent="this" SortProperty="FileCreationTime">
+                        Created
+                    </SortHeader>
+                </th>
+                <th>
+                    <SortHeader Parent="this" SortProperty="TrackCount">
+                        Tracks
+                    </SortHeader>
+                </th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var file in Items)
+            {
+                <tr>
+                    <td>
+                        <SelectionCheckbox Parent="this" Item="file"/>
+                    </td>
+                    <td>
+                        <a href="" @onclick="@(() => Navigate(file))" @onclick:preventDefault>
+                        <span class="small">
+                            @file.GetName()
+                        </span>
+                        </a>
+                    </td>
+                    <td>
+                        <FileSize SizeInBytes="file.Size"></FileSize>
+                    </td>
+                    <td>
+                        <TimeAgo DateTime="@file.FileCreationTime"/>
+                    </td>
+                    <td>
+                        <MediaTrackLabels Tracks="file.Tracks.Where(x => x.Type != MediaTrackType.Video).ToList()"/>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+        <Pagination Parent="this"/>
+    </Loader>
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required MediaScannerService MediaScanner { get; set; }
+    [Inject] public required MediaConverterService MediaConverter { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    // Basic filter
+    [Filter] private string _fileFilter = "";
+    private string FileFilter
+    {
+        get => _fileFilter;
+        set { _fileFilter = value; _ = UpdateList(); }
+    }
+
+    // Advanced filters
+    [Filter] private string _videoCodecFilter = "";
+    private string VideoCodecFilter
+    {
+        get => _videoCodecFilter;
+        set { _videoCodecFilter = value; _ = UpdateList(); }
+    }
+
+    [Filter] private string _audioCodecFilter = "";
+    private string AudioCodecFilter
+    {
+        get => _audioCodecFilter;
+        set { _audioCodecFilter = value; _ = UpdateList(); }
+    }
+
+    [Filter] private string _resolutionFilter = "";
+    private string ResolutionFilter
+    {
+        get => _resolutionFilter;
+        set { _resolutionFilter = value; _ = UpdateList(); }
+    }
+
+    [Filter] private string _channelLayoutFilter = "";
+    private string ChannelLayoutFilter
+    {
+        get => _channelLayoutFilter;
+        set { _channelLayoutFilter = value; _ = UpdateList(); }
+    }
+
+    [Filter] private string _audioLanguageFilter = "";
+    private string AudioLanguageFilter
+    {
+        get => _audioLanguageFilter;
+        set { _audioLanguageFilter = value; _ = UpdateList(); }
+    }
+
+    [Filter] private string _subtitleLanguageFilter = "";
+    private string SubtitleLanguageFilter
+    {
+        get => _subtitleLanguageFilter;
+        set { _subtitleLanguageFilter = value; _ = UpdateList(); }
+    }
+
+    [Filter] private string _containerFilter = "";
+    private string ContainerFilter
+    {
+        get => _containerFilter;
+        set { _containerFilter = value; _ = UpdateList(); }
+    }
+
+    [Filter] private string _bitDepthFilter = "";
+    private string BitDepthFilter
+    {
+        get => _bitDepthFilter;
+        set { _bitDepthFilter = value; _ = UpdateList(); }
+    }
+
+    private bool _showAdvanced;
+    private bool _isQueueing;
+    private bool _disposed;
+    private LibraryStatsConfig? _filterOptions;
+
+    private bool HasAdvancedFilters =>
+        !string.IsNullOrEmpty(_videoCodecFilter) || !string.IsNullOrEmpty(_audioCodecFilter) ||
+        !string.IsNullOrEmpty(_resolutionFilter) || !string.IsNullOrEmpty(_channelLayoutFilter) ||
+        !string.IsNullOrEmpty(_audioLanguageFilter) || !string.IsNullOrEmpty(_subtitleLanguageFilter) ||
+        !string.IsNullOrEmpty(_containerFilter) || !string.IsNullOrEmpty(_bitDepthFilter);
+
+    private static readonly (string Key, string Field)[] QueryParamMap =
+    [
+        ("filter", nameof(_fileFilter)),
+        ("videoCodec", nameof(_videoCodecFilter)),
+        ("audioCodec", nameof(_audioCodecFilter)),
+        ("resolution", nameof(_resolutionFilter)),
+        ("channelLayout", nameof(_channelLayoutFilter)),
+        ("audioLanguage", nameof(_audioLanguageFilter)),
+        ("subtitleLanguage", nameof(_subtitleLanguageFilter)),
+        ("container", nameof(_containerFilter)),
+        ("bitDepth", nameof(_bitDepthFilter))
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        MediaScanner.ScanningStateChanged += OnScanningStateChanged;
+        await LoadFilters();
+
+        if (ApplyQueryParams())
+        {
+            await UpdateList();
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        _filterOptions = context.Configs.Get<LibraryStatsConfig>();
+    }
+
+    private bool ApplyQueryParams()
+    {
+        var query = QueryHelpers.ParseQuery(new Uri(NavigationManager.Uri).Query);
+        if (query.Count == 0)
+        {
+            return false;
+        }
+
+        var applied = false;
+        var type = GetType();
+        foreach (var (key, fieldName) in QueryParamMap)
+        {
+            if (query.TryGetValue(key, out var val) && !string.IsNullOrEmpty(val))
+            {
+                type.GetField(fieldName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
+                    ?.SetValue(this, (string)val!);
+                applied = true;
+            }
+        }
+
+        return applied;
+    }
+
+    protected override async Task UpdateListCore()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var query = ApplyFilters(context.MediaFiles.AsQueryable());
+
+        var result = await query.Sort(CurrentSortProperty, IsAscending).FindPagedAsync(Page, PageSize, true);
+        TotalItems = result.Total;
+        TotalPages = result.TotalPages;
+        Items = await result.Data.WithTracks().ToListAsync().ConfigureAwait(false);
+    }
+
+    private IQueryable<MediaFile> ApplyFilters(IQueryable<MediaFile> query)
+    {
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            query = query.Where(f =>
+                EF.Functions.Like(f.Path, $"%{SearchTerm}%") ||
+                EF.Functions.Like(f.Title, $"%{SearchTerm}%")
+            );
+        }
+
+        query = FileFilter switch
+        {
+            "tracks" => query.Where(x => x.HasRedundantTracks),
+            "metadata" => query.Where(x => x.HasNonStandardMetadata),
+            "any" => query.Where(x => x.HasRedundantTracks || x.HasNonStandardMetadata),
+            _ => query
+        };
+
+        // Scalar column filters (SQL WHERE, case-insensitive)
+        if (!string.IsNullOrEmpty(_resolutionFilter))
+        {
+            query = query.Where(f => EF.Functions.Collate(f.Resolution!, "NOCASE") == _resolutionFilter);
+        }
+
+        if (!string.IsNullOrEmpty(_containerFilter))
+        {
+            query = query.Where(f => EF.Functions.Collate(f.ContainerType!, "NOCASE") == _containerFilter);
+        }
+
+        if (!string.IsNullOrEmpty(_bitDepthFilter) && int.TryParse(_bitDepthFilter.Replace("-bit", ""), out var depth))
+        {
+            query = query.Where(f => f.VideoBitDepth == depth);
+        }
+
+        // Track-level filters (SQL WHERE EXISTS via navigation property, case-insensitive)
+        if (!string.IsNullOrEmpty(_videoCodecFilter))
+        {
+            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Video &&
+                EF.Functions.Collate(t.Codec, "NOCASE") == _videoCodecFilter));
+        }
+
+        if (!string.IsNullOrEmpty(_audioCodecFilter))
+        {
+            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Audio &&
+                EF.Functions.Collate(t.Codec, "NOCASE") == _audioCodecFilter));
+        }
+
+        if (!string.IsNullOrEmpty(_audioLanguageFilter))
+        {
+            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Audio &&
+                EF.Functions.Collate(t.LanguageName, "NOCASE") == _audioLanguageFilter));
+        }
+
+        if (!string.IsNullOrEmpty(_subtitleLanguageFilter))
+        {
+            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Subtitles &&
+                EF.Functions.Collate(t.LanguageName, "NOCASE") == _subtitleLanguageFilter));
+        }
+
+        if (!string.IsNullOrEmpty(_channelLayoutFilter))
+        {
+            var channels = _channelLayoutFilter switch
+            {
+                "1.0" => 1, "2.0" => 2, "5.1" => 6, "7.1" => 8,
+                _ => int.TryParse(_channelLayoutFilter.Replace("ch", ""), out var ch) ? ch : 0
+            };
+            if (channels > 0)
+            {
+                query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Audio && t.AudioChannels == channels));
+            }
+        }
+
+        return query;
+    }
+
+    private async Task Refresh()
+    {
+        await MediaScanner.ScanAll(false);
+    }
+
+    private async Task ForceRefresh()
+    {
+        await MediaScanner.ScanAll(true);
+    }
+
+    private void CancelRefresh()
+    {
+        MediaScanner.Cancel();
+    }
+
+    private async Task QueueAllFiltered()
+    {
+        _isQueueing = true;
+        try
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            var files = await ApplyFilters(context.MediaFiles.AsQueryable())
+                .WithTracksAndProfile()
+                .ToListAsync();
+            await QueueFiles(files);
+        }
+        finally
+        {
+            _isQueueing = false;
+        }
+    }
+
+    private async Task QueueSelected()
+    {
+        await QueueFiles(SelectedItems);
+        SelectedItems.Clear();
+    }
+
+    private async Task QueueFiles(IEnumerable<MediaFile> files)
+    {
+        var queued = 0;
+        var skipped = 0;
+        foreach (var file in files)
+        {
+            if (await MediaConverter.AddMediaToQueue(file))
+            {
+                queued++;
+            }
+            else
+            {
+                skipped++;
+            }
+        }
+
+        if (queued > 0)
+        {
+            ToastService.ShowSuccess($"Added {queued} file(s) to the conversion queue.");
+        }
+        if (skipped > 0)
+        {
+            ToastService.ShowWarning($"{skipped} file(s) skipped — not accessible (mount may be offline).");
+        }
+    }
+
+    private void Navigate(MediaFile file)
+    {
+        NavigationManager.NavigateTo($"/library/{file.Id}");
+    }
+
+    private void OnScanningStateChanged(object? sender, bool isScanning)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (!isScanning)
+            {
+                ToastService.ShowInfo("Finished scanning!");
+            }
+
+            await UpdateList();
+            StateHasChanged();
+        });
+    }
+
+    public override void Dispose()
+    {
+        _disposed = true;
+        MediaScanner.ScanningStateChanged -= OnScanningStateChanged;
+        base.Dispose();
+    }
+}

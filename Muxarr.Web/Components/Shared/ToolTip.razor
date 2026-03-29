@@ -1,0 +1,36 @@
+@if (string.IsNullOrEmpty(Tip))
+{
+    @ChildContent
+}
+else
+{
+    <div class="tooltip-container">
+        <div class="tooltip-content" @onmouseenter="ShowToolTip" @onmouseleave="HideToolTip">
+            @ChildContent
+        </div>
+        <div class="@TooltipClassList">
+            @Tip
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public string? Tip { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public string Position { get; set; } = "top";
+    
+    private bool _isVisible;
+    private string TooltipClassList => $"tooltip-text {Position} {(_isVisible ? "visible" : "")}";
+    
+    private void ShowToolTip()
+    {
+        _isVisible = true;
+        StateHasChanged();
+    }
+
+    private void HideToolTip()
+    {
+        _isVisible = false;
+        StateHasChanged();
+    }
+}

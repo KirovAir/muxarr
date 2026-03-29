@@ -1,0 +1,81 @@
+@if (!Settings.Enabled)
+{
+    <ToolTip Tip="Track settings are disabled - no modifications will be made">
+        <span class="badge text-bg-success me-1">Unmodified</span>
+    </ToolTip>
+}
+else
+{
+    @if (Settings.KeepOriginalLanguage)
+    {
+        <ToolTip Tip="Original language track will be preserved">
+            <span class="badge text-bg-success me-1">Original</span>
+        </ToolTip>
+    }
+    @foreach (var lang in Settings.AllowedLanguages)
+    {
+        <ToolTip Tip="@($"Tracks in {lang.DisplayName} will be kept")">
+            <span class="badge text-bg-success me-1">@lang.DisplayName</span>
+        </ToolTip>
+    }
+
+    if (Settings is { KeepOriginalLanguage: false, AllowedLanguages.Count: 0 })
+    {
+        <ToolTip Tip="WARNING: All tracks will be removed with this configuration!">
+            <span class="badge text-bg-danger me-1">None</span>
+        </ToolTip>
+    }
+    else
+    {
+        @if (!Settings.RemoveCommentary)
+        {
+            <ToolTip Tip="Commentary tracks will be kept. (When in a allowed language)">
+                <span class="badge text-bg-success me-1">
+                    <i class="bi bi-check-lg me-1"></i>
+                    <i class="bi bi-chat-quote"></i>
+                </span>
+            </ToolTip>
+        }
+        else
+        {
+            <ToolTip Tip="All Commentary tracks will be removed">
+                <span class="badge text-bg-warning me-1">
+                    <i class="bi bi-x-lg me-1"></i>
+                    <i class="bi bi-chat-quote"></i>
+                </span>
+            </ToolTip>
+        }
+
+        @if (!Settings.RemoveImpaired)
+        {
+            <ToolTip Tip="Hearing/Visual impaired tracks will be kept (When in an allowed language)">
+                <span class="badge text-bg-success me-1">
+                    <i class="bi bi-check-lg me-1"></i>
+                    <i class="bi bi-ear"></i>
+                </span>
+            </ToolTip>
+        }
+        else
+        {
+            <ToolTip Tip="All hearing/visual impaired tracks will be removed">
+                <span class="badge text-bg-warning me-1">
+                    <i class="bi bi-x-lg me-1"></i>
+                    <i class="bi bi-ear"></i>
+                </span>
+            </ToolTip>
+        }
+
+        @if (Settings.StandardizeTrackNames)
+        {
+            <ToolTip Tip="@($"Track names will be standardized using: {Settings.TrackNameTemplate}")">
+                <span class="badge text-bg-info me-1">
+                    <i class="bi bi-magic me-1"></i>Rename
+                </span>
+            </ToolTip>
+        }
+    }
+}
+
+@code {
+    [Parameter, EditorRequired] public TrackSettings Settings { get; set; } = null!;
+}

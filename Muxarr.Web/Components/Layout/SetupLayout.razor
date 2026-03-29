@@ -1,0 +1,55 @@
+@inherits LayoutComponentBase
+
+<div class="mux-setup-wrapper" data-bs-theme="dark">
+    <div class="mux-setup-card">
+        <div class="text-center mb-4">
+            <img src="logo.png" alt="Muxarr" style="height: 48px;" class="mb-2" />
+        </div>
+        @Body
+    </div>
+</div>
+
+<style>
+    .mux-setup-wrapper {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--mux-navy);
+        background-image:
+            radial-gradient(ellipse 60% 50% at 50% 0%, rgba(240, 112, 48, 0.06) 0%, transparent 70%);
+        padding: 1rem;
+    }
+
+    .mux-setup-card {
+        width: 100%;
+        max-width: 600px;
+    }
+
+    .mux-setup-card .card {
+        background: var(--mux-navy-light);
+        border: 1px solid var(--mux-border);
+        border-radius: 0.75rem;
+    }
+
+    .mux-setup-card .form-control {
+        background: var(--mux-surface);
+        border-color: var(--mux-border);
+        color: rgba(255, 255, 255, 0.92);
+    }
+
+    .mux-setup-card .form-control:focus {
+        border-color: var(--mux-accent);
+        box-shadow: 0 0 0 2px rgba(240, 112, 48, 0.2);
+    }
+
+    .mux-setup-card .form-label {
+        font-size: 0.8125rem;
+        font-weight: 500;
+        color: rgba(255, 255, 255, 0.6);
+    }
+
+    .mux-setup-card .text-muted {
+        color: rgba(255, 255, 255, 0.45) !important;
+    }
+</style>

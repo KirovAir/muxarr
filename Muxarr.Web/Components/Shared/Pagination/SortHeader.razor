@@ -1,0 +1,34 @@
+<button class="btn btn-link p-0" @onclick="OnSortClick">
+    @ChildContent
+    @if (Parent.CurrentSortProperty == SortProperty && Parent.IsAscending.HasValue)
+    {
+        <i class="bi @SortIcon"></i>
+    }
+</button>
+
+@code {
+    [Parameter] public required RenderFragment ChildContent { get; set; }
+    [Parameter, EditorRequired] public required string SortProperty { get; set; }
+    [Parameter, EditorRequired] public required PaginatedListComponentBase Parent { get; set; }
+    
+    private string SortIcon => Parent.IsAscending switch
+    {
+        true => "bi-sort-up",
+        false => "bi-sort-down",
+        _ => string.Empty
+    };
+
+    private async Task OnSortClick()
+    {
+	    Parent.IsAscending = Parent.CurrentSortProperty == SortProperty
+            ? Parent.IsAscending switch
+            {
+                null => true,
+                true => false,
+                false => null
+            }
+            : true;
+
+        await Parent.HandleSort(SortProperty);
+    }
+}

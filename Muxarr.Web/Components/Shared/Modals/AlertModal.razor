@@ -1,0 +1,14 @@
+﻿<div class="modal-content">
+	<div class="modal-body">
+		<p class="mb-4">@(Message == null ? "" : (MarkupString)Message.Replace(Environment.NewLine, "<br />"))</p>
+		<div class="d-flex justify-content-end gap-2">
+			<button class="btn btn-primary" @onclick="Ok">Ok</button>
+		</div>
+	</div>
+</div>
+
+@code {
+	[CascadingParameter] public required BlazoredModalInstance BlazoredModal { get; set; }
+	[Parameter] public string? Message { get; set; }
+	private async Task Ok() => await BlazoredModal.CloseAsync(ModalResult.Ok());
+}

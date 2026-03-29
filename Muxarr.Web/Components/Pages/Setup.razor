@@ -1,0 +1,327 @@
+@page "/setup"
+@layout Muxarr.Web.Components.Layout.SetupLayout
+@using Microsoft.AspNetCore.Identity
+@using Muxarr.Core.Api
+@using Muxarr.Web.Components.Pages.Settings
+@attribute [StreamRendering]
+
+<div class="card p-4">
+    @* Step indicator *@
+    <div class="d-flex justify-content-center gap-2 mb-4">
+        <span class="badge @(_step == 1 ? "text-bg-primary" : "text-bg-secondary")">1. Security</span>
+        <span class="badge @(_step == 2 ? "text-bg-primary" : "text-bg-secondary")">2. Integration</span>
+        <span class="badge @(_step == 3 ? "text-bg-primary" : "text-bg-secondary")">3. Webhooks</span>
+        <span class="badge @(_step == 4 ? "text-bg-primary" : "text-bg-secondary")">4. Profiles</span>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <div class="alert alert-danger py-2 small">@_error</div>
+    }
+
+    @if (_step == 1)
+    {
+        <h4 class="mb-2">Welcome to Muxarr</h4>
+        <p class="text-muted small mb-4">
+            Muxarr automates audio and subtitle track management for your media library.
+            Let's get you set up. First, secure your instance with a username and password.
+        </p>
+
+        <div class="mb-3">
+            <label class="form-label">Username</label>
+            <input type="text" class="form-control" @bind="_username" />
+        </div>
+        <div class="mb-3">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-control" @bind="_password" />
+        </div>
+        <div class="mb-4">
+            <label class="form-label">Confirm Password</label>
+            <input type="password" class="form-control" @bind="_confirmPassword" />
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+            <button class="btn btn-link btn-sm text-muted text-decoration-none p-0" @onclick="SkipAuth">
+                Skip <span class="small">(not recommended)</span>
+            </button>
+            <button class="btn btn-primary" @onclick="SaveAuth">
+                Next <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+        </div>
+    }
+    else if (_step == 2)
+    {
+        <h4 class="mb-2">Connect Sonarr & Radarr</h4>
+        <p class="text-muted small mb-4">
+            Optionally connect your Sonarr and Radarr instances. Muxarr uses these to automatically
+            process files when imported or renamed, and to retrieve original language metadata for
+            smarter track filtering. You can always configure this later in Settings.
+        </p>
+
+        <EditForm Model="_arrConfigs" FormName="arr-setup">
+            <div class="mb-4">
+                <ArrConfigEditor Name="Sonarr" Config="_sonarrConfig" />
+            </div>
+            <div class="mb-4">
+                <ArrConfigEditor Name="Radarr" Config="_radarrConfig" />
+            </div>
+
+            <div class="d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-secondary" @onclick="() => GoToStep(1)">
+                    <i class="bi bi-arrow-left me-1"></i> Back
+                </button>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-outline-secondary" @onclick="() => GoToStep(3)">
+                        Skip
+                    </button>
+                    <button type="button" class="btn btn-primary" @onclick="SaveArrAndContinue">
+                        Next <i class="bi bi-arrow-right ms-1"></i>
+                    </button>
+                </div>
+            </div>
+        </EditForm>
+    }
+    else if (_step == 3)
+    {
+        <h4 class="mb-2">Webhook Configuration</h4>
+        <p class="text-muted small mb-4">
+            For Muxarr to automatically process files, Sonarr and Radarr need to know how to reach it.
+            Enter the URL that your *Arr instances can use to connect to this Muxarr instance.
+            This is typically the container name or IP address on your Docker network.
+        </p>
+
+        <div class="mb-4">
+            <label class="form-label">Muxarr URL</label>
+            <input type="text" class="form-control" @bind="_muxarrUrl" placeholder="http://muxarr:8183" />
+            <small class="form-text text-muted">
+                Example: <code>http://muxarr:8183</code> (Docker) or <code>http://x.x.x.x:8183</code> (LAN IP)
+            </small>
+        </div>
+
+        <div class="d-flex justify-content-between">
+            <button class="btn btn-outline-secondary" @onclick="() => GoToStep(2)">
+                <i class="bi bi-arrow-left me-1"></i> Back
+            </button>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary" @onclick="() => GoToStep(4)">
+                    Skip webhooks
+                </button>
+                <button class="btn btn-primary" @onclick="SaveWebhooksAndContinue" disabled="@_isFinishing">
+                    @if (_isFinishing)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    }
+                    Next <i class="bi bi-arrow-right ms-1"></i>
+                </button>
+            </div>
+        </div>
+    }
+    else if (_step == 4)
+    {
+        <h4 class="mb-2">You're all set!</h4>
+        <p class="text-muted small mb-3">
+            Muxarr uses <strong>profiles</strong> to decide how to manage your media files.
+            A profile defines:
+        </p>
+        <ul class="text-muted small mb-3">
+            <li><strong>Directories</strong> — which folders to scan for media files</li>
+            <li><strong>Audio settings</strong> — which audio languages to keep, whether to remove commentary or hearing-impaired tracks</li>
+            <li><strong>Subtitle settings</strong> — same controls for subtitle tracks</li>
+            <li><strong>Track name standardization</strong> — optionally rename tracks to a consistent format</li>
+        </ul>
+        <p class="text-muted small mb-4">
+            You'll be taken to the profile editor to create your first profile. After saving, Muxarr will scan your
+            library and start managing tracks automatically.
+        </p>
+
+        <div class="d-flex justify-content-end">
+            <button class="btn btn-primary" @onclick="CompleteSetup">
+                Create Profile <i class="bi bi-arrow-right ms-1"></i>
+            </button>
+        </div>
+    }
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required ArrApiClient ArrApi { get; set; }
+
+    private static readonly PasswordHasher<string> Hasher = new();
+
+    private int _step = 1;
+    private string _username = "admin";
+    private string _password = "";
+    private string _confirmPassword = "";
+    private string _muxarrUrl = "";
+    private string? _error;
+    private bool _isFinishing;
+    private ArrConfigs _arrConfigs = new();
+    private ArrConfig _sonarrConfig => _arrConfigs.Sonarr;
+    private ArrConfig _radarrConfig => _arrConfigs.Radarr;
+
+    private bool HasSonarr => !string.IsNullOrWhiteSpace(_sonarrConfig.Url) && !string.IsNullOrWhiteSpace(_sonarrConfig.ApiKey);
+    private bool HasRadarr => !string.IsNullOrWhiteSpace(_radarrConfig.Url) && !string.IsNullOrWhiteSpace(_radarrConfig.ApiKey);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        if (await context.Configs.GetAsync<SetupConfig>() != null)
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    private void GoToStep(int step)
+    {
+        _error = null;
+        _step = step;
+    }
+
+    private async Task SaveAuth()
+    {
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_username))
+        {
+            _error = "Username is required.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(_password))
+        {
+            _error = "Password is required.";
+            return;
+        }
+
+        if (_password != _confirmPassword)
+        {
+            _error = "Passwords do not match.";
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        context.Configs.Set(new AuthConfig
+        {
+            Username = _username.Trim(),
+            PasswordHash = Hasher.HashPassword(_username.Trim(), _password)
+        }, AuthConfig.Key);
+        await context.SaveChangesAsync();
+
+        GoToStep(2);
+    }
+
+    private void SkipAuth()
+    {
+        GoToStep(2);
+    }
+
+    private async Task SaveArrAndContinue()
+    {
+        _error = null;
+
+        if (!HasSonarr && !HasRadarr)
+        {
+            GoToStep(3);
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        if (HasSonarr)
+        {
+            _sonarrConfig.Url = ArrConfigEditor.SanitizeUrl(_sonarrConfig.Url);
+            context.Configs.Set(_sonarrConfig, ArrConfig.SonarrKey);
+        }
+
+        if (HasRadarr)
+        {
+            _radarrConfig.Url = ArrConfigEditor.SanitizeUrl(_radarrConfig.Url);
+            context.Configs.Set(_radarrConfig, ArrConfig.RadarrKey);
+        }
+
+        await context.SaveChangesAsync();
+        GoToStep(3);
+    }
+
+    private async Task SaveWebhooksAndContinue()
+    {
+        _error = null;
+
+        if (string.IsNullOrWhiteSpace(_muxarrUrl))
+        {
+            _error = "Please enter the Muxarr URL, or click Skip webhooks.";
+            return;
+        }
+
+        _isFinishing = true;
+        StateHasChanged();
+
+        try
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+
+            var webhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
+            webhookConfig.MuxarrUrl = ArrConfigEditor.SanitizeUrl(_muxarrUrl);
+
+            if (string.IsNullOrEmpty(webhookConfig.ApiKey))
+            {
+                webhookConfig.ApiKey = Guid.NewGuid().ToString("N");
+            }
+
+            context.Configs.Set(webhookConfig);
+            await context.SaveChangesAsync();
+
+            var webhookUrl = $"{webhookConfig.MuxarrUrl}/api/webhook?apikey={webhookConfig.ApiKey}";
+
+            if (HasSonarr)
+            {
+                await RegisterWebhook(_sonarrConfig, "Sonarr", webhookUrl);
+            }
+
+            if (HasRadarr)
+            {
+                await RegisterWebhook(_radarrConfig, "Radarr", webhookUrl);
+            }
+
+            GoToStep(4);
+        }
+        finally
+        {
+            _isFinishing = false;
+        }
+    }
+
+    private async Task CompleteSetup()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        context.Configs.Set(new SetupConfig { CompletedAt = DateTime.UtcNow });
+        await context.SaveChangesAsync();
+        NavigationManager.NavigateTo("/settings/profile/0");
+    }
+
+    private async Task RegisterWebhook(ArrConfig arrConfig, string name, string webhookUrl)
+    {
+        try
+        {
+            var existing = await ArrApi.FindMuxarrNotification(arrConfig);
+            var success = existing != null
+                ? await ArrApi.UpdateWebhookNotification(arrConfig, existing, webhookUrl)
+                : await ArrApi.CreateWebhookNotification(arrConfig, webhookUrl);
+
+            if (success)
+            {
+                ToastService.ShowSuccess($"Webhook registered in {name}!");
+            }
+            else
+            {
+                ToastService.ShowWarning($"Could not register webhook in {name}. You can set this up later in Settings.");
+            }
+        }
+        catch
+        {
+            ToastService.ShowWarning($"Could not reach {name} for webhook registration. You can set this up later in Settings.");
+        }
+    }
+}

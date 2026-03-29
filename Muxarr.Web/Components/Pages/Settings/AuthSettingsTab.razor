@@ -1,0 +1,145 @@
+@using Microsoft.AspNetCore.Identity
+@using Muxarr.Core.Api
+
+<p class="text-muted">Configure authentication. When a username and password are set, login is required to access the
+    application. Leave empty to allow open access.</p>
+
+@if (IsConfigured)
+{
+    <div class="alert alert-info">
+        Authentication is enabled for user <strong>@CurrentUsername</strong>.
+    </div>
+}
+
+<EditForm Model="Model" OnValidSubmit="HandleSubmit">
+    <DataAnnotationsValidator />
+
+    <div class="row g-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Credentials</h5>
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <InputText class="form-control" @bind-Value="Model.Username" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">@(IsConfigured ? "New Password" : "Password")</label>
+                        <InputText type="password" class="form-control" @bind-Value="Model.Password" />
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Confirm Password</label>
+                        <InputText type="password" class="form-control" @bind-Value="Model.ConfirmPassword" />
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <ValidationSummary />
+
+    <StickyBar>
+        <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-2"></i>@(IsConfigured ? "Update" : "Enable") Authentication
+        </button>
+        @if (IsConfigured)
+        {
+            <button type="button" class="btn btn-outline-danger" @onclick="HandleDisable">
+                <i class="bi bi-shield-x me-2"></i>Disable Authentication
+            </button>
+        }
+    </StickyBar>
+</EditForm>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    private static readonly PasswordHasher<string> Hasher = new();
+
+    private AuthFormModel Model { get; set; } = new();
+    private bool IsConfigured { get; set; }
+    private string CurrentUsername { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadState();
+    }
+
+    private async Task LoadState()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var config = context.Configs.Get<AuthConfig>(AuthConfig.Key);
+        IsConfigured = config != null;
+        CurrentUsername = config?.Username ?? string.Empty;
+        Model.Username = CurrentUsername;
+    }
+
+    private async Task HandleSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(Model.Username))
+        {
+            ToastService.ShowError("Username is required.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Model.Password))
+        {
+            ToastService.ShowError("Password is required.");
+            return;
+        }
+
+        if (Model.Password != Model.ConfirmPassword)
+        {
+            ToastService.ShowError("Passwords do not match.");
+            return;
+        }
+
+        try
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            var config = new AuthConfig
+            {
+                Username = Model.Username.Trim(),
+                PasswordHash = Hasher.HashPassword(Model.Username, Model.Password)
+            };
+            context.Configs.Set(config, AuthConfig.Key);
+            await context.SaveChangesAsync();
+
+            Model.Password = string.Empty;
+            Model.ConfirmPassword = string.Empty;
+
+            await LoadState();
+            ToastService.ShowSuccess("Authentication settings saved.");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to save: {ex.Message}");
+        }
+    }
+
+    private async Task HandleDisable()
+    {
+        try
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            context.Configs.Set<AuthConfig>(null, AuthConfig.Key);
+            await context.SaveChangesAsync();
+
+            Model = new AuthFormModel();
+            await LoadState();
+            ToastService.ShowSuccess("Authentication disabled. The application is now open access.");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Failed to disable: {ex.Message}");
+        }
+    }
+
+    private class AuthFormModel
+    {
+        public string Username { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+        public string ConfirmPassword { get; set; } = string.Empty;
+    }
+}

@@ -1,0 +1,170 @@
+@page "/logs"
+@inherits PaginatedListComponent<LogEntry>
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Logs")</PageTitle>
+
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center border-bottom pb-2 mb-4 mux-page-header">
+        <h2 class="mb-0">
+            <i class="bi bi-journal-text me-2"></i>Logs
+        </h2>
+        <div class="btn-group btn-group-sm">
+            <button class="btn btn-outline-danger" @onclick="OnClearLogs">
+                <i class="bi bi-trash me-1"></i>Clear
+            </button>
+        </div>
+    </div>
+
+    <div class="row mb-3 g-2 mux-filter-row">
+        <div class="col">
+            <SearchBar Parent="this"></SearchBar>
+        </div>
+        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
+            <div class="btn-group btn-group-sm">
+                @foreach (var level in _levelOptions)
+                {
+                    <button class="btn @(level == _levelFilter ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="() => FilterByLevel(level)">
+                        @level
+                    </button>
+                }
+            </div>
+        </div>
+        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
+            <ResetFilters Parent="this"></ResetFilters>
+        </div>
+        <div class="col-auto">
+            <ItemsPerPage Parent="this"/>
+        </div>
+    </div>
+
+    <Loader IsLoading="IsLoading">
+        <div class="table-responsive">
+            <table class="table table-striped table-sm">
+                <thead>
+                <tr>
+                    <th style="width: 170px">
+                        <SortHeader Parent="this" SortProperty="Timestamp">
+                            Timestamp
+                        </SortHeader>
+                    </th>
+                    <th style="width: 60px">Level</th>
+                    <th style="width: 200px">
+                        <SortHeader Parent="this" SortProperty="Source">
+                            Source
+                        </SortHeader>
+                    </th>
+                    <th>Message</th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var entry in Items)
+                {
+                    <tr class="@GetRowClass(entry.Level)">
+                        <td class="text-nowrap small">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td><LogLevelBadge Level="@entry.Level"/></td>
+                        <td class="small text-truncate" style="max-width: 200px" title="@entry.Source">@entry.Source</td>
+                        <td>
+                            <span class="small">@entry.Message</span>
+                            @if (!string.IsNullOrEmpty(entry.Exception))
+                            {
+                                <button class="btn btn-link btn-sm p-0 ms-1" @onclick="() => ToggleException(entry.Id)">
+                                    <i class="bi bi-exclamation-triangle text-danger"></i>
+                                </button>
+                                @if (_expandedExceptions.Contains(entry.Id))
+                                {
+                                    <pre class="mt-1 mb-0 small text-danger">@entry.Exception</pre>
+                                }
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+        <Pagination Parent="this"/>
+    </Loader>
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required IModalService ModalService { get; set; }
+
+    [Filter]
+    private string _levelFilter = "All";
+
+    private readonly string[] _levelOptions = ["All", "INF", "WRN", "ERR", "DBG"];
+    private readonly HashSet<int> _expandedExceptions = new();
+
+    protected override void OnInitialized()
+    {
+        CurrentSortProperty = "Timestamp";
+        IsAscending = false;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFilters();
+    }
+
+    protected override async Task UpdateListCore()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        var query = context.LogEntries.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(SearchTerm))
+        {
+            query = query.Where(e =>
+                EF.Functions.Like(e.Message, $"%{SearchTerm}%") ||
+                EF.Functions.Like(e.Source, $"%{SearchTerm}%"));
+        }
+
+        if (_levelFilter != "All")
+        {
+            query = query.Where(e => e.Level == _levelFilter);
+        }
+
+        var result = await query.Sort(CurrentSortProperty, IsAscending).FindPagedAsync(Page, PageSize, true);
+        TotalItems = result.Total;
+        TotalPages = result.TotalPages;
+        Items = await result.Data.ToListAsync().ConfigureAwait(false);
+    }
+
+    private async Task FilterByLevel(string level)
+    {
+        _levelFilter = level;
+        Page = 1;
+        await UpdateList();
+    }
+
+    private async Task OnClearLogs()
+    {
+        if (!await ModalService.ShowConfirm("Are you sure you want to clear all logs?"))
+        {
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        await context.LogEntries.ExecuteDeleteAsync();
+        await UpdateList();
+        ToastService.ShowWarning("Logs cleared.");
+    }
+
+    private void ToggleException(int id)
+    {
+        if (!_expandedExceptions.Remove(id))
+        {
+            _expandedExceptions.Add(id);
+        }
+    }
+
+    private static string GetRowClass(string level) => level switch
+    {
+        "ERR" or "FTL" => "table-danger",
+        "WRN" => "table-warning",
+        _ => ""
+    };
+}
