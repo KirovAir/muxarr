@@ -43,7 +43,7 @@
     {
         @* Summary Cards *@
         <div class="row g-3 mb-4">
-            <div class="col-6 col-lg-3">
+            <div class="col-6 col-lg">
                 <div class="card text-center">
                     <div class="card-body py-3">
                         <div class="text-muted small">Files</div>
@@ -51,7 +51,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-lg-3">
+            <div class="col-6 col-lg">
                 <div class="card text-center">
                     <div class="card-body py-3">
                         <div class="text-muted small">Total Size</div>
@@ -59,7 +59,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-lg-3">
+            <div class="col-6 col-lg">
                 <div class="card text-center">
                     <div class="card-body py-3">
                         <div class="text-muted small">Duration</div>
@@ -67,11 +67,19 @@
                     </div>
                 </div>
             </div>
-            <div class="col-6 col-lg-3">
+            <div class="col-6 col-lg">
                 <div class="card text-center">
                     <div class="card-body py-3">
-                        <div class="text-muted small">Profiles</div>
-                        <div class="fs-3 fw-bold">@_stats.ProfileCount</div>
+                        <div class="text-muted small">Conversions</div>
+                        <div class="fs-3 fw-bold">@_stats.TotalConversions</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-6 col-lg">
+                <div class="card text-center">
+                    <div class="card-body py-3">
+                        <div class="text-muted small">Space Saved</div>
+                        <div class="fs-3 fw-bold text-success">@_stats.SpaceSavedBytes.DisplayFileSize()</div>
                     </div>
                 </div>
             </div>
@@ -80,22 +88,22 @@
         @* Distribution Charts *@
         <div class="row g-4 mb-4">
             <div class="col-xl-4 col-md-6">
-                <DistributionCard Title="Video Codecs" Icon="bi-camera-video" Items="_stats.VideoCodecs" OnItemClick="@(v => NavigateToFilter("videoCodec", v))" />
+                <DistributionCard Title="Audio Languages" Icon="bi-translate" Items="_stats.AudioLanguages" OnItemClick="@(v => NavigateToFilter("audioLanguage", v))" />
             </div>
             <div class="col-xl-4 col-md-6">
-                <DistributionCard Title="Audio Codecs" Icon="bi-volume-up" Items="_stats.AudioCodecs" OnItemClick="@(v => NavigateToFilter("audioCodec", v))" />
+                <DistributionCard Title="Subtitle Languages" Icon="bi-badge-cc" Items="_stats.SubtitleLanguages" OnItemClick="@(v => NavigateToFilter("subtitleLanguage", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Video Codecs" Icon="bi-camera-video" Items="_stats.VideoCodecs" OnItemClick="@(v => NavigateToFilter("videoCodec", v))" />
             </div>
             <div class="col-xl-4 col-md-6">
                 <DistributionCard Title="Resolutions" Icon="bi-aspect-ratio" Items="_stats.Resolutions" OnItemClick="@(v => NavigateToFilter("resolution", v))" />
             </div>
             <div class="col-xl-4 col-md-6">
+                <DistributionCard Title="Audio Codecs" Icon="bi-volume-up" Items="_stats.AudioCodecs" OnItemClick="@(v => NavigateToFilter("audioCodec", v))" />
+            </div>
+            <div class="col-xl-4 col-md-6">
                 <DistributionCard Title="Channel Layouts" Icon="bi-speaker" Items="_stats.ChannelLayouts" OnItemClick="@(v => NavigateToFilter("channelLayout", v))" />
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <DistributionCard Title="Audio Languages" Icon="bi-translate" Items="_stats.AudioLanguages" OnItemClick="@(v => NavigateToFilter("audioLanguage", v))" />
-            </div>
-            <div class="col-xl-4 col-md-6">
-                <DistributionCard Title="Subtitle Languages" Icon="bi-badge-cc" Items="_stats.SubtitleLanguages" OnItemClick="@(v => NavigateToFilter("subtitleLanguage", v))" />
             </div>
             <div class="col-xl-4 col-md-6">
                 <DistributionCard Title="Containers" Icon="bi-box" Items="_stats.Containers" OnItemClick="@(v => NavigateToFilter("container", v))" />

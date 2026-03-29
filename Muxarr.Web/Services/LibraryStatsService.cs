@@ -21,6 +21,11 @@ public class LibraryStatsService(IDbContextFactory<AppDbContext> contextFactory,
             TotalDurationMs = await context.MediaFiles.SumAsync(f => f.DurationMs),
             TotalTracks = await context.MediaTracks.CountAsync(),
             ProfileCount = await context.Profiles.CountAsync(),
+            SpaceSavedBytes = await context.MediaConversions
+                .Where(c => c.State == ConversionState.Completed)
+                .SumAsync(c => c.SizeDifference),
+            TotalConversions = await context.MediaConversions
+                .CountAsync(c => c.State == ConversionState.Completed),
             ComputedAtUtc = DateTime.UtcNow
         };
 

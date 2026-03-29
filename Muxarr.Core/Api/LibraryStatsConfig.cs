@@ -7,6 +7,8 @@ public class LibraryStatsConfig
     public long TotalDurationMs { get; set; }
     public int TotalTracks { get; set; }
     public int ProfileCount { get; set; }
+    public long SpaceSavedBytes { get; set; }
+    public int TotalConversions { get; set; }
     public List<DistributionEntry> VideoCodecs { get; set; } = [];
     public List<DistributionEntry> AudioCodecs { get; set; } = [];
     public List<DistributionEntry> Resolutions { get; set; } = [];

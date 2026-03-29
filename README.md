@@ -16,6 +16,13 @@ Integrates with Sonarr and Radarr for original language detection and automatic 
 ## Screenshots
 
 <p align="center">
+  <img src="docs/screenshots/before.png" alt="Before" width="600"/><br/>
+  ⬇️<br/>
+  <img src="docs/screenshots/after.png" alt="After" width="600"/><br/>
+  <em>Before and after metadata cleanup</em>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/dashboard.png" alt="Dashboard" width="800"/><br/>
   <em>Dashboard</em>
 </p>
@@ -28,11 +35,6 @@ Integrates with Sonarr and Radarr for original language detection and automatic 
 <p align="center">
   <img src="docs/screenshots/settings.png" alt="Profile Settings" width="800"/><br/>
   <em>Profile settings</em>
-</p>
-
-<p align="center">
-  <img src="docs/screenshots/stats.png" alt="Statistics" width="800"/><br/>
-  <em>Library statistics</em>
 </p>
 
 ## Features
