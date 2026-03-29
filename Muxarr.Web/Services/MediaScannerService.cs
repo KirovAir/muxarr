@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Utilities;
 using Muxarr.Data;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -147,6 +148,12 @@ public class MediaScannerService(
     private async Task ScanFileCore(string filePath, bool forceRescan, Profile profile,
         AppDbContext context, string? webhookTitle = null, string? webhookOriginalLanguage = null)
     {
+        if (profile.SkipHardlinkedFiles && HardLinkDetector.IsHardlinked(filePath))
+        {
+            logger.LogDebug("Skipping hardlinked file: {Path}", filePath);
+            return;
+        }
+
         var dbFile = await context.MediaFiles.WithTracks().FirstOrDefaultAsync(x => x.Path == filePath);
         if (dbFile == null)
         {

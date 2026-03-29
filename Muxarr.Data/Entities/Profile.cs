@@ -11,6 +11,7 @@ namespace Muxarr.Data.Entities
         public string Name { get; set; } = string.Empty;
         public List<string> Directories { get; set; } = new();
         public bool ClearVideoTrackNames { get; set; }
+        public bool SkipHardlinkedFiles { get; set; }
         public TrackSettings AudioSettings { get; set; } = new();
         public TrackSettings SubtitleSettings { get; set; } = new();
         public ICollection<MediaFile> MediaFiles { get; set; } = new List<MediaFile>();
@@ -41,6 +42,10 @@ namespace Muxarr.Data.Entities
                 .IsRequired();
 
             builder.Property(e => e.ClearVideoTrackNames)
+                .IsRequired()
+                .HasDefaultValue(false);
+
+            builder.Property(e => e.SkipHardlinkedFiles)
                 .IsRequired()
                 .HasDefaultValue(false);
 
