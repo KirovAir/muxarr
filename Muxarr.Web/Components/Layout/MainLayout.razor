@@ -1,10 +1,10 @@
 ﻿@inherits LayoutComponentBase
 @using Microsoft.AspNetCore.Components.Authorization
 
+<div class="mux-page-wrapper" data-bs-theme="@(IsDarkMode ? "dark" : "light")">
 <BlazoredToasts />
 
 <CascadingBlazoredModal>
-<div class="mux-page-wrapper" data-bs-theme="@(IsDarkMode ? "dark" : "light")">
     <CascadingValue Value="this">
         <!-- Mobile Header -->
         <div class="mux-mobile-header d-md-none">
@@ -37,8 +37,8 @@
             </div>
         </main>
     </CascadingValue>
-</div>
 </CascadingBlazoredModal>
+</div>
 
 <TooltipHost />
 
