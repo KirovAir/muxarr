@@ -275,9 +275,21 @@ public class MediaConverterService(
                 var propResult = await MkvPropEdit.EditTrackProperties(conversion.MediaFile.Path, trackOutputs);
                 if (propResult.Success)
                 {
-                    conversion.Log("Metadata updated successfully.", logger);
                     await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
-                    conversion.State = ConversionState.Completed;
+
+                    var freshTracks = conversion.MediaFile.Tracks.ToSnapshots();
+                    var stillDiffers = trackOutputs.Any(t =>
+                        t.DiffersFrom(freshTracks.FirstOrDefault(f => f.TrackNumber == t.TrackNumber)));
+
+                    if (stillDiffers)
+                    {
+                        conversion.Log("mkvpropedit reported success but some changes did not apply. Falling through to remux.", logger);
+                    }
+                    else
+                    {
+                        conversion.Log("Metadata updated successfully.", logger);
+                        conversion.State = ConversionState.Completed;
+                    }
                 }
                 else
                 {

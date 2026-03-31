@@ -36,13 +36,19 @@ public class ExtensionTests
     }
 
     [TestMethod]
-    public void GetChannelLayout_MapsStandardLayouts()
+    [DataRow(1, "1.0")]
+    [DataRow(2, "2.0")]
+    [DataRow(6, "5.1")]
+    [DataRow(8, "7.1")]
+    [DataRow(4, "4ch")]
+    public void GetChannelLayout_MapsLayouts(int channels, string expected)
     {
-        Assert.AreEqual("1.0", MakeAudioTrack(1).GetChannelLayout());
-        Assert.AreEqual("2.0", MakeAudioTrack(2).GetChannelLayout());
-        Assert.AreEqual("5.1", MakeAudioTrack(6).GetChannelLayout());
-        Assert.AreEqual("7.1", MakeAudioTrack(8).GetChannelLayout());
-        Assert.AreEqual("4ch", MakeAudioTrack(4).GetChannelLayout());
+        Assert.AreEqual(expected, MakeAudioTrack(channels).GetChannelLayout());
+    }
+
+    [TestMethod]
+    public void GetChannelLayout_ZeroChannels_ReturnsNull()
+    {
         Assert.IsNull(MakeAudioTrack(0).GetChannelLayout());
     }
 
@@ -101,7 +107,7 @@ public class ExtensionTests
         }
     }
 
-    // GetAllowedTracks — AssumeUndeterminedIsOriginal
+    // GetAllowedTracks - AssumeUndeterminedIsOriginal
 
     [TestMethod]
     public void GetAllowedTracks_UndeterminedAudio_RemappedWhenSingleTrackAndSettingEnabled()
@@ -251,123 +257,100 @@ public class ExtensionTests
         Assert.AreEqual(1, result.Count);
     }
 
-    [TestMethod]
-    public void ApplyTrackNameTemplate_UsesLanguageName()
-    {
-        // Verify that if LanguageName is updated before template application, the template reflects it
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio,
-            LanguageName = "English",
-            LanguageCode = "eng",
-            Codec = "AAC",
-            AudioChannels = 6,
-            TrackName = "Surround"
-        };
-
-        var result = track.ApplyTrackNameTemplate("{language} {channels}");
-
-        Assert.AreEqual("English 5.1", result);
-    }
+    // --- ApplyTrackNameTemplate ---
 
     [TestMethod]
-    public void ApplyTrackNameTemplate_UndeterminedShowsUndetermined()
+    [DataRow("{language} {channels}", "English", "AAC", 6, null, "English 5.1")]
+    [DataRow("{language} {channels}", "Undetermined", "AAC", 6, null, "Undetermined 5.1")]
+    [DataRow("{trackname} ({language})", "English", "AAC", 6, "Surround", "Surround (English)")]
+    [DataRow("{trackname} {language}", "English", "AAC", 6, null, "English")]
+    [DataRow("{nativelanguage} {channels}", "Dutch", "AAC", 2, null, "Nederlands 2.0")]
+    [DataRow("{language} {codec}", "English", "SRT", 0, null, "English SRT")]
+    [DataRow("{language} {channels}", "English", "SRT", 0, null, "English")]
+    public void ApplyTrackNameTemplate_ProducesExpectedOutput(
+        string template, string language, string codec, int channels, string? trackName, string expected)
     {
-        // Without language resolution, template renders "Undetermined"
         var track = new TrackSnapshot
         {
-            Type = MediaTrackType.Audio,
-            LanguageName = "Undetermined",
-            LanguageCode = "und",
-            Codec = "AAC",
-            AudioChannels = 6
+            Type = channels > 0 ? MediaTrackType.Audio : MediaTrackType.Subtitles,
+            LanguageName = language,
+            LanguageCode = IsoLanguage.Find(language).ThreeLetterCode ?? "",
+            Codec = codec,
+            AudioChannels = channels,
+            TrackName = trackName
         };
 
-        var result = track.ApplyTrackNameTemplate("{language} {channels}");
-
-        Assert.AreEqual("Undetermined 5.1", result);
+        Assert.AreEqual(expected, track.ApplyTrackNameTemplate(template));
     }
 
     [TestMethod]
     public void ApplyTrackNameTemplate_EmptyTemplate_ReturnsNull()
     {
         var track = new TrackSnapshot { LanguageName = "English", Codec = "AAC", AudioChannels = 6 };
-
         Assert.IsNull(track.ApplyTrackNameTemplate(""));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_TrackNamePlaceholder()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
-            AudioChannels = 6, TrackName = "Surround"
-        };
-
-        Assert.AreEqual("Surround (English)", track.ApplyTrackNameTemplate("{trackname} ({language})"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_NullTrackName_ReplacesWithEmpty()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
-            AudioChannels = 6, TrackName = null
-        };
-
-        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{trackname} {language}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_NativeLanguagePlaceholder()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, LanguageName = "Dutch", LanguageCode = "dut",
-            Codec = "AAC", AudioChannels = 2
-        };
-
-        Assert.AreEqual("Nederlands 2.0", track.ApplyTrackNameTemplate("{nativelanguage} {channels}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_CodecPlaceholder()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
-        };
-
-        Assert.AreEqual("English SRT", track.ApplyTrackNameTemplate("{language} {codec}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_ChannelsOnSubtitle_Empty()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
-        };
-
-        // Subtitles have no channels, so {channels} resolves to empty and collapses
-        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{language} {channels}"));
     }
 
     [TestMethod]
     public void ApplyTrackNameTemplate_AllPlaceholdersEmpty_ReturnsNull()
     {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
-        };
-
-        // {channels} and {trackname} both resolve to empty; after collapse the result is whitespace-only
+        var track = new TrackSnapshot { Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT" };
         Assert.IsNull(track.ApplyTrackNameTemplate("{channels} {trackname}"));
     }
 
-    // CheckHasNonStandardMetadata — template mismatch
+    // --- ApplyTrackNameTemplate: flag placeholders ---
+
+    [TestMethod]
+    [DataRow(true,  false, false, false, false, "{language} {hi}",              "English SDH")]
+    [DataRow(false, false, false, false, false, "{language} {hi}",              "English")]
+    [DataRow(false, true,  false, false, false, "{language} {forced}",          "English Forced")]
+    [DataRow(false, false, true,  false, false, "{language} {channels} {commentary}", "English 2.0 Commentary")]
+    [DataRow(false, false, false, true,  false, "{language} {visualimpaired}",  "English AD")]
+    [DataRow(false, false, false, false, true,  "{language} {channels} {original}", "English 5.1 Original")]
+    public void ApplyTrackNameTemplate_FlagPlaceholders(
+        bool hi, bool forced, bool commentary, bool vi, bool original,
+        string template, string expected)
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
+            AudioChannels = original ? 6 : 2,
+            IsHearingImpaired = hi, IsForced = forced, IsCommentary = commentary,
+            IsVisualImpaired = vi, IsOriginal = original
+        };
+
+        Assert.AreEqual(expected, track.ApplyTrackNameTemplate(template));
+    }
+
+    [TestMethod]
+    [DataRow("{language} ({flags})",  true, true, false, false, false, "English (SDH, Forced)")]
+    [DataRow("{language} {flags}",    false, false, false, false, false, "English")]
+    [DataRow("{flags}",               true, true, true, true, true,   "SDH, Forced, Commentary, AD, Original")]
+    public void ApplyTrackNameTemplate_FlagsPlaceholder(
+        string template, bool hi, bool forced, bool commentary, bool vi, bool original, string expected)
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsHearingImpaired = hi, IsForced = forced, IsCommentary = commentary,
+            IsVisualImpaired = vi, IsOriginal = original
+        };
+
+        Assert.AreEqual(expected, track.ApplyTrackNameTemplate(template));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_CaseInsensitivePlaceholders()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsHearingImpaired = true
+        };
+
+        Assert.AreEqual("English SDH", track.ApplyTrackNameTemplate("{Language} {HI}"));
+    }
+
+    // CheckHasNonStandardMetadata - template mismatch
 
     [TestMethod]
     public void CheckHasNonStandardMetadata_DetectsTemplateMismatch()
@@ -398,7 +381,7 @@ public class ExtensionTests
         Assert.IsTrue(file.CheckHasNonStandardMetadata(profile));
     }
 
-    // CheckHasNonStandardMetadata — und detection
+    // CheckHasNonStandardMetadata - und detection
 
     [TestMethod]
     public void CheckHasNonStandardMetadata_DetectsUndTrackWhenSettingEnabled()
@@ -479,237 +462,94 @@ public class ExtensionTests
             }
         };
 
-        // After conversion, language is "eng" not "und" — should NOT be flagged
+        // After conversion, language is "eng" not "und" - should NOT be flagged
         Assert.IsFalse(file.CheckHasNonStandardMetadata(profile));
     }
 
-    // ShouldResolveUndetermined helper
+    // --- ShouldResolveUndetermined ---
 
     [TestMethod]
-    public void ShouldResolveUndetermined_TrueWhenAllConditionsMet()
+    [DataRow(true,  "und", 1, "English",          true,  DisplayName = "All conditions met")]
+    [DataRow(false, "und", 1, "English",          false, DisplayName = "Setting disabled")]
+    [DataRow(true,  "und", 2, "English",          false, DisplayName = "Multiple tracks")]
+    [DataRow(true,  "eng", 1, "English",          false, DisplayName = "Not undetermined")]
+    [DataRow(true,  "und", 1, "NotARealLanguage", false, DisplayName = "Unresolvable language")]
+    public void ShouldResolveUndetermined(
+        bool settingEnabled, string langCode, int trackCount, string originalLang, bool expected)
     {
-        var track = new MediaTrack { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
-        var settings = new TrackSettings { AssumeUndeterminedIsOriginal = true };
+        var track = new MediaTrack { LanguageCode = langCode, LanguageName = langCode == "und" ? "Undetermined" : "English", Type = MediaTrackType.Audio };
+        var settings = new TrackSettings { AssumeUndeterminedIsOriginal = settingEnabled };
 
-        Assert.IsTrue(track.ShouldResolveUndetermined(settings, 1, "English"));
-    }
-
-    [TestMethod]
-    public void ShouldResolveUndetermined_FalseWhenSettingDisabled()
-    {
-        var track = new MediaTrack { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
-        var settings = new TrackSettings { AssumeUndeterminedIsOriginal = false };
-
-        Assert.IsFalse(track.ShouldResolveUndetermined(settings, 1, "English"));
-    }
-
-    [TestMethod]
-    public void ShouldResolveUndetermined_FalseWhenMultipleTracks()
-    {
-        var track = new MediaTrack { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
-        var settings = new TrackSettings { AssumeUndeterminedIsOriginal = true };
-
-        Assert.IsFalse(track.ShouldResolveUndetermined(settings, 2, "English"));
-    }
-
-    [TestMethod]
-    public void ShouldResolveUndetermined_FalseWhenNotUnd()
-    {
-        var track = new MediaTrack { LanguageCode = "eng", LanguageName = "English", Type = MediaTrackType.Audio };
-        var settings = new TrackSettings { AssumeUndeterminedIsOriginal = true };
-
-        Assert.IsFalse(track.ShouldResolveUndetermined(settings, 1, "English"));
-    }
-
-    [TestMethod]
-    public void ShouldResolveUndetermined_FalseWhenOriginalLanguageUnresolvable()
-    {
-        var track = new MediaTrack { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
-        var settings = new TrackSettings { AssumeUndeterminedIsOriginal = true };
-
-        Assert.IsFalse(track.ShouldResolveUndetermined(settings, 1, "NotARealLanguage"));
+        Assert.AreEqual(expected, track.ShouldResolveUndetermined(settings, trackCount, originalLang));
     }
 
     [TestMethod]
     public void ShouldResolveUndetermined_FalseWhenNullSettings()
     {
         var track = new MediaTrack { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
-
         Assert.IsFalse(track.ShouldResolveUndetermined(null, 1, "English"));
     }
 
-    // --- ApplyTrackNameTemplate: flag placeholders ---
+    // --- CorrectFlagsFromTrackName: hearing impaired ---
 
     [TestMethod]
-    public void ApplyTrackNameTemplate_HiPlaceholder_ShowsSDH()
+    [DataRow("English SDH")]
+    [DataRow("English CC")]
+    [DataRow("English HI")]
+    [DataRow("English HOH")]
+    [DataRow("English Closed Captions")]
+    [DataRow("English for Deaf and hard of hearing")]
+    [DataRow("Nederlands voor doven")]
+    [DataRow("Nederlands voor doven en slechthorenden")]
+    public void CorrectFlagsFromTrackName_DetectsHearingImpaired(string trackName)
     {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
-            IsHearingImpaired = true
-        };
-
-        Assert.AreEqual("English SDH", track.ApplyTrackNameTemplate("{language} {hi}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_HiPlaceholder_EmptyWhenFalse()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
-            IsHearingImpaired = false
-        };
-
-        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{language} {hi}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_ForcedPlaceholder()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
-            IsForced = true
-        };
-
-        Assert.AreEqual("English Forced", track.ApplyTrackNameTemplate("{language} {forced}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_CommentaryPlaceholder()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
-            AudioChannels = 2, IsCommentary = true
-        };
-
-        Assert.AreEqual("English 2.0 Commentary", track.ApplyTrackNameTemplate("{language} {channels} {commentary}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_VisualImpairedPlaceholder()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
-            AudioChannels = 2, IsVisualImpaired = true
-        };
-
-        Assert.AreEqual("English AD", track.ApplyTrackNameTemplate("{language} {visualimpaired}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_OriginalPlaceholder()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
-            AudioChannels = 6, IsOriginal = true
-        };
-
-        Assert.AreEqual("English 5.1 Original", track.ApplyTrackNameTemplate("{language} {channels} {original}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_FlagsPlaceholder_MultipleFlags()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
-            IsHearingImpaired = true, IsForced = true
-        };
-
-        Assert.AreEqual("English (SDH, Forced)", track.ApplyTrackNameTemplate("{language} ({flags})"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_FlagsPlaceholder_NoFlags()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
-        };
-
-        // {flags} resolves to empty, extra parens collapse
-        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{language} {flags}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_FlagsPlaceholder_AllFlags()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
-            IsHearingImpaired = true, IsForced = true, IsCommentary = true,
-            IsVisualImpaired = true, IsOriginal = true
-        };
-
-        Assert.AreEqual("SDH, Forced, Commentary, AD, Original", track.ApplyTrackNameTemplate("{flags}"));
-    }
-
-    [TestMethod]
-    public void ApplyTrackNameTemplate_CaseInsensitivePlaceholders()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
-            IsHearingImpaired = true
-        };
-
-        Assert.AreEqual("English SDH", track.ApplyTrackNameTemplate("{Language} {HI}"));
-    }
-
-    // --- CorrectFlagsFromTrackName ---
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsSDH()
-    {
-        var track = new TrackSnapshot { TrackName = "English SDH" };
+        var track = new TrackSnapshot { TrackName = trackName };
         track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
+        Assert.IsTrue(track.IsHearingImpaired, $"'{trackName}' should be detected as hearing impaired");
     }
 
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsCC()
-    {
-        var track = new TrackSnapshot { TrackName = "English CC" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
-    }
+    // --- CorrectFlagsFromTrackName: forced ---
 
     [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsForDeaf()
+    [DataRow("English Forced")]
+    [DataRow("English Foreign")]
+    [DataRow("Signs & Songs")]
+    public void CorrectFlagsFromTrackName_DetectsForced(string trackName)
     {
-        var track = new TrackSnapshot { TrackName = "English for Deaf and hard of hearing" };
+        var track = new TrackSnapshot { TrackName = trackName };
         track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
+        Assert.IsTrue(track.IsForced, $"'{trackName}' should be detected as forced");
     }
 
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsDoven()
-    {
-        var track = new TrackSnapshot { TrackName = "Nederlands voor doven" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
-    }
+    // --- CorrectFlagsFromTrackName: visual impaired ---
 
     [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsForced()
+    [DataRow("Descriptive Audio")]
+    [DataRow("Audio Description")]
+    [DataRow("Audio Described")]
+    public void CorrectFlagsFromTrackName_DetectsVisualImpaired(string trackName)
     {
-        var track = new TrackSnapshot { TrackName = "English Forced" };
+        var track = new TrackSnapshot { TrackName = trackName };
         track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsForced);
+        Assert.IsTrue(track.IsVisualImpaired, $"'{trackName}' should be detected as visual impaired");
     }
 
+    // --- CorrectFlagsFromTrackName: false positives (word boundary) ---
+
     [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsDescriptive()
+    [DataRow("Accessibility Track", DisplayName = "CC inside Accessibility")]
+    [DataRow("Subs for Chinese Audio", DisplayName = "HI inside Chinese")]
+    [DataRow("Design Notes", DisplayName = "Signs inside Design")]
+    public void CorrectFlagsFromTrackName_NoFalsePositive(string trackName)
     {
-        var track = new TrackSnapshot { TrackName = "Descriptive Audio" };
+        var track = new TrackSnapshot { TrackName = trackName };
         track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsVisualImpaired);
+        Assert.IsFalse(track.IsHearingImpaired, $"'{trackName}' should not trigger hearing impaired");
+        Assert.IsFalse(track.IsForced, $"'{trackName}' should not trigger forced");
+        Assert.IsFalse(track.IsVisualImpaired, $"'{trackName}' should not trigger visual impaired");
     }
+
+    // --- CorrectFlagsFromTrackName: edge cases ---
 
     [TestMethod]
     public void CorrectFlagsFromTrackName_DoesNotOverrideExistingFlags()
@@ -730,7 +570,7 @@ public class ExtensionTests
     }
 
     [TestMethod]
-    public void CorrectFlagsFromTrackName_EmptyName_NoChange()
+    public void CorrectFlagsFromTrackName_NullName_NoChange()
     {
         var track = new TrackSnapshot { TrackName = null };
         track.CorrectFlagsFromTrackName();
@@ -738,120 +578,26 @@ public class ExtensionTests
         Assert.IsFalse(track.IsForced);
     }
 
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsHOH()
-    {
-        var track = new TrackSnapshot { TrackName = "English HOH" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsClosedCaption()
-    {
-        var track = new TrackSnapshot { TrackName = "English Closed Captions" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsSlechthorend()
-    {
-        var track = new TrackSnapshot { TrackName = "Nederlands voor doven en slechthorenden" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_CC_WordBoundary_Matches()
-    {
-        var track = new TrackSnapshot { TrackName = "English CC" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_CC_WordBoundary_NoFalsePositive()
-    {
-        var track = new TrackSnapshot { TrackName = "Accessibility Track" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsFalse(track.IsHearingImpaired, "CC inside a word should not trigger hearing impaired");
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsAudioDescription()
-    {
-        var track = new TrackSnapshot { TrackName = "Audio Description" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsVisualImpaired);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsAudioDescribed()
-    {
-        var track = new TrackSnapshot { TrackName = "Audio Described" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsVisualImpaired);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsHI()
-    {
-        var track = new TrackSnapshot { TrackName = "English HI" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsHearingImpaired);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_HI_WordBoundary_NoFalsePositive()
-    {
-        var track = new TrackSnapshot { TrackName = "Subs for Chinese Audio" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsFalse(track.IsHearingImpaired, "HI inside 'Chinese' should not trigger hearing impaired");
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsForeign()
-    {
-        var track = new TrackSnapshot { TrackName = "English Foreign" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsForced);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_DetectsSigns()
-    {
-        var track = new TrackSnapshot { TrackName = "Signs & Songs" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsTrue(track.IsForced);
-    }
-
-    [TestMethod]
-    public void CorrectFlagsFromTrackName_Signs_WordBoundary_NoFalsePositive()
-    {
-        var track = new TrackSnapshot { TrackName = "Design Notes" };
-        track.CorrectFlagsFromTrackName();
-        Assert.IsFalse(track.IsForced, "Signs inside 'Design' should not trigger forced");
-    }
-
     // --- ToMkvMergeType / ToMediaTrackType round-trip ---
 
     [TestMethod]
-    public void ToMkvMergeType_ConvertsAllTypes()
+    [DataRow(MediaTrackType.Video,     "video")]
+    [DataRow(MediaTrackType.Audio,     "audio")]
+    [DataRow(MediaTrackType.Subtitles, "subtitles")]
+    [DataRow(MediaTrackType.Unknown,   "")]
+    public void ToMkvMergeType_ConvertsCorrectly(MediaTrackType type, string expected)
     {
-        Assert.AreEqual("video", MediaTrackType.Video.ToMkvMergeType());
-        Assert.AreEqual("audio", MediaTrackType.Audio.ToMkvMergeType());
-        Assert.AreEqual("subtitles", MediaTrackType.Subtitles.ToMkvMergeType());
-        Assert.AreEqual("", MediaTrackType.Unknown.ToMkvMergeType());
+        Assert.AreEqual(expected, type.ToMkvMergeType());
     }
 
     [TestMethod]
-    public void ToMediaTrackType_ConvertsAllTypes()
+    [DataRow("video",     MediaTrackType.Video)]
+    [DataRow("audio",     MediaTrackType.Audio)]
+    [DataRow("subtitles", MediaTrackType.Subtitles)]
+    [DataRow("something", MediaTrackType.Unknown)]
+    public void ToMediaTrackType_ConvertsCorrectly(string type, MediaTrackType expected)
     {
-        Assert.AreEqual(MediaTrackType.Video, "video".ToMediaTrackType());
-        Assert.AreEqual(MediaTrackType.Audio, "audio".ToMediaTrackType());
-        Assert.AreEqual(MediaTrackType.Subtitles, "subtitles".ToMediaTrackType());
-        Assert.AreEqual(MediaTrackType.Unknown, "something".ToMediaTrackType());
+        Assert.AreEqual(expected, type.ToMediaTrackType());
     }
 
     [TestMethod]
@@ -863,21 +609,7 @@ public class ExtensionTests
         }
     }
 
-    // --- ToSnapshot copies IsDefault ---
-
-    [TestMethod]
-    public void ToSnapshot_CopiesIsDefault()
-    {
-        var track = new MediaTrack
-        {
-            Type = MediaTrackType.Audio, LanguageName = "English", LanguageCode = "eng",
-            Codec = "AAC", TrackNumber = 1, IsDefault = true
-        };
-
-        var snapshot = track.ToSnapshot();
-
-        Assert.IsTrue(snapshot.IsDefault);
-    }
+    // --- ToSnapshot copies all flags ---
 
     [TestMethod]
     public void ToSnapshot_CopiesAllFlags()

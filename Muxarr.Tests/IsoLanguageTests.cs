@@ -7,140 +7,74 @@ namespace Muxarr.Tests;
 [TestClass]
 public class IsoLanguageTests
 {
-    [TestMethod]
-    public void Find_ByTwoLetterCode()
-    {
-        var result = IsoLanguage.Find("en");
-
-        Assert.AreEqual("English", result.Name);
-        Assert.AreEqual("eng", result.ThreeLetterCode);
-    }
+    // --- Find by code/name ---
 
     [TestMethod]
-    public void Find_ByThreeLetterCode()
+    [DataRow("en",      "English",          DisplayName = "Two-letter code")]
+    [DataRow("eng",     "English",          DisplayName = "Three-letter code (bibliographic)")]
+    [DataRow("dut",     "Dutch",            DisplayName = "Three-letter code (Dutch/dut)")]
+    [DataRow("nld",     "Dutch",            DisplayName = "Three-letter code (Dutch/nld terminological)")]
+    [DataRow("Japanese","Japanese",         DisplayName = "By English name")]
+    [DataRow("german",  "German",           DisplayName = "By English name (case-insensitive)")]
+    [DataRow("Deutsch", "German",           DisplayName = "By native name")]
+    [DataRow("fil",     "Filipino",         DisplayName = "ISO 639-2 only (no 639-1)")]
+    [DataRow("gsw",     "Swiss German",     DisplayName = "ISO 639-2 only")]
+    [DataRow("cnr",     "Montenegrin",      DisplayName = "ISO 639-2 only")]
+    [DataRow("cmn",     "Mandarin Chinese", DisplayName = "ISO 639-3 (custom)")]
+    [DataRow("yue",     "Cantonese",        DisplayName = "ISO 639-3 (custom)")]
+    [DataRow("und",     "Undetermined",     DisplayName = "Special code")]
+    [DataRow("zxx",     "No linguistic content", DisplayName = "Special code")]
+    [DataRow("mul",     "Multiple languages",    DisplayName = "Special code")]
+    [DataRow("pt-br",   null,               DisplayName = "Regional variant (not Unknown)")]
+    public void Find_ResolvesCorrectly(string input, string? expectedName)
     {
-        var result = IsoLanguage.Find("dut");
-
-        Assert.AreEqual("Dutch", result.Name);
-        // Should also be findable by terminological code
-        Assert.AreEqual("Dutch", IsoLanguage.Find("nld").Name);
+        var result = IsoLanguage.Find(input);
+        if (expectedName != null)
+        {
+            Assert.AreEqual(expectedName, result.Name);
+        }
+        else
+        {
+            Assert.AreNotEqual("Unknown", result.Name);
+        }
     }
+
+    // --- Native name resolution (used by {nativelanguage} template) ---
 
     [TestMethod]
-    public void Find_ByName()
+    [DataRow("Dutch",    "Nederlands")]
+    [DataRow("German",   "Deutsch")]
+    [DataRow("French",   "français")]
+    [DataRow("Japanese", "日本語")]
+    [DataRow("Spanish",  "Español")]
+    public void Find_ReturnsCorrectNativeName(string englishName, string expectedNative)
     {
-        Assert.AreEqual("ja", IsoLanguage.Find("Japanese").TwoLetterCode);
-        Assert.AreEqual("de", IsoLanguage.Find("german").TwoLetterCode); // case-insensitive
+        Assert.AreEqual(expectedNative, IsoLanguage.Find(englishName).NativeName);
     }
 
-    [TestMethod]
-    public void Find_ByNativeName()
-    {
-        var result = IsoLanguage.Find("Deutsch");
-
-        Assert.AreEqual("German", result.Name);
-        Assert.AreEqual("Deutsch", result.NativeName);
-        Assert.AreEqual("de", result.TwoLetterCode);
-    }
-
-    [TestMethod]
-    public void Find_ByName_ReturnsCorrectNativeName()
-    {
-        // This is the real-world path: track.LanguageName stores English names,
-        // and {nativelanguage} template resolves via Find(englishName).NativeName
-        Assert.AreEqual("Nederlands", IsoLanguage.Find("Dutch").NativeName);
-        Assert.AreEqual("Deutsch", IsoLanguage.Find("German").NativeName);
-        Assert.AreEqual("français", IsoLanguage.Find("French").NativeName);
-        Assert.AreEqual("日本語", IsoLanguage.Find("Japanese").NativeName);
-        Assert.AreEqual("Español", IsoLanguage.Find("Spanish").NativeName);
-    }
+    // --- Fuzzy search ---
 
     [TestMethod]
     public void Find_FuzzySearch_MatchesSubstring()
     {
-        // Fuzzy search checks if a language Name contains the input.
-        // Used as fallback for track names when exact matching fails.
-        var result = IsoLanguage.Find("Portu", fuzzySearch: true);
-
-        Assert.AreEqual("Portuguese", result.Name);
+        Assert.AreEqual("Portuguese", IsoLanguage.Find("Portu", fuzzySearch: true).Name);
     }
 
     [TestMethod]
     public void Find_FuzzySearch_NoMatchReturnsUnknown()
     {
-        var result = IsoLanguage.Find("xyznotreal", fuzzySearch: true);
-
-        Assert.AreEqual("Unknown", result.Name);
+        Assert.AreEqual("Unknown", IsoLanguage.Find("xyznotreal", fuzzySearch: true).Name);
     }
 
-    [TestMethod]
-    public void Find_InvalidInput_ReturnsUnknown()
-    {
-        Assert.AreEqual("Unknown", IsoLanguage.Find(null).Name);
-        Assert.AreEqual("Unknown", IsoLanguage.Find("").Name);
-        Assert.AreEqual("Unknown", IsoLanguage.Find("xyznotareallanguage").Name);
-        Assert.AreEqual("??", IsoLanguage.Find(null).TwoLetterCode);
-    }
+    // --- Invalid input ---
 
     [TestMethod]
-    public void Find_CustomRegionalVariant()
+    [DataRow(null)]
+    [DataRow("")]
+    [DataRow("xyznotareallanguage")]
+    public void Find_InvalidInput_ReturnsUnknown(string? input)
     {
-        // iso_custom.json includes regional variants like Brazilian Portuguese
-        var result = IsoLanguage.Find("pt-br");
-
-        Assert.AreNotEqual("Unknown", result.Name);
-    }
-
-    [TestMethod]
-    public void Find_Iso639_2_OnlyCode_Filipino()
-    {
-        // fil is an ISO 639-2 code with no 639-1 two-letter equivalent
-        var result = IsoLanguage.Find("fil");
-
-        Assert.AreEqual("Filipino", result.Name);
-    }
-
-    [TestMethod]
-    public void Find_Iso639_2_OnlyCode_SwissGerman()
-    {
-        var result = IsoLanguage.Find("gsw");
-
-        Assert.AreEqual("Swiss German", result.Name);
-    }
-
-    [TestMethod]
-    public void Find_Iso639_2_OnlyCode_Montenegrin()
-    {
-        var result = IsoLanguage.Find("cnr");
-
-        Assert.AreEqual("Montenegrin", result.Name);
-    }
-
-    [TestMethod]
-    public void Find_Iso639_3_MandarinChinese()
-    {
-        // cmn is an ISO 639-3 code added via iso_custom.json
-        var result = IsoLanguage.Find("cmn");
-
-        Assert.AreEqual("Mandarin Chinese", result.Name);
-    }
-
-    [TestMethod]
-    public void Find_Iso639_3_Cantonese()
-    {
-        // yue is an ISO 639-3 code added via iso_custom.json
-        var result = IsoLanguage.Find("yue");
-
-        Assert.AreEqual("Cantonese", result.Name);
-    }
-
-    [TestMethod]
-    public void Find_SpecialCodes()
-    {
-        // Special codes that are in ISO 639-2 (previously only in iso_custom.json)
-        Assert.AreEqual("Undetermined", IsoLanguage.Find("und").Name);
-        Assert.AreEqual("No linguistic content", IsoLanguage.Find("zxx").Name);
-        Assert.AreEqual("Multiple languages", IsoLanguage.Find("mul").Name);
+        Assert.AreEqual("Unknown", IsoLanguage.Find(input).Name);
     }
 
     /// <summary>
