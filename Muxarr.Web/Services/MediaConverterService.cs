@@ -259,10 +259,9 @@ public class MediaConverterService(
         var trackOutputs = conversion.MediaFile.BuildTrackOutputs(
             profile, conversion.AllowedTracks, conversion.TracksBefore, conversion.IsCustomConversion);
 
-        // No tracks to remove — check if metadata-only fix is needed.
+        // No tracks to remove — check if any output actually differs from the original.
         var hasMetadataChanges = trackOutputs.Any(t =>
-            t.Name != null || t.LanguageCode != null || t.IsDefault != null ||
-            t.IsForced != null || t.IsHearingImpaired != null || t.IsCommentary != null);
+            t.DiffersFrom(conversion.TracksBefore.FirstOrDefault(b => b.TrackNumber == t.TrackNumber)));
         if (!conversion.IsCustomConversion && conversion.AllowedTracks.Count >= conversion.MediaFile.TrackCount)
         {
             var isMatroska = string.Equals(conversion.MediaFile.ContainerType, "Matroska", StringComparison.OrdinalIgnoreCase);

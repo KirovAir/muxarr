@@ -23,7 +23,7 @@ public static class MkvPropEdit
 
             if (track.Name != null)
             {
-                props += $" --set name={EscapeValue(track.Name)}";
+                props += $" --set name={MkvToolNixHelper.EscapeValue(track.Name)}";
             }
 
             if (track.LanguageCode != null)
@@ -58,11 +58,5 @@ public static class MkvPropEdit
         }
 
         return await ProcessExecutor.ExecuteProcessAsync(Executable, command, TimeSpan.FromMinutes(5));
-    }
-
-    private static string EscapeValue(string value)
-    {
-        var escaped = value.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        return $"\"{escaped}\"";
     }
 }

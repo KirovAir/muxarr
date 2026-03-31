@@ -73,7 +73,7 @@ public static class MkvMerge
         {
             if (track.Name != null)
             {
-                command += $" --track-name {track.TrackNumber}:{EscapeArgument(track.Name)}";
+                command += $" --track-name {track.TrackNumber}:{MkvToolNixHelper.EscapeValue(track.Name)}";
             }
             if (track.LanguageCode != null)
             {
@@ -145,35 +145,21 @@ public static class MkvMerge
 
     public static bool IsHearingImpaired(this Track track)
     {
-        if (track.Properties.FlagHearingImpaired)
-        {
-            return true;
-        }
-
-        var name = track.Properties.TrackName;
-        if (string.IsNullOrEmpty(name))
-        {
-            return false;
-        }
-
-        return name.Contains("SDH", StringComparison.InvariantCultureIgnoreCase)
-               || name.Contains("SHD", StringComparison.InvariantCultureIgnoreCase)
-               || name.Contains("CC", StringComparison.InvariantCultureIgnoreCase)
-               || name.Contains("for Deaf", StringComparison.InvariantCultureIgnoreCase)
-               || name.Contains("doven", StringComparison.InvariantCultureIgnoreCase);
+        return track.Properties.FlagHearingImpaired
+               || TrackNameFlags.ContainsHearingImpaired(track.Properties.TrackName);
     }
 
     public static bool IsVisualImpaired(this Track track)
     {
         return track.Properties.FlagVisualImpaired
                || track.Properties.FlagTextDescriptions
-               || (track.Properties.TrackName?.Contains("Descriptive", StringComparison.InvariantCultureIgnoreCase) ?? false);
+               || TrackNameFlags.ContainsVisualImpaired(track.Properties.TrackName);
     }
 
     public static bool IsForced(this Track track)
     {
         return track.Properties.ForcedTrack
-               || (track.Properties.TrackName?.Contains("Forced", StringComparison.InvariantCultureIgnoreCase) ?? false);
+               || TrackNameFlags.ContainsForced(track.Properties.TrackName);
     }
 
     public static bool IsOriginal(this Track track)
@@ -183,16 +169,10 @@ public static class MkvMerge
 
     public static bool IsCommentary(this Track track)
     {
-        return track.Properties.FlagCommentary ||
-               (track.Properties.TrackName?.Contains("Commentary", StringComparison.InvariantCultureIgnoreCase) ?? false);
+        return track.Properties.FlagCommentary
+               || TrackNameFlags.ContainsCommentary(track.Properties.TrackName);
     }
 
-    private static string EscapeArgument(string value)
-    {
-        // mkvmerge uses "TID:value" format; escape backslashes and double quotes
-        var escaped = value.Replace("\\", "\\\\").Replace("\"", "\\\"");
-        return $"\"{escaped}\"";
-    }
 }
 
 public class TrackOutput
@@ -205,4 +185,5 @@ public class TrackOutput
     public bool? IsForced { get; set; }
     public bool? IsHearingImpaired { get; set; }
     public bool? IsCommentary { get; set; }
+
 }

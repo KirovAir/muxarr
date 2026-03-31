@@ -738,6 +738,62 @@ public class ExtensionTests
         Assert.IsFalse(track.IsForced);
     }
 
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsHOH()
+    {
+        var track = new TrackSnapshot { TrackName = "English HOH" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsClosedCaption()
+    {
+        var track = new TrackSnapshot { TrackName = "English Closed Captions" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsSlechthorend()
+    {
+        var track = new TrackSnapshot { TrackName = "Nederlands voor doven en slechthorenden" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_CC_WordBoundary_Matches()
+    {
+        var track = new TrackSnapshot { TrackName = "English CC" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_CC_WordBoundary_NoFalsePositive()
+    {
+        var track = new TrackSnapshot { TrackName = "Accessibility Track" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsFalse(track.IsHearingImpaired, "CC inside a word should not trigger hearing impaired");
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsAudioDescription()
+    {
+        var track = new TrackSnapshot { TrackName = "Audio Description" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsVisualImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsAudioDescribed()
+    {
+        var track = new TrackSnapshot { TrackName = "Audio Described" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsVisualImpaired);
+    }
+
     // --- ToMkvMergeType / ToMediaTrackType round-trip ---
 
     [TestMethod]
