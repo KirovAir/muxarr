@@ -38,45 +38,52 @@ public static class MkvMerge
         return json;
     }
     
-    public static async Task<ProcessResult> RemuxFile(string file, string outputFile, List<int>? audioTracks = null,
-        List<int>? subtitleTracks = null, Action<string, int>? onProgress = null,
-        Dictionary<int, TrackMetadata>? trackMetadata = null)
+    public static async Task<ProcessResult> RemuxFile(string file, string outputFile, List<TrackOutput> tracks,
+        Action<string, int>? onProgress = null)
     {
-        if (audioTracks == null && subtitleTracks == null)
-        {
-            throw new Exception("Audio or Subtitles are required");
-        }
+        var audioTracks = tracks.Where(t => t.Type == AudioTrack).ToList();
+        var subtitleTracks = tracks.Where(t => t.Type == SubtitlesTrack).ToList();
+
         var command = $"-o \"{outputFile}\"";
-        if (audioTracks is { Count: > 0 })
+
+        if (audioTracks.Count > 0)
         {
-            command += $" --audio-tracks {string.Join(",", audioTracks)}";
+            command += $" --audio-tracks {string.Join(",", audioTracks.Select(t => t.TrackNumber))}";
         }
-        else if (audioTracks is { Count: 0 })
+        else
         {
             command += " --no-audio";
         }
-        if (subtitleTracks is { Count: > 0 })
+
+        if (subtitleTracks.Count > 0)
         {
-            command += $" --subtitle-tracks {string.Join(",", subtitleTracks)}";
+            command += $" --subtitle-tracks {string.Join(",", subtitleTracks.Select(t => t.TrackNumber))}";
         }
-        else if (subtitleTracks is { Count: 0 })
+        else
         {
             command += " --no-subtitles";
         }
-        if (trackMetadata != null)
+
+        foreach (var track in tracks)
         {
-            foreach (var (trackId, metadata) in trackMetadata)
+            if (track.Name != null)
             {
-                if (metadata.Name != null)
-                {
-                    command += $" --track-name {trackId}:{EscapeArgument(metadata.Name)}";
-                }
-                if (metadata.LanguageCode != null)
-                {
-                    command += $" --language {trackId}:{metadata.LanguageCode}";
-                }
+                command += $" --track-name {track.TrackNumber}:{EscapeArgument(track.Name)}";
+            }
+            if (track.LanguageCode != null)
+            {
+                command += $" --language {track.TrackNumber}:{track.LanguageCode}";
+            }
+            if (track.IsDefault != null)
+            {
+                command += $" --default-track-flag {track.TrackNumber}:{(track.IsDefault.Value ? "1" : "0")}";
+            }
+            if (track.IsForced != null)
+            {
+                command += $" --forced-display-flag {track.TrackNumber}:{(track.IsForced.Value ? "1" : "0")}";
             }
         }
+
         command += $" \"{file}\"";
 
         var lastProgress = 0;
@@ -175,4 +182,12 @@ public static class MkvMerge
     }
 }
 
-public record TrackMetadata(string? Name, string? LanguageCode);
+public class TrackOutput
+{
+    public int TrackNumber { get; init; }
+    public string Type { get; init; } = string.Empty;
+    public string? Name { get; set; }
+    public string? LanguageCode { get; set; }
+    public bool? IsDefault { get; set; }
+    public bool? IsForced { get; set; }
+}

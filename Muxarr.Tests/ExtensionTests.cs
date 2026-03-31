@@ -1,5 +1,6 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
+using Muxarr.Core.MkvToolNix;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -287,6 +288,116 @@ public class ExtensionTests
         Assert.AreEqual("Undetermined 5.1", result);
     }
 
+    [TestMethod]
+    public void ApplyTrackNameTemplate_EmptyTemplate_ReturnsNull()
+    {
+        var track = new TrackSnapshot { LanguageName = "English", Codec = "AAC", AudioChannels = 6 };
+
+        Assert.IsNull(track.ApplyTrackNameTemplate(""));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_TrackNamePlaceholder()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
+            AudioChannels = 6, TrackName = "Surround"
+        };
+
+        Assert.AreEqual("Surround (English)", track.ApplyTrackNameTemplate("{trackname} ({language})"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_NullTrackName_ReplacesWithEmpty()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
+            AudioChannels = 6, TrackName = null
+        };
+
+        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{trackname} {language}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_NativeLanguagePlaceholder()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Audio, LanguageName = "Dutch", LanguageCode = "dut",
+            Codec = "AAC", AudioChannels = 2
+        };
+
+        Assert.AreEqual("Nederlands 2.0", track.ApplyTrackNameTemplate("{nativelanguage} {channels}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_CodecPlaceholder()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
+        };
+
+        Assert.AreEqual("English SRT", track.ApplyTrackNameTemplate("{language} {codec}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_ChannelsOnSubtitle_Empty()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
+        };
+
+        // Subtitles have no channels, so {channels} resolves to empty and collapses
+        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{language} {channels}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_AllPlaceholdersEmpty_ReturnsNull()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
+        };
+
+        // {channels} and {trackname} both resolve to empty; after collapse the result is whitespace-only
+        Assert.IsNull(track.ApplyTrackNameTemplate("{channels} {trackname}"));
+    }
+
+    // CheckHasNonStandardMetadata — template mismatch
+
+    [TestMethod]
+    public void CheckHasNonStandardMetadata_DetectsTemplateMismatch()
+    {
+        var file = new MediaFile
+        {
+            OriginalLanguage = "English",
+            Tracks = new List<MediaTrack>
+            {
+                new() { Type = MediaTrackType.Video, TrackNumber = 0 },
+                new() { Type = MediaTrackType.Audio, LanguageCode = "eng", LanguageName = "English",
+                    TrackNumber = 1, TrackName = "Surround 5.1", AudioChannels = 6, Codec = "AAC" }
+            }
+        };
+        file.TrackCount = file.Tracks.Count;
+        var profile = new Profile
+        {
+            AudioSettings =
+            {
+                Enabled = true,
+                StandardizeTrackNames = true,
+                TrackNameTemplate = "{language} {channels}",
+                AllowedLanguages = [IsoLanguage.Find("English")]
+            }
+        };
+
+        // Track name is "Surround 5.1" but template would produce "English 5.1"
+        Assert.IsTrue(file.CheckHasNonStandardMetadata(profile));
+    }
+
     // CheckHasNonStandardMetadata — und detection
 
     [TestMethod]
@@ -426,6 +537,529 @@ public class ExtensionTests
 
         Assert.IsFalse(track.ShouldResolveUndetermined(null, 1, "English"));
     }
+
+    // --- ApplyTrackNameTemplate: flag placeholders ---
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_HiPlaceholder_ShowsSDH()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsHearingImpaired = true
+        };
+
+        Assert.AreEqual("English SDH", track.ApplyTrackNameTemplate("{language} {hi}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_HiPlaceholder_EmptyWhenFalse()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsHearingImpaired = false
+        };
+
+        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{language} {hi}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_ForcedPlaceholder()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsForced = true
+        };
+
+        Assert.AreEqual("English Forced", track.ApplyTrackNameTemplate("{language} {forced}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_CommentaryPlaceholder()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
+            AudioChannels = 2, IsCommentary = true
+        };
+
+        Assert.AreEqual("English 2.0 Commentary", track.ApplyTrackNameTemplate("{language} {channels} {commentary}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_VisualImpairedPlaceholder()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
+            AudioChannels = 2, IsVisualImpaired = true
+        };
+
+        Assert.AreEqual("English AD", track.ApplyTrackNameTemplate("{language} {visualimpaired}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_OriginalPlaceholder()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC",
+            AudioChannels = 6, IsOriginal = true
+        };
+
+        Assert.AreEqual("English 5.1 Original", track.ApplyTrackNameTemplate("{language} {channels} {original}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_FlagsPlaceholder_MultipleFlags()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsHearingImpaired = true, IsForced = true
+        };
+
+        Assert.AreEqual("English (SDH, Forced)", track.ApplyTrackNameTemplate("{language} ({flags})"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_FlagsPlaceholder_NoFlags()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT"
+        };
+
+        // {flags} resolves to empty, extra parens collapse
+        Assert.AreEqual("English", track.ApplyTrackNameTemplate("{language} {flags}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_FlagsPlaceholder_AllFlags()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsHearingImpaired = true, IsForced = true, IsCommentary = true,
+            IsVisualImpaired = true, IsOriginal = true
+        };
+
+        Assert.AreEqual("SDH, Forced, Commentary, AD, Original", track.ApplyTrackNameTemplate("{flags}"));
+    }
+
+    [TestMethod]
+    public void ApplyTrackNameTemplate_CaseInsensitivePlaceholders()
+    {
+        var track = new TrackSnapshot
+        {
+            Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT",
+            IsHearingImpaired = true
+        };
+
+        Assert.AreEqual("English SDH", track.ApplyTrackNameTemplate("{Language} {HI}"));
+    }
+
+    // --- CorrectFlagsFromTrackName ---
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsSDH()
+    {
+        var track = new TrackSnapshot { TrackName = "English SDH" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsCC()
+    {
+        var track = new TrackSnapshot { TrackName = "English CC" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsForDeaf()
+    {
+        var track = new TrackSnapshot { TrackName = "English for Deaf and hard of hearing" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsDoven()
+    {
+        var track = new TrackSnapshot { TrackName = "Nederlands voor doven" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsForced()
+    {
+        var track = new TrackSnapshot { TrackName = "English Forced" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsForced);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DetectsDescriptive()
+    {
+        var track = new TrackSnapshot { TrackName = "Descriptive Audio" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsVisualImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_DoesNotOverrideExistingFlags()
+    {
+        var track = new TrackSnapshot { TrackName = "Regular Track", IsHearingImpaired = true };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsTrue(track.IsHearingImpaired, "Pre-existing flag should not be cleared");
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_NoFlagsForPlainName()
+    {
+        var track = new TrackSnapshot { TrackName = "English" };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsFalse(track.IsHearingImpaired);
+        Assert.IsFalse(track.IsForced);
+        Assert.IsFalse(track.IsVisualImpaired);
+    }
+
+    [TestMethod]
+    public void CorrectFlagsFromTrackName_EmptyName_NoChange()
+    {
+        var track = new TrackSnapshot { TrackName = null };
+        track.CorrectFlagsFromTrackName();
+        Assert.IsFalse(track.IsHearingImpaired);
+        Assert.IsFalse(track.IsForced);
+    }
+
+    // --- DetermineDefaultTrack ---
+
+    [TestMethod]
+    public void DetermineDefaultTrack_None_ReturnsNull()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, LanguageName = "English" },
+            new() { TrackNumber = 2, LanguageName = "French" }
+        };
+
+        var result = MediaFileExtensions.DetermineDefaultTrack(tracks, DefaultTrackRule.None, "English");
+
+        Assert.IsNull(result);
+    }
+
+    [TestMethod]
+    public void DetermineDefaultTrack_FirstAllowed_ReturnsFirst()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, LanguageName = "French" },
+            new() { TrackNumber = 2, LanguageName = "English" }
+        };
+
+        var result = MediaFileExtensions.DetermineDefaultTrack(tracks, DefaultTrackRule.FirstAllowed, "English");
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, result.TrackNumber);
+    }
+
+    [TestMethod]
+    public void DetermineDefaultTrack_OriginalLanguage_MatchesOriginal()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, LanguageName = "French" },
+            new() { TrackNumber = 2, LanguageName = "English" },
+            new() { TrackNumber = 3, LanguageName = "Spanish" }
+        };
+
+        var result = MediaFileExtensions.DetermineDefaultTrack(tracks, DefaultTrackRule.OriginalLanguage, "English");
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(2, result.TrackNumber);
+    }
+
+    [TestMethod]
+    public void DetermineDefaultTrack_OriginalLanguage_FallsBackToFirst()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, LanguageName = "French" },
+            new() { TrackNumber = 2, LanguageName = "Spanish" }
+        };
+
+        // Original is Japanese but no Japanese track exists
+        var result = MediaFileExtensions.DetermineDefaultTrack(tracks, DefaultTrackRule.OriginalLanguage, "Japanese");
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, result.TrackNumber, "Should fall back to first track");
+    }
+
+    [TestMethod]
+    public void DetermineDefaultTrack_OriginalLanguage_NullOriginal_FallsBackToFirst()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, LanguageName = "English" },
+            new() { TrackNumber = 2, LanguageName = "French" }
+        };
+
+        var result = MediaFileExtensions.DetermineDefaultTrack(tracks, DefaultTrackRule.OriginalLanguage, null);
+
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, result.TrackNumber);
+    }
+
+    [TestMethod]
+    public void DetermineDefaultTrack_EmptyList_ReturnsNull()
+    {
+        var result = MediaFileExtensions.DetermineDefaultTrack(
+            new List<TrackSnapshot>(), DefaultTrackRule.FirstAllowed, "English");
+
+        Assert.IsNull(result);
+    }
+
+    // --- ApplyDefaultTrackFlags ---
+
+    [TestMethod]
+    public void ApplyDefaultTrackFlags_SetsCorrectDefaults()
+    {
+        var allowed = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, Type = MediaTrackType.Audio, LanguageName = "English" },
+            new() { TrackNumber = 2, Type = MediaTrackType.Audio, LanguageName = "French" },
+            new() { TrackNumber = 3, Type = MediaTrackType.Subtitles, LanguageName = "English" },
+            new() { TrackNumber = 4, Type = MediaTrackType.Subtitles, LanguageName = "French" }
+        };
+        var outputs = allowed.Select(t => new TrackOutput
+        {
+            TrackNumber = t.TrackNumber, Type = t.Type.ToMkvMergeType()
+        }).ToList();
+        var profile = new Profile
+        {
+            AudioSettings = { DefaultTrack = DefaultTrackRule.FirstAllowed },
+            SubtitleSettings = { DefaultTrack = DefaultTrackRule.FirstAllowed }
+        };
+
+        MediaFileExtensions.ApplyDefaultTrackFlags(outputs, allowed, profile, "English");
+
+        Assert.AreEqual(true, outputs[0].IsDefault, "First audio should be default");
+        Assert.AreEqual(false, outputs[1].IsDefault, "Second audio should not be default");
+        Assert.AreEqual(true, outputs[2].IsDefault, "First subtitle should be default");
+        Assert.AreEqual(false, outputs[3].IsDefault, "Second subtitle should not be default");
+    }
+
+    [TestMethod]
+    public void ApplyDefaultTrackFlags_OriginalLanguage_SelectsCorrectTrack()
+    {
+        var allowed = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, Type = MediaTrackType.Audio, LanguageName = "French" },
+            new() { TrackNumber = 2, Type = MediaTrackType.Audio, LanguageName = "English" }
+        };
+        var outputs = allowed.Select(t => new TrackOutput
+        {
+            TrackNumber = t.TrackNumber, Type = t.Type.ToMkvMergeType()
+        }).ToList();
+        var profile = new Profile
+        {
+            AudioSettings = { DefaultTrack = DefaultTrackRule.OriginalLanguage },
+            SubtitleSettings = { DefaultTrack = DefaultTrackRule.None }
+        };
+
+        MediaFileExtensions.ApplyDefaultTrackFlags(outputs, allowed, profile, "English");
+
+        Assert.AreEqual(false, outputs[0].IsDefault, "French should not be default");
+        Assert.AreEqual(true, outputs[1].IsDefault, "English (original) should be default");
+    }
+
+    [TestMethod]
+    public void ApplyDefaultTrackFlags_None_DoesNotSetFlags()
+    {
+        var allowed = new List<TrackSnapshot>
+        {
+            new() { TrackNumber = 1, Type = MediaTrackType.Audio, LanguageName = "English" }
+        };
+        var outputs = allowed.Select(t => new TrackOutput
+        {
+            TrackNumber = t.TrackNumber, Type = t.Type.ToMkvMergeType()
+        }).ToList();
+        var profile = new Profile
+        {
+            AudioSettings = { DefaultTrack = DefaultTrackRule.None },
+            SubtitleSettings = { DefaultTrack = DefaultTrackRule.None }
+        };
+
+        MediaFileExtensions.ApplyDefaultTrackFlags(outputs, allowed, profile, "English");
+
+        Assert.IsNull(outputs[0].IsDefault, "Should not touch IsDefault when rule is None");
+    }
+
+    // --- CheckHasNonStandardMetadata: default track detection ---
+
+    [TestMethod]
+    public void CheckHasNonStandardMetadata_DetectsWrongDefault()
+    {
+        var file = new MediaFile
+        {
+            OriginalLanguage = "English",
+            Tracks = new List<MediaTrack>
+            {
+                new() { Type = MediaTrackType.Video, TrackNumber = 0 },
+                new() { Type = MediaTrackType.Audio, LanguageName = "French", TrackNumber = 1, IsDefault = true },
+                new() { Type = MediaTrackType.Audio, LanguageName = "English", TrackNumber = 2, IsDefault = false }
+            }
+        };
+        file.TrackCount = file.Tracks.Count;
+        var profile = new Profile
+        {
+            AudioSettings =
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French")],
+                DefaultTrack = DefaultTrackRule.OriginalLanguage
+            }
+        };
+
+        Assert.IsTrue(file.CheckHasNonStandardMetadata(profile),
+            "Should detect that English should be default instead of French");
+    }
+
+    [TestMethod]
+    public void CheckHasNonStandardMetadata_NoFalsePositiveWhenDefaultCorrect()
+    {
+        var file = new MediaFile
+        {
+            OriginalLanguage = "English",
+            Tracks = new List<MediaTrack>
+            {
+                new() { Type = MediaTrackType.Video, TrackNumber = 0 },
+                new() { Type = MediaTrackType.Audio, LanguageName = "English", TrackNumber = 1, IsDefault = true },
+                new() { Type = MediaTrackType.Audio, LanguageName = "French", TrackNumber = 2, IsDefault = false }
+            }
+        };
+        file.TrackCount = file.Tracks.Count;
+        var profile = new Profile
+        {
+            AudioSettings =
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French")],
+                DefaultTrack = DefaultTrackRule.OriginalLanguage
+            }
+        };
+
+        Assert.IsFalse(file.CheckHasNonStandardMetadata(profile),
+            "Should not flag when default is already correct");
+    }
+
+    // --- GetPreviewTracks: default flag applied ---
+
+    [TestMethod]
+    public void GetPreviewTracks_AppliesDefaultFlags()
+    {
+        var file = new MediaFile
+        {
+            OriginalLanguage = "English",
+            Tracks = new List<MediaTrack>
+            {
+                new() { Type = MediaTrackType.Video, TrackNumber = 0 },
+                new() { Type = MediaTrackType.Audio, LanguageName = "French", LanguageCode = "fre", TrackNumber = 1, IsDefault = true },
+                new() { Type = MediaTrackType.Audio, LanguageName = "English", LanguageCode = "eng", TrackNumber = 2, IsDefault = false }
+            }
+        };
+        file.TrackCount = file.Tracks.Count;
+        var profile = new Profile
+        {
+            AudioSettings =
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French")],
+                DefaultTrack = DefaultTrackRule.OriginalLanguage
+            }
+        };
+
+        var previews = file.GetPreviewTracks(profile);
+
+        var audioTracks = previews.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        Assert.AreEqual(2, audioTracks.Count);
+        Assert.IsFalse(audioTracks[0].IsDefault, "French should not be default in preview");
+        Assert.IsTrue(audioTracks[1].IsDefault, "English (original) should be default in preview");
+    }
+
+    // --- ToMkvMergeType / ToMediaTrackType round-trip ---
+
+    [TestMethod]
+    public void ToMkvMergeType_ConvertsAllTypes()
+    {
+        Assert.AreEqual("video", MediaTrackType.Video.ToMkvMergeType());
+        Assert.AreEqual("audio", MediaTrackType.Audio.ToMkvMergeType());
+        Assert.AreEqual("subtitles", MediaTrackType.Subtitles.ToMkvMergeType());
+        Assert.AreEqual("", MediaTrackType.Unknown.ToMkvMergeType());
+    }
+
+    [TestMethod]
+    public void ToMediaTrackType_ConvertsAllTypes()
+    {
+        Assert.AreEqual(MediaTrackType.Video, "video".ToMediaTrackType());
+        Assert.AreEqual(MediaTrackType.Audio, "audio".ToMediaTrackType());
+        Assert.AreEqual(MediaTrackType.Subtitles, "subtitles".ToMediaTrackType());
+        Assert.AreEqual(MediaTrackType.Unknown, "something".ToMediaTrackType());
+    }
+
+    [TestMethod]
+    public void TypeConversion_RoundTrips()
+    {
+        foreach (var type in new[] { MediaTrackType.Video, MediaTrackType.Audio, MediaTrackType.Subtitles })
+        {
+            Assert.AreEqual(type, type.ToMkvMergeType().ToMediaTrackType());
+        }
+    }
+
+    // --- ToSnapshot copies IsDefault ---
+
+    [TestMethod]
+    public void ToSnapshot_CopiesIsDefault()
+    {
+        var track = new MediaTrack
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", LanguageCode = "eng",
+            Codec = "AAC", TrackNumber = 1, IsDefault = true
+        };
+
+        var snapshot = track.ToSnapshot();
+
+        Assert.IsTrue(snapshot.IsDefault);
+    }
+
+    [TestMethod]
+    public void ToSnapshot_CopiesAllFlags()
+    {
+        var track = new MediaTrack
+        {
+            Type = MediaTrackType.Audio, LanguageName = "English", LanguageCode = "eng",
+            Codec = "AAC", TrackNumber = 1,
+            IsDefault = true, IsForced = true, IsCommentary = true,
+            IsHearingImpaired = true, IsVisualImpaired = true, IsOriginal = true
+        };
+
+        var snapshot = track.ToSnapshot();
+
+        Assert.IsTrue(snapshot.IsDefault);
+        Assert.IsTrue(snapshot.IsForced);
+        Assert.IsTrue(snapshot.IsCommentary);
+        Assert.IsTrue(snapshot.IsHearingImpaired);
+        Assert.IsTrue(snapshot.IsVisualImpaired);
+        Assert.IsTrue(snapshot.IsOriginal);
+    }
+
+    // --- Helpers ---
 
     private static MediaFile MakeFileWithUndAudio(string originalLanguage) => new()
     {

@@ -249,14 +249,210 @@ public class TrackFilterTests
         Assert.AreEqual(1, result.Count, "Only HI sub in allowed language should be kept by safety check");
     }
 
+    // --- Enabled=false bypasses filtering ---
+
+    [TestMethod]
+    public void Audio_DisabledSettings_ReturnsAllTracks()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Audio("fre", "French", 1),
+            Audio("ger", "German", 2),
+            Audio("jpn", "Japanese", 3)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = false,
+            AllowedLanguages = [IsoLanguage.Find("English")]
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        Assert.AreEqual(3, result.Count, "Disabled settings should return all tracks unchanged");
+    }
+
+    // --- Multiple allowed languages ---
+
+    [TestMethod]
+    public void Subtitles_MultipleAllowedLanguages_KeepsAll()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Sub("eng", "English", 1),
+            Sub("dut", "Dutch", 2),
+            Sub("fre", "French", 3),
+            Sub("ger", "German", 4)
+        };
+
+        var result = tracks.GetAllowedTracks(EnglishDutchSubtitles, "English");
+
+        Assert.AreEqual(2, result.Count);
+        Assert.IsTrue(result.Any(t => t.LanguageName == "English"), "English should be kept");
+        Assert.IsTrue(result.Any(t => t.LanguageName == "Dutch"), "Dutch should be kept");
+    }
+
+    // --- RemoveCommentary + RemoveImpaired combined ---
+
+    [TestMethod]
+    public void Audio_RemoveCommentaryAndHI_KeepsRegular()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Audio("eng", "English", 1),
+            Audio("eng", "English", 2, commentary: true),
+            Audio("eng", "English", 3, hi: true)
+        };
+
+        var result = tracks.GetAllowedTracks(EnglishDutchAudio, "English");
+
+        Assert.AreEqual(1, result.Count, "Should keep only the regular track");
+        Assert.AreEqual(1, result[0].TrackNumber, "Should keep track 1 (regular)");
+    }
+
+    [TestMethod]
+    public void Audio_AllCommentary_SafetyKeepsThem()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Audio("eng", "English", 1, commentary: true),
+            Audio("eng", "English", 2, commentary: true)
+        };
+
+        var result = tracks.GetAllowedTracks(EnglishDutchAudio, "English");
+
+        Assert.AreEqual(2, result.Count, "When all tracks are commentary, safety check keeps them all");
+    }
+
+    [TestMethod]
+    public void Audio_AllHI_SafetyKeepsThem()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Audio("eng", "English", 1, hi: true),
+            Audio("eng", "English", 2, hi: true)
+        };
+
+        var result = tracks.GetAllowedTracks(EnglishDutchAudio, "English");
+
+        Assert.AreEqual(2, result.Count, "When all tracks are HI, safety check keeps them all");
+    }
+
+    // --- KeepOriginalLanguage=false ---
+
+    [TestMethod]
+    public void Subtitles_OriginalLanguageDropped_WhenKeepOriginalDisabled()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Sub("jpn", "Japanese", 1),
+            Sub("eng", "English", 2)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            KeepOriginalLanguage = false,
+            RemoveCommentary = true,
+            RemoveImpaired = true
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "Japanese");
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("English", result[0].LanguageName, "Japanese (original) should be dropped when KeepOriginal=false");
+    }
+
+    [TestMethod]
+    public void Audio_OriginalLanguageDropped_FallbackKeepsOne()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Audio("jpn", "Japanese", 1)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            KeepOriginalLanguage = false
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "Japanese");
+
+        Assert.AreEqual(1, result.Count, "Audio fallback should still keep the only track");
+    }
+
+    // --- Audio fallback: verify which track is selected ---
+
+    [TestMethod]
+    public void Audio_Fallback_PrefersNonCommentaryNonHI()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Audio("fre", "French", 1, commentary: true),
+            Audio("fre", "French", 2, hi: true),
+            Audio("fre", "French", 3)
+        };
+
+        var result = tracks.GetAllowedTracks(EnglishDutchAudio, "English");
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual(3, result[0].TrackNumber, "Fallback should prefer non-commentary, non-HI track");
+    }
+
+    // --- Empty allowed languages ---
+
+    [TestMethod]
+    public void Subtitles_EmptyAllowedLanguages_KeepOriginalOnly()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Sub("eng", "English", 1),
+            Sub("fre", "French", 2)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [],
+            KeepOriginalLanguage = true
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("English", result[0].LanguageName, "Only original should be kept when allowed is empty");
+    }
+
+    [TestMethod]
+    public void Subtitles_EmptyAllowedLanguages_NoKeepOriginal_DropsAll()
+    {
+        var tracks = new List<MediaTrack>
+        {
+            Sub("eng", "English", 1),
+            Sub("fre", "French", 2)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [],
+            KeepOriginalLanguage = false
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        Assert.AreEqual(0, result.Count, "No allowed languages and no keep original should result in empty");
+    }
+
     // --- Helpers ---
 
-    private static MediaTrack Audio(string code, string name, int trackNumber) => new()
+    private static MediaTrack Audio(string code, string name, int trackNumber,
+        bool commentary = false, bool hi = false) => new()
     {
         Type = MediaTrackType.Audio,
         LanguageCode = code,
         LanguageName = name,
         TrackNumber = trackNumber,
+        IsCommentary = commentary,
+        IsHearingImpaired = hi,
         Codec = "AAC",
         AudioChannels = 2
     };

@@ -36,6 +36,7 @@ public class MediaTrack : IMediaTrack
     public bool IsCommentary { get; set; }
     public bool IsHearingImpaired { get; set; }
     public bool IsVisualImpaired { get; set; }
+    public bool IsDefault { get; set; }
     public bool IsForced { get; set; }
     public bool IsOriginal { get; set; }
     public string Codec { get; set; } = string.Empty;

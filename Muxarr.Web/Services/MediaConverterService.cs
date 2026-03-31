@@ -254,9 +254,9 @@ public class MediaConverterService(
             return;
         }
 
-        // Correct flags from track names and apply track name templates.
+        // Correct flags from track names and build desired output.
         var profile = conversion.MediaFile.Profile;
-        var trackMetadata = new Dictionary<int, TrackMetadata>();
+        var trackOutputs = new List<TrackOutput>();
         foreach (var track in conversion.AllowedTracks)
         {
             track.CorrectFlagsFromTrackName();
@@ -276,45 +276,65 @@ public class MediaConverterService(
                 track.LanguageCode = iso.ThreeLetterCode!;
             }
 
-            string? newName = null;
-            if (!conversion.IsCustomConversion && trackSettings != null)
+            var output = new TrackOutput
             {
-                if (trackSettings is { StandardizeTrackNames: true })
-                {
-                    newName = track.ApplyTrackNameTemplate(trackSettings.TrackNameTemplate);
-                }
-            }
-            else if (conversion.IsCustomConversion)
-            {
-                // Custom conversions use the track name as edited by the user.
-                newName = track.TrackName;
-            }
+                TrackNumber = track.TrackNumber,
+                Type = track.Type.ToMkvMergeType()
+            };
 
             if (track.Type == MediaTrackType.Video)
             {
                 if (!conversion.IsCustomConversion && profile is { ClearVideoTrackNames: true })
                 {
-                    trackMetadata[track.TrackNumber] = new TrackMetadata("", null);
+                    output.Name = "";
                 }
             }
             else
             {
-                trackMetadata[track.TrackNumber] = new TrackMetadata(newName, track.ResolveLanguageCode());
+                string? newName = null;
+                if (!conversion.IsCustomConversion && trackSettings != null)
+                {
+                    if (trackSettings is { StandardizeTrackNames: true })
+                    {
+                        newName = track.ApplyTrackNameTemplate(trackSettings.TrackNameTemplate);
+                    }
+                }
+                else if (conversion.IsCustomConversion)
+                {
+                    newName = track.TrackName;
+                }
+
+                output.Name = newName;
+                output.LanguageCode = track.ResolveLanguageCode();
+
+                if (conversion.IsCustomConversion)
+                {
+                    output.IsDefault = track.IsDefault;
+                }
             }
+
+            trackOutputs.Add(output);
+        }
+
+        // Apply default track rules from profile.
+        if (!conversion.IsCustomConversion && profile != null)
+        {
+            MediaFileExtensions.ApplyDefaultTrackFlags(trackOutputs, conversion.AllowedTracks, profile, conversion.MediaFile.OriginalLanguage);
         }
 
         // No tracks to remove — check if metadata-only fix is needed.
+        var hasMetadataChanges = trackOutputs.Any(t => t.Name != null || t.LanguageCode != null || t.IsDefault != null || t.IsForced != null);
         if (!conversion.IsCustomConversion && conversion.AllowedTracks.Count >= conversion.MediaFile.TrackCount)
         {
             var isMatroska = string.Equals(conversion.MediaFile.ContainerType, "Matroska", StringComparison.OrdinalIgnoreCase);
 
-            if (trackMetadata.Count > 0 && isMatroska)
+            if (hasMetadataChanges && isMatroska)
             {
                 conversion.State = ConversionState.Processing;
                 conversion.Log("Tracks are optimal. Fixing metadata in-place with mkvpropedit..", logger);
                 await context.SaveChangesAsync(token);
 
-                var propResult = await MkvPropEdit.EditTrackProperties(conversion.MediaFile.Path, trackMetadata);
+                var propResult = await MkvPropEdit.EditTrackProperties(conversion.MediaFile.Path, trackOutputs);
                 if (propResult.Success)
                 {
                     conversion.Log("Metadata updated successfully.", logger);
@@ -330,7 +350,7 @@ public class MediaConverterService(
                     conversion.State = ConversionState.Failed;
                 }
             }
-            else if (trackMetadata.Count > 0)
+            else if (hasMetadataChanges)
             {
                 // Non-MKV files (e.g. .mp4) don't support mkvpropedit — fall through to full remux.
                 conversion.Log("Tracks are optimal but file is not MKV. Remuxing to apply metadata changes..", logger);
@@ -366,8 +386,7 @@ public class MediaConverterService(
             var result = await MkvMerge.RemuxFile(
                 conversion.MediaFile.Path,
                 tmp,
-                conversion.AllowedTracks.GetAudioTracks().Select(x => x.TrackNumber).ToList(),
-                conversion.AllowedTracks.GetSubtitleTracks().Select(x => x.TrackNumber).ToList(),
+                trackOutputs,
                 (line, progress) =>
                 {
                     var newProgress = progress / 2;
@@ -382,8 +401,7 @@ public class MediaConverterService(
                         conversion.Progress = newProgress;
                         ConverterStateChanged?.Invoke(this, new ConverterProgressEvent(conversion));
                     }
-                },
-                trackMetadata.Count > 0 ? trackMetadata : null
+                }
             );
 
             token.ThrowIfCancellationRequested();

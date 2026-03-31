@@ -73,6 +73,7 @@ public static class MediaFileExtensions
                 IsCommentary = x.IsCommentary(),
                 IsHearingImpaired = x.IsHearingImpaired(),
                 IsVisualImpaired = x.IsVisualImpaired(),
+                IsDefault = x.Properties.DefaultTrack,
                 IsForced = x.IsForced(),
                 IsOriginal = x.IsOriginal(),
                 LanguageCode = x.Properties.Language ?? string.Empty,
@@ -277,6 +278,16 @@ public static class MediaFileExtensions
                     return true;
                 }
             }
+
+            if (settings.DefaultTrack != DefaultTrackRule.None)
+            {
+                var tracksOfType = allowedTracks.Where(t => t.Type == track.Type).ToList();
+                var expectedDefault = DetermineDefaultTrack(tracksOfType, settings.DefaultTrack, file.OriginalLanguage);
+                if (expectedDefault != null && track.IsDefault != (track.TrackNumber == expectedDefault.TrackNumber))
+                {
+                    return true;
+                }
+            }
         }
 
         return false;
@@ -334,7 +345,28 @@ public static class MediaFileExtensions
             previews.Add(preview);
         }
 
+        // Apply default track flags to previews
+        ApplyDefaultPreviewFlags(previews, MediaTrackType.Audio, profile.AudioSettings, file.OriginalLanguage);
+        ApplyDefaultPreviewFlags(previews, MediaTrackType.Subtitles, profile.SubtitleSettings, file.OriginalLanguage);
+
         return previews;
+    }
+
+    private static void ApplyDefaultPreviewFlags(List<TrackSnapshot> previews, MediaTrackType type,
+        TrackSettings settings, string? originalLanguage)
+    {
+        if (settings.DefaultTrack == DefaultTrackRule.None)
+        {
+            return;
+        }
+
+        var tracksOfType = previews.Where(t => t.Type == type).ToList();
+        var defaultTrack = DetermineDefaultTrack(tracksOfType, settings.DefaultTrack, originalLanguage);
+
+        foreach (var track in tracksOfType)
+        {
+            track.IsDefault = track.TrackNumber == defaultTrack?.TrackNumber;
+        }
     }
 
     // Mutation methods — TrackSnapshot only (used at conversion time on snapshot copies)
@@ -382,11 +414,28 @@ public static class MediaFileExtensions
             .Replace("{nativelanguage}", nativeName, StringComparison.OrdinalIgnoreCase)
             .Replace("{codec}", track.Codec, StringComparison.OrdinalIgnoreCase)
             .Replace("{channels}", track.GetChannelLayout() ?? "", StringComparison.OrdinalIgnoreCase)
-            .Replace("{trackname}", track.TrackName ?? "", StringComparison.OrdinalIgnoreCase);
+            .Replace("{trackname}", track.TrackName ?? "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{hi}", track.IsHearingImpaired ? "SDH" : "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{forced}", track.IsForced ? "Forced" : "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{commentary}", track.IsCommentary ? "Commentary" : "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{visualimpaired}", track.IsVisualImpaired ? "AD" : "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{original}", track.IsOriginal ? "Original" : "", StringComparison.OrdinalIgnoreCase)
+            .Replace("{flags}", track.GetFlagLabels(), StringComparison.OrdinalIgnoreCase);
 
         result = Regex.Replace(result, @"\s{2,}", " ").Trim();
 
         return string.IsNullOrWhiteSpace(result) ? null : result;
+    }
+
+    private static string GetFlagLabels(this IMediaTrack track)
+    {
+        var labels = new List<string>();
+        if (track.IsHearingImpaired) { labels.Add("SDH"); }
+        if (track.IsForced) { labels.Add("Forced"); }
+        if (track.IsCommentary) { labels.Add("Commentary"); }
+        if (track.IsVisualImpaired) { labels.Add("AD"); }
+        if (track.IsOriginal) { labels.Add("Original"); }
+        return string.Join(", ", labels);
     }
 
     public static string? ResolveLanguageCode(this IMediaTrack track)
@@ -416,6 +465,7 @@ public static class MediaFileExtensions
             IsCommentary = track.IsCommentary,
             IsHearingImpaired = track.IsHearingImpaired,
             IsVisualImpaired = track.IsVisualImpaired,
+            IsDefault = track.IsDefault,
             IsForced = track.IsForced,
             IsOriginal = track.IsOriginal
         };
@@ -424,6 +474,61 @@ public static class MediaFileExtensions
     public static List<TrackSnapshot> ToSnapshots(this IEnumerable<IMediaTrack> tracks)
     {
         return tracks.Select(t => t.ToSnapshot()).ToList();
+    }
+
+    // Default track logic
+
+    public static T? DetermineDefaultTrack<T>(List<T> tracks, DefaultTrackRule rule, string? originalLanguage)
+        where T : IMediaTrack
+    {
+        if (rule == DefaultTrackRule.None || tracks.Count == 0)
+        {
+            return default;
+        }
+
+        if (rule == DefaultTrackRule.OriginalLanguage && !string.IsNullOrEmpty(originalLanguage))
+        {
+            var originalTrack = tracks.FirstOrDefault(t => t.LanguageName == originalLanguage);
+            if (originalTrack != null)
+            {
+                return originalTrack;
+            }
+        }
+
+        return tracks.First();
+    }
+
+    public static void ApplyDefaultTrackFlags(List<TrackOutput> outputs, List<TrackSnapshot> allowedTracks,
+        Profile profile, string? originalLanguage)
+    {
+        ApplyDefaultForType(outputs, allowedTracks, MediaTrackType.Audio, profile.AudioSettings, originalLanguage);
+        ApplyDefaultForType(outputs, allowedTracks, MediaTrackType.Subtitles, profile.SubtitleSettings, originalLanguage);
+    }
+
+    private static void ApplyDefaultForType(List<TrackOutput> outputs, List<TrackSnapshot> allowedTracks,
+        MediaTrackType type, TrackSettings settings, string? originalLanguage)
+    {
+        if (settings.DefaultTrack == DefaultTrackRule.None)
+        {
+            return;
+        }
+
+        var tracksOfType = allowedTracks.Where(t => t.Type == type).ToList();
+        if (tracksOfType.Count == 0)
+        {
+            return;
+        }
+
+        var defaultTrack = DetermineDefaultTrack(tracksOfType, settings.DefaultTrack, originalLanguage);
+
+        foreach (var track in tracksOfType)
+        {
+            var output = outputs.FirstOrDefault(o => o.TrackNumber == track.TrackNumber);
+            if (output != null)
+            {
+                output.IsDefault = track.TrackNumber == defaultTrack?.TrackNumber;
+            }
+        }
     }
 
     // Helpers
@@ -436,6 +541,17 @@ public static class MediaFileExtensions
             MkvMerge.AudioTrack => MediaTrackType.Audio,
             MkvMerge.SubtitlesTrack => MediaTrackType.Subtitles,
             _ => MediaTrackType.Unknown
+        };
+    }
+
+    public static string ToMkvMergeType(this MediaTrackType type)
+    {
+        return type switch
+        {
+            MediaTrackType.Video => MkvMerge.VideoTrack,
+            MediaTrackType.Audio => MkvMerge.AudioTrack,
+            MediaTrackType.Subtitles => MkvMerge.SubtitlesTrack,
+            _ => ""
         };
     }
 }

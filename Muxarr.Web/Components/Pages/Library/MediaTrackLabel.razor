@@ -20,6 +20,10 @@
     {
         <i class="bi bi-lock ms-1" title="Forced"></i>
     }
+    @if (Track.IsDefault)
+    {
+        <i class="bi bi-star-fill ms-1" title="Default"></i>
+    }
 </span>
 
 @code {

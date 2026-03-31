@@ -42,12 +42,23 @@
             <small class="form-text text-muted d-block">Rename @(TrackType.ToLower()) tracks during conversion using a template.</small>
         </div>
 
+        <div class="mb-3">
+            <label class="form-label" for="@($"defaultTrack{TrackType}")">Default @TrackType Track</label>
+            <InputSelect id="@($"defaultTrack{TrackType}")" class="form-select" @bind-Value="Settings.DefaultTrack">
+                <option value="@DefaultTrackRule.None">Don't change defaults</option>
+                <option value="@DefaultTrackRule.FirstAllowed">First allowed track</option>
+                <option value="@DefaultTrackRule.OriginalLanguage">Original language track</option>
+            </InputSelect>
+            <small class="form-text text-muted d-block">Controls which @(TrackType.ToLower()) track is marked as the default player selection.</small>
+        </div>
+
         @if (Settings.StandardizeTrackNames)
         {
             <div class="mb-3 ms-4">
                 <InputText id="@($"trackNameTemplate{TrackType}")" class="form-control" @bind-Value="Settings.TrackNameTemplate" />
                 <small class="form-text text-muted d-block">
-                    Placeholders: <code>{language}</code>, <code>{nativelanguage}</code>, <code>{codec}</code>, <code>{channels}</code>, <code>{trackname}</code>.
+                    Placeholders: <code>{language}</code>, <code>{nativelanguage}</code>, <code>{codec}</code>, <code>{channels}</code>, <code>{trackname}</code>,
+                    <code>{hi}</code>, <code>{forced}</code>, <code>{commentary}</code>, <code>{visualimpaired}</code>, <code>{original}</code>, <code>{flags}</code>.
                     Leave empty to clear all track names.
                 </small>
                 @if (!string.IsNullOrWhiteSpace(Settings.TrackNameTemplate))
@@ -73,7 +84,7 @@
 
     private TrackSnapshot PreviewTrack => TrackType == "Audio"
         ? new TrackSnapshot { Type = MediaTrackType.Audio, LanguageName = "English", Codec = "AAC", AudioChannels = 6, TrackName = "Surround" }
-        : new TrackSnapshot { Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT", TrackName = "Full" };
+        : new TrackSnapshot { Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = "SRT", TrackName = "Full", IsHearingImpaired = true };
 
     private string GetPreview()
     {

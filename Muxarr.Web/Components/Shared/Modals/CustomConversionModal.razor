@@ -21,6 +21,7 @@
                     <th>Language</th>
                     <th>Format</th>
                     <th>Track Name</th>
+                    <th style="width: 70px;">Default</th>
                 </tr>
             </thead>
             <tbody>
@@ -73,6 +74,16 @@
                             else
                             {
                                 <span class="text-muted small">@track.TrackName</span>
+                            }
+                        </td>
+                        <td class="text-center">
+                            @if (!isVideo)
+                            {
+                                <input type="radio"
+                                       class="form-check-input"
+                                       name="@($"default-{track.Type}")"
+                                       checked="@track.IsDefault"
+                                       @onchange="() => SetDefault(track)"/>
                             }
                         </td>
                     </tr>
@@ -174,6 +185,14 @@
         var iso = IsoLanguage.Find(languageName);
         track.LanguageName = iso.Name;
         track.LanguageCode = iso.ThreeLetterCode ?? track.LanguageCode;
+    }
+
+    private void SetDefault(TrackSnapshot track)
+    {
+        foreach (var t in _editableTracks.Where(t => t.Type == track.Type))
+        {
+            t.IsDefault = t.TrackNumber == track.TrackNumber;
+        }
     }
 
     private void ToggleTrack(TrackSnapshot track)

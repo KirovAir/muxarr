@@ -27,6 +27,14 @@ namespace Muxarr.Data.Entities
         public bool AssumeUndeterminedIsOriginal { get; set; }
         public bool StandardizeTrackNames { get; set; }
         public string TrackNameTemplate { get; set; } = string.Empty;
+        public DefaultTrackRule DefaultTrack { get; set; } = DefaultTrackRule.None;
+    }
+
+    public enum DefaultTrackRule
+    {
+        None,
+        FirstAllowed,
+        OriginalLanguage
     }
 
     public class ProfileConfiguration : AuditEntityConfiguration<Profile>

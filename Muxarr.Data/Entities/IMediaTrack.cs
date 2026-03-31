@@ -12,6 +12,7 @@ public interface IMediaTrack
     bool IsCommentary { get; }
     bool IsHearingImpaired { get; }
     bool IsVisualImpaired { get; }
+    bool IsDefault { get; }
     bool IsForced { get; }
     bool IsOriginal { get; }
 }

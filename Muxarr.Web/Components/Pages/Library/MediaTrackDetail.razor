@@ -54,7 +54,9 @@
     private bool HasMetadataChange =>
         Preview != null && (
             Preview.LanguageName != Track.LanguageName
-            || !string.Equals(Track.TrackName ?? "", Preview.TrackName ?? "", StringComparison.Ordinal));
+            || !string.Equals(Track.TrackName ?? "", Preview.TrackName ?? "", StringComparison.Ordinal)
+            || Preview.IsDefault != Track.IsDefault
+            || Preview.IsForced != Track.IsForced);
 
     private string MetadataChangeTip
     {
@@ -70,6 +72,14 @@
                 parts.Add(string.IsNullOrEmpty(Preview.TrackName)
                     ? "Track name will be cleared"
                     : $"Track name → {Preview.TrackName}");
+            }
+            if (Preview != null && Preview.IsDefault != Track.IsDefault)
+            {
+                parts.Add(Preview.IsDefault ? "Will be set as default" : "Will be unset as default");
+            }
+            if (Preview != null && Preview.IsForced != Track.IsForced)
+            {
+                parts.Add(Preview.IsForced ? "Will be set as forced" : "Will be unset as forced");
             }
             return string.Join("\n", parts);
         }
