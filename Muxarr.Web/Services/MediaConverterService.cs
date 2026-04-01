@@ -288,6 +288,9 @@ public class MediaConverterService(
                     else
                     {
                         conversion.Log("Metadata updated successfully.", logger);
+                        conversion.SizeAfter = conversion.MediaFile.Size;
+                        conversion.TracksAfter = conversion.MediaFile.Tracks.ToSnapshots();
+                        conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
                         conversion.State = ConversionState.Completed;
                     }
                 }
