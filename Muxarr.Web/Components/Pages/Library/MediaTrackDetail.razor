@@ -3,11 +3,16 @@
         @Track.TrackNumber
     </td>
     <td>
-        <MediaTrackLabel Track="Track" ResolvedLanguage="@ResolvedLanguage" ShowAllFlags="true"></MediaTrackLabel>
+        <MediaTrackLabel Track="Track" ShowAllFlags="true"></MediaTrackLabel>
+        @if (ResolvedLanguage != null)
+        {
+            <i class="bi bi-arrow-right text-info mx-1"></i>
+            <span class="badge bg-info text-white">@ResolvedLanguage</span>
+        }
 
         @if (DisplayLanguage == OriginalLanguage)
         {
-            <ToolTip Tip="@(ResolvedLanguage != null ? $"Undetermined → {ResolvedLanguage} (original language)" : "Original Language")">
+            <ToolTip Tip="@(ResolvedLanguage != null ? $"Undetermined -> {ResolvedLanguage} (original language)" : "Original Language")">
                 <i class="bi bi-star-fill text-warning ms-2"></i>
             </ToolTip>
         }

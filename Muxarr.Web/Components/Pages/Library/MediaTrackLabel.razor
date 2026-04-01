@@ -1,5 +1,5 @@
 <span class="me-1 badge @GetTrackTypeBadgeClass(Track.Type)">
-    <i class="bi @GetTrackTypeIcon(Track.Type) me-1"></i>@(Track.Type == MediaTrackType.Video ? "Video" : ResolvedLanguage ?? Track.LanguageName)@if (Track.GetChannelLayout() is { } channels) {<span class="opacity-75 ms-1">@channels</span>}
+    <i class="bi @GetTrackTypeIcon(Track.Type) me-1"></i>@(Track.Type == MediaTrackType.Video ? "Video" : Track.LanguageName)@if (Track.GetChannelLayout() is { } channels) {<span class="opacity-75 ms-1">@channels</span>}
     @if (Track.IsHearingImpaired)
     {
         <ToolTip Tip="Hearing Impaired (SDH)"><i class="bi bi-ear ms-1"></i></ToolTip>
@@ -31,8 +31,6 @@
 
 @code {
     [Parameter, EditorRequired] public required IMediaTrack Track { get; set; }
-
-    [Parameter] public string? ResolvedLanguage { get; set; }
 
     [Parameter] public bool ShowAllFlags { get; set; }
 
