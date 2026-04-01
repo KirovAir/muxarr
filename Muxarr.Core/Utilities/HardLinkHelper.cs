@@ -49,61 +49,13 @@ public static class HardLinkHelper
             return GetLinkCountWindows(filePath);
         }
 
-        return GetLinkCountUnix(filePath);
+        return NativeStat.GetLinkCount(filePath);
     }
 
     #region Unix (Linux + macOS) via libc P/Invoke
 
     [DllImport("libc", EntryPoint = "link", SetLastError = true)]
     private static extern int LinkUnix(string oldpath, string newpath);
-
-    // macOS stat struct - st_nlink is a uint16 at offset 6
-    [StructLayout(LayoutKind.Explicit, Size = 144)]
-    private struct MacOSStatBuf
-    {
-        [FieldOffset(4)] public ushort st_mode;
-        [FieldOffset(6)] public ushort st_nlink;
-    }
-
-    // Linux (x64/arm64) stat struct - st_nlink is a ulong at offset 16
-    [StructLayout(LayoutKind.Explicit, Size = 144)]
-    private struct LinuxStatBuf
-    {
-        [FieldOffset(16)] public ulong st_nlink;
-    }
-
-    [DllImport("libc", EntryPoint = "stat", SetLastError = true)]
-    private static extern int StatMacOS(string path, out MacOSStatBuf buf);
-
-    [DllImport("libc", EntryPoint = "stat", SetLastError = true)]
-    private static extern int StatLinux(string path, out LinuxStatBuf buf);
-
-    private static uint GetLinkCountUnix(string filePath)
-    {
-        try
-        {
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            {
-                if (StatMacOS(filePath, out var buf) == 0)
-                {
-                    return buf.st_nlink;
-                }
-            }
-            else
-            {
-                if (StatLinux(filePath, out var buf) == 0)
-                {
-                    return (uint)buf.st_nlink;
-                }
-            }
-        }
-        catch
-        {
-            // P/Invoke failed, fall back to 0
-        }
-
-        return 0;
-    }
 
     #endregion
 

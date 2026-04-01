@@ -1,120 +1,74 @@
-﻿using System.Runtime.InteropServices;
+using System.Runtime.InteropServices;
 
 namespace Muxarr.Core.Utilities;
 
 public static class FileHelper
 {
-    private const int DefaultBufferSize = 1024 * 1024; // 1MB buffer by default
+    private const int DefaultBufferSize = 1024 * 1024; // 1MB buffer
     private const int ProgressSize = 1024 * 1024 * 100; // Progress event every 100MB
 
     /// <summary>
-    /// Moves a file with progress reporting, attempting atomic move when possible.
+    /// Moves a file with progress reporting. On the same filesystem this is an instant
+    /// atomic rename. On different filesystems it falls back to an async copy+delete
+    /// with progress reporting and cancellation support.
     /// </summary>
-    public static async Task<bool> MoveFileAsync(
+    public static async Task MoveFileAsync(
         string sourcePath,
         string destinationPath,
         Action<int>? progressCallback = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(sourcePath))
+        {
             throw new ArgumentNullException(nameof(sourcePath));
+        }
         if (string.IsNullOrEmpty(destinationPath))
+        {
             throw new ArgumentNullException(nameof(destinationPath));
+        }
         if (!File.Exists(sourcePath))
+        {
             throw new FileNotFoundException("Source file not found.", sourcePath);
+        }
 
-        // Ensure the destination directory exists
         Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
 
-        // Try atomic move first if possible
-        if (CanMoveAtomically(sourcePath, destinationPath))
+        if (IsSameFileSystem(sourcePath, destinationPath))
         {
-            try
-            {
-                File.Move(sourcePath, destinationPath, true);
-                progressCallback?.Invoke(100); // Instant completion
-                return true;
-            }
-            catch (Exception ex) when (IsRetryableException(ex))
-            {
-                // Fall through to copy+delete if atomic move fails
-            }
+            File.Move(sourcePath, destinationPath, true);
+            progressCallback?.Invoke(100);
+            return;
         }
 
-        // Fall back to copy+delete with progress
+        // Cross-device: async copy with progress, then delete source.
         await CopyFileWithProgressAsync(sourcePath, destinationPath, progressCallback, cancellationToken);
-
         File.Delete(sourcePath);
-        return false;
     }
 
-    private static bool CanMoveAtomically(string sourcePath, string destinationPath)
-    {
-        try
-        {
-            // Get volume information for both paths
-            var sourceRoot = Path.GetPathRoot(Path.GetFullPath(sourcePath));
-            var destRoot = Path.GetPathRoot(Path.GetFullPath(destinationPath));
-
-            if (string.IsNullOrEmpty(sourceRoot) || string.IsNullOrEmpty(destRoot))
-                return false;
-
-            // Check if both paths are on the same volume
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                // On Windows, compare drive letters or UNC paths
-                return string.Equals(sourceRoot, destRoot, StringComparison.OrdinalIgnoreCase);
-            }
-            else
-            {
-                // On Unix-like systems, compare mount points
-                var sourceMount = GetMountPoint(sourcePath);
-                var destMount = GetMountPoint(destinationPath);
-                return string.Equals(sourceMount, destMount, StringComparison.Ordinal);
-            }
-        }
-        catch
-        {
-            return false; // If any check fails, err on the safe side
-        }
-    }
-
-    private static string? GetMountPoint(string path)
+    /// <summary>
+    /// Checks whether two paths reside on the same filesystem by comparing device IDs
+    /// (st_dev via stat(2)) on Unix, or drive letters on Windows.
+    /// </summary>
+    private static bool IsSameFileSystem(string path1, string path2)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            return Path.GetPathRoot(Path.GetFullPath(path));
-
-        // For Unix-like systems, you might want to use a more sophisticated approach
-        // This is a simplified version that works for basic cases
-        var fullPath = Path.GetFullPath(path);
-        var current = new DirectoryInfo(fullPath);
-
-        while (current.Parent != null)
         {
-            if (IsMount(current.FullName))
-                return current.FullName;
-            current = current.Parent;
+            var root1 = Path.GetPathRoot(Path.GetFullPath(path1));
+            var root2 = Path.GetPathRoot(Path.GetFullPath(path2));
+            return string.Equals(root1, root2, StringComparison.OrdinalIgnoreCase);
         }
 
-        return "/";
-    }
+        var dir1 = Path.GetDirectoryName(Path.GetFullPath(path1))!;
+        var dir2 = Path.GetDirectoryName(Path.GetFullPath(path2))!;
+        var dev1 = NativeStat.GetDeviceId(dir1);
+        var dev2 = NativeStat.GetDeviceId(dir2);
 
-    private static bool IsMount(string path)
-    {
-        try
-        {
-            var info = new DirectoryInfo(path);
-            return info.Parent != null && info.Root.FullName != info.Parent.FullName;
-        }
-        catch
+        if (dev1 == null || dev2 == null)
         {
             return false;
         }
-    }
 
-    private static bool IsRetryableException(Exception ex)
-    {
-        return ex is IOException || ex is UnauthorizedAccessException;
+        return dev1 == dev2;
     }
 
     private static async Task CopyFileWithProgressAsync(
@@ -144,7 +98,7 @@ public static class FileHelper
             var buffer = new byte[DefaultBufferSize];
             var totalBytes = sourceStream.Length;
             var bytesRead = 0L;
-            var read = 0;
+            int read;
 
             while ((read = await sourceStream.ReadAsync(buffer, cancellationToken)) > 0)
             {
