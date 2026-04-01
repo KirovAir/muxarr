@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Muxarr.Core.Language;
@@ -5,6 +6,35 @@ using Muxarr.Data.Extensions;
 
 namespace Muxarr.Data.Entities
 {
+    public enum TrackFlag
+    {
+        [Display(Name = "SDH")]
+        HearingImpaired,
+
+        [Display(Name = "Forced")]
+        Forced,
+
+        [Display(Name = "Commentary")]
+        Commentary,
+
+        [Display(Name = "AD")]
+        VisualImpaired
+    }
+
+    public static class TrackFlagExtensions
+    {
+        public static readonly TrackFlag[] All = Enum.GetValues<TrackFlag>();
+
+        public static bool Matches(this TrackFlag flag, IMediaTrack track) => flag switch
+        {
+            TrackFlag.HearingImpaired => track.IsHearingImpaired,
+            TrackFlag.Forced => track.IsForced,
+            TrackFlag.Commentary => track.IsCommentary,
+            TrackFlag.VisualImpaired => track.IsVisualImpaired,
+            _ => false
+        };
+    }
+
     public class Profile : AuditableEntity
     {
         public int Id { get; set; }

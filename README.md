@@ -7,7 +7,7 @@
 
 # Muxarr
 
-Muxarr cleans up your media files by removing redundant audio and subtitle tracks and standardizing track metadata. It uses **mkvmerge** to remux files, so it only strips away what you don't need. Video, audio quality, and all remaining streams stay completely intact without quality loss since there is no re-encoding.
+Muxarr cleans up your media files by removing redundant audio and subtitle tracks and standardizing track metadata. It uses **mkvmerge** to remux files, not re-encode them. Remuxing is essentially a copy operation, so it's very fast (even on low-end hardware like a NAS or Raspberry Pi) and there is zero quality loss. Video, audio quality, and all remaining streams stay completely intact.
 
 Integrates with your existing services for original language detection and automatic processing via webhooks.
 

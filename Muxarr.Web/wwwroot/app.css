@@ -273,6 +273,11 @@
     border-color: rgba(255, 255, 255, 0.2);
 }
 
+[data-bs-theme="dark"] .form-check-input:checked {
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
+}
+
 [data-bs-theme="dark"] .form-check-label,
 [data-bs-theme="dark"] .form-label,
 [data-bs-theme="dark"] label {
