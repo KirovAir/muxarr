@@ -1,0 +1,137 @@
+@using Muxarr.Core.Api.Models
+@using Muxarr.Core.Config
+@using Muxarr.Core.Utilities
+
+<p class="text-muted">Use the API to integrate Muxarr with dashboards and external tools.</p>
+
+<div class="border rounded p-4 mb-4">
+    <h5 class="mb-3"><i class="bi bi-key me-2"></i>API Key</h5>
+
+    <div class="mb-3">
+        <div class="input-group" style="max-width: 500px;">
+            <input type="text" class="form-control" value="@_apiKey" readonly />
+            <button type="button" class="btn btn-outline-secondary" @onclick="RegenerateApiKey" title="Regenerate API key">
+                <i class="bi bi-arrow-clockwise"></i>
+            </button>
+        </div>
+        <small class="form-text text-muted">
+            Used to authenticate API requests. Pass via <code>X-Api-Key</code> header (recommended) or <code>?apikey=</code> query parameter.
+        </small>
+    </div>
+</div>
+
+<h5 class="mb-3"><i class="bi bi-code-slash me-2"></i>Endpoints</h5>
+
+<div class="row g-4">
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-terminal me-2"></i>curl</div>
+            <div class="card-body">
+                <CodeBlock Value="@CurlExample" />
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-braces me-2"></i>Example Response</div>
+            <div class="card-body">
+                <CodeBlock Value="@ResponseExample" />
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-layout-text-sidebar me-2"></i>Homepage Widget</div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">
+                    Add this to your <a href="https://gethomepage.dev/widgets/services/customapi/" target="_blank">Homepage</a> <code>services.yaml</code>:
+                </p>
+                <CodeBlock Value="@HomepageExample" />
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required IModalService ModalService { get; set; }
+
+    private string _apiKey = string.Empty;
+    private string _baseUrl = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadConfig();
+    }
+
+    private async Task LoadConfig()
+    {
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var config = context.Configs.GetOrDefault<WebhookConfig>();
+        _apiKey = config.ApiKey;
+        _baseUrl = string.IsNullOrWhiteSpace(config.MuxarrUrl)
+            ? "http://<muxarr-host>:8183"
+            : config.MuxarrUrl.TrimEnd('/');
+    }
+
+    private async Task RegenerateApiKey()
+    {
+        var confirmed = await ModalService.ShowConfirm(
+            "Regenerating the API key will invalidate all existing connections, " +
+            "including *Arr webhooks and any external integrations (e.g. Homepage).",
+            "Regenerate API Key?");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _apiKey = Guid.NewGuid().ToString("N");
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var config = context.Configs.GetOrDefault<WebhookConfig>();
+        config.ApiKey = _apiKey;
+        context.Configs.Set(config);
+        await context.SaveChangesAsync();
+
+        ToastService.ShowInfo("New API key generated. Reconnect your *Arr instances and external integrations.");
+    }
+
+    private string StatsUrl => $"{_baseUrl}/api/stats";
+
+    private string CurlExample =>
+        $"curl -H \"X-Api-Key: {_apiKey}\" {StatsUrl}";
+
+    private static readonly Lazy<string> ExampleJson = new(() =>
+    {
+        var options = JsonHelper.JsonDotNetDefaults;
+        options.WriteIndented = true;
+        options.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        return System.Text.Json.JsonSerializer.Serialize(StatsResponse.Example, options);
+    });
+
+    private string ResponseExample => ExampleJson.Value;
+
+    private string HomepageExample =>
+$@"- Muxarr:
+    icon: mdi-movie-filter
+    href: {_baseUrl}
+    widget:
+      type: customapi
+      url: {StatsUrl}
+      headers:
+        X-Api-Key: {_apiKey}
+      mappings:
+        - field: totalFiles
+          label: Library
+          format: number
+        - field: activeConversions
+          label: Active
+          format: number
+        - field: completedConversions
+          label: Completed
+          format: number
+        - field: spaceSavedBytes
+          label: Saved
+          format: bytes";
+}

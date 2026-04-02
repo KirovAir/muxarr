@@ -1,6 +1,5 @@
 @using Muxarr.Core.Api
 @using Muxarr.Core.Config
-@using Muxarr.Web.Helpers
 
 <p class="text-muted">Configure webhook integration so Sonarr and Radarr automatically trigger Muxarr when files are imported or renamed.</p>
 
@@ -41,15 +40,12 @@
         </div>
 
         <div class="mb-3">
-            <label for="wh-apikey" class="form-label">API Key</label>
+            <label class="form-label">API Key</label>
             <div class="input-group" style="max-width: 500px;">
-                <InputText id="wh-apikey" class="form-control" @bind-Value="Config.ApiKey" readonly />
-                <button type="button" class="btn btn-outline-secondary" @onclick="GenerateApiKey" title="Generate new API key">
-                    <i class="bi bi-arrow-clockwise"></i>
-                </button>
+                <input type="text" class="form-control" value="@Config.ApiKey" readonly />
             </div>
             <small class="form-text text-muted">
-                Incoming webhooks must include <code>?apikey=@(Config.ApiKey)</code>. Regenerating will require reconnecting your *Arr instances.
+                Managed in the <a href="#" @onclick="ActivateApiTab" @onclick:preventDefault>API</a> tab.
             </small>
         </div>
     </div>
@@ -93,7 +89,6 @@
     [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
     [Inject] public required ArrApiClient ArrApi { get; set; }
-    [Inject] public required IModalService ModalService { get; set; }
 
     [CascadingParameter] public TabSet? TabSet { get; set; }
 
@@ -142,25 +137,9 @@
         TabSet?.ActivateTab("*arrsettings");
     }
 
-    private async Task GenerateApiKey()
+    private void ActivateApiTab()
     {
-        var hasConnected = _radarrStatus == WebhookConnector.ConnectStatus.Connected
-                        || _sonarrStatus == WebhookConnector.ConnectStatus.Connected;
-        if (hasConnected)
-        {
-            var confirmed = await ModalService.ShowConfirm(
-                "Regenerating the API key will invalidate the current webhook URL. " +
-                "You will need to reconnect your *Arr instances afterwards.",
-                "Regenerate API Key?");
-            if (!confirmed)
-            {
-                return;
-            }
-        }
-
-        Config.ApiKey = Guid.NewGuid().ToString("N");
-        StateHasChanged();
-        ToastService.ShowInfo("New API key generated. Save settings and reconnect your *Arr instances.");
+        TabSet?.ActivateTab("api");
     }
 
     private async Task HandleSubmit()

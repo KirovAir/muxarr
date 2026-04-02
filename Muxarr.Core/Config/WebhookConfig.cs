@@ -22,8 +22,8 @@ public class WebhookConfig
     public string MuxarrUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Optional API key for webhook authentication.
-    /// When set, incoming requests must include this value as a ?apikey= query parameter.
+    /// Optional API key for API authentication.
+    /// Accepted via the X-Api-Key header (recommended) or the ?apikey= query parameter.
     /// </summary>
     public string ApiKey { get; set; } = string.Empty;
 }

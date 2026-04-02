@@ -1,0 +1,13 @@
+<div class="position-relative">
+    <pre class="bg-dark text-light rounded p-3 mb-0" style="white-space: pre-wrap; word-break: break-all;"><code>@Value</code></pre>
+    <button type="button"
+            class="btn btn-sm btn-outline-light position-absolute top-0 end-0 m-2"
+            title="Copy to clipboard"
+            onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent)">
+        <i class="bi bi-clipboard"></i>
+    </button>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public required string Value { get; set; }
+}

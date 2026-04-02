@@ -6,6 +6,7 @@
     public void ActivateTab(string tabName)
     {
         ActiveTab = tabName;
+        StateHasChanged();
     }
 
     public void AddTab(Tab tab)
@@ -20,18 +21,15 @@
 }
 
 <div class="container-fluid mt-4">
-    <ul class="nav nav-tabs" id="myTab" role="tablist">
+    <ul class="nav nav-tabs" role="tablist">
         @foreach (var tab in _tabs)
         {
+            var tabName = tab.Name;
             <li class="nav-item" role="presentation">
-                <button class="nav-link @(ActiveTab == tab.Name ? "active" : "")"
-                        id="@($"{tab.Name}-tab")"
-                        data-bs-toggle="tab"
-                        data-bs-target="#@tab.Name"
+                <button class="nav-link @(ActiveTab == tabName ? "active" : "")"
                         type="button"
                         role="tab"
-                        aria-controls="@tab.Name"
-                        aria-selected="@(ActiveTab == tab.Name ? "true" : "false")">
+                        @onclick="() => ActivateTab(tabName)">
                     @tab.Title
                 </button>
             </li>

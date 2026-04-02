@@ -26,6 +26,7 @@
     <ItemGroup>
       <ProjectReference Include="..\Muxarr.Core\Muxarr.Core.csproj" />
       <ProjectReference Include="..\Muxarr.Data\Muxarr.Data.csproj" />
+      <ProjectReference Include="..\Muxarr.Web\Muxarr.Web.csproj" />
     </ItemGroup>
 
     <ItemGroup>

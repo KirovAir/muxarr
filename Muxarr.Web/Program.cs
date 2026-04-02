@@ -10,6 +10,7 @@ using Muxarr.Core.Utilities;
 using Muxarr.Data;
 using Muxarr.Data.Extensions;
 using Muxarr.Web.Components;
+using Muxarr.Web.Authentication;
 using Muxarr.Web.Controllers;
 using Muxarr.Web.HealthChecks;
 using Muxarr.Web.Logging;
@@ -64,7 +65,13 @@ await builder.RunWithLoggingAsync(async b =>
             options.LoginPath = "/login";
             options.ExpireTimeSpan = TimeSpan.FromDays(30);
             options.SlidingExpiration = true;
-        });
+        })
+        .AddScheme<ApiKeyAuthenticationOptions, ApiKeyAuthenticationHandler>(
+            AuthSchemes.ApiKey, options =>
+            {
+                options.HeaderName = "X-Api-Key";
+                options.QueryName = "apikey";
+            });
 
     b.Services.AddRateLimiter(options =>
     {
