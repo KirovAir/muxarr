@@ -27,5 +27,6 @@ public class DistributionEntry
     public string? Value { get; set; }
     public int Count { get; set; }
 
+    [System.Text.Json.Serialization.JsonIgnore]
     public string FilterValue => Value ?? Label;
 }

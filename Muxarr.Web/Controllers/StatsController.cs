@@ -13,6 +13,16 @@ namespace Muxarr.Web.Controllers;
 [Authorize(AuthenticationSchemes = AuthSchemes.ApiKey)]
 public class StatsController(IDbContextFactory<AppDbContext> contextFactory) : Controller
 {
+    private static Dictionary<string, int> ToDict(List<DistributionEntry>? entries)
+    {
+        if (entries == null || entries.Count == 0)
+        {
+            return new();
+        }
+
+        return entries.ToDictionary(e => e.Label, e => e.Count);
+    }
+
     [HttpGet]
     [Route("~/api/stats")]
     public async Task<IActionResult> Get()
@@ -37,15 +47,34 @@ public class StatsController(IDbContextFactory<AppDbContext> contextFactory) : C
 
         return Ok(new StatsResponse
         {
+            // Library (from cache)
             TotalFiles = stats?.TotalFiles ?? 0,
             TotalSizeBytes = stats?.TotalSizeBytes ?? 0,
+            TotalDurationMs = stats?.TotalDurationMs ?? 0,
+            TotalTracks = stats?.TotalTracks ?? 0,
+
+            // Conversions
             ActiveConversions = activeConversions,
             QueuedConversions = queuedConversions,
             CompletedConversions = stats?.TotalConversions ?? 0,
             FailedConversions = failedConversions,
             SpaceSavedBytes = stats?.SpaceSavedBytes ?? 0,
+
+            // Timestamps
+            ComputedAtUtc = stats?.ComputedAtUtc,
             LastConversionAt = lastConversionAt,
             LastFileAddedAt = lastFileAddedAt,
+
+            // Distributions (from cache)
+            VideoCodecs = ToDict(stats?.VideoCodecs),
+            AudioCodecs = ToDict(stats?.AudioCodecs),
+            SubtitleCodecs = ToDict(stats?.SubtitleCodecs),
+            Resolutions = ToDict(stats?.Resolutions),
+            ChannelLayouts = ToDict(stats?.ChannelLayouts),
+            AudioLanguages = ToDict(stats?.AudioLanguages),
+            SubtitleLanguages = ToDict(stats?.SubtitleLanguages),
+            Containers = ToDict(stats?.Containers),
+            VideoBitDepths = ToDict(stats?.VideoBitDepths),
         });
     }
 }
