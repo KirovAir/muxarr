@@ -36,11 +36,13 @@ public static class ModalExtensions
         this IModalService modal,
         ICollection<MediaTrack> tracks,
         List<MediaTrack> defaultAllowedTracks,
+        List<Profile> profiles,
         Profile? profile = null)
     {
         var parameters = new ModalParameters()
             .Add(nameof(CustomConversionModal.Tracks), tracks)
             .Add(nameof(CustomConversionModal.DefaultAllowedTracks), defaultAllowedTracks)
+            .Add(nameof(CustomConversionModal.Profiles), profiles)
             .Add(nameof(CustomConversionModal.Profile), profile);
 
         var options = new ModalOptions { Size = ModalSize.Large };

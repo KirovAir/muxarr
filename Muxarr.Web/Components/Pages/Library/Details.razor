@@ -150,6 +150,7 @@
     protected MediaFile? File { get; set; }
     protected List<MediaTrack> AllowedTracks { get; set; } = new();
     protected List<TrackSnapshot>? PreviewTracks { get; set; }
+    private List<Profile> _profiles = new();
 
     protected override async Task OnInitializedAsync()
     {
@@ -175,6 +176,7 @@
         File.Conversions = File.Conversions.OrderByDescending(x => x.CreatedDate).ToList();
         AllowedTracks = File.GetAllowedTracks(File.Profile);
         PreviewTracks = File.GetPreviewTracks(File.Profile);
+        _profiles = await context.Profiles.OrderBy(p => p.Name).ToListAsync();
     }
     
     private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
@@ -216,7 +218,7 @@
 
     private async Task CustomConversion()
     {
-        var selectedTracks = await ModalService.ShowCustomConversion(File!.Tracks, AllowedTracks, File.Profile);
+        var selectedTracks = await ModalService.ShowCustomConversion(File!.Tracks, AllowedTracks, _profiles, File.Profile);
         if (selectedTracks == null)
         {
             return;

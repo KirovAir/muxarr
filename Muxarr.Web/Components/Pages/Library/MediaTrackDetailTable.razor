@@ -8,7 +8,7 @@
         </tr>
     </thead>
     <tbody>
-        @foreach (var track in Tracks)
+        @foreach (var track in OrderedTracks)
         {
             var preview = PreviewTracks?.FirstOrDefault(p => p.TrackNumber == track.TrackNumber);
             var isRemoved = PreviewTracks != null && preview == null;
@@ -29,4 +29,29 @@
 
     [Parameter, EditorRequired]
     public string? OriginalLanguage { get; set; }
+
+    /// <summary>
+    /// When preview tracks are available, renders kept tracks in their new priority order
+    /// with removed tracks appended at the end. Otherwise uses source order.
+    /// </summary>
+    private IEnumerable<IMediaTrack> OrderedTracks
+    {
+        get
+        {
+            if (PreviewTracks == null || PreviewTracks.Count == 0)
+            {
+                return Tracks;
+            }
+
+            var previewOrder = new Dictionary<int, int>();
+            for (var i = 0; i < PreviewTracks.Count; i++)
+            {
+                previewOrder[PreviewTracks[i].TrackNumber] = i;
+            }
+
+            return Tracks
+                .OrderBy(t => previewOrder.TryGetValue(t.TrackNumber, out var pos) ? pos : int.MaxValue)
+                .ThenBy(t => t.TrackNumber);
+        }
+    }
 }

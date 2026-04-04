@@ -130,11 +130,19 @@
         </table>
 
         <div class="d-flex justify-content-between mt-3">
-            <div>
-                @if (_hasTemplate)
+            <div class="d-flex align-items-center gap-2">
+                @if (Profiles.Count > 0)
                 {
+                    <select class="form-select form-select-sm" style="width: auto;"
+                            value="@_selectedProfileId"
+                            @onchange="OnProfileSelected">
+                        @foreach (var p in Profiles)
+                        {
+                            <option value="@p.Id">@p.Name</option>
+                        }
+                    </select>
                     <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ApplyProfileTemplate">
-                        <i class="bi bi-magic me-2"></i>Apply Profile
+                        <i class="bi bi-magic me-2"></i>Apply
                     </button>
                 }
             </div>
@@ -152,12 +160,13 @@
     [Parameter] public ICollection<MediaTrack> Tracks { get; set; } = new List<MediaTrack>();
     [Parameter] public List<MediaTrack> DefaultAllowedTracks { get; set; } = new();
     [Parameter] public Profile? Profile { get; set; }
+    [Parameter] public List<Profile> Profiles { get; set; } = new();
 
     private List<TrackSnapshot> _editableTracks = new();
     private readonly HashSet<int> _selectedTrackIds = new();
     private List<IsoLanguage> _languages = new();
+    private int _selectedProfileId;
     private bool _validationError;
-    private bool _hasTemplate;
 
     protected override void OnInitialized()
     {
@@ -184,24 +193,33 @@
             _selectedTrackIds.Add(track.TrackNumber);
         }
 
-        _hasTemplate = Profile != null;
+        _selectedProfileId = Profile?.Id ?? Profiles.FirstOrDefault()?.Id ?? 0;
+    }
+
+    private void OnProfileSelected(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var id))
+        {
+            _selectedProfileId = id;
+        }
     }
 
     private void ApplyProfileTemplate()
     {
-        if (Profile == null)
+        var profile = Profiles.FirstOrDefault(p => p.Id == _selectedProfileId);
+        if (profile == null)
         {
             return;
         }
 
-        // Build a temporary MediaFile to run GetAllowedTracks against the profile.
+        // Build a temporary MediaFile to run GetAllowedTracks against the selected profile.
         var tempFile = new MediaFile
         {
             OriginalLanguage = _editableTracks.FirstOrDefault()?.LanguageName,
             Tracks = Tracks.ToList()
         };
         tempFile.TrackCount = tempFile.Tracks.Count;
-        var allowed = tempFile.GetAllowedTracks(Profile);
+        var allowed = tempFile.GetAllowedTracks(profile);
         var allowedIds = allowed.Select(t => t.TrackNumber).ToHashSet();
 
         // Apply track selection from profile.
@@ -219,7 +237,7 @@
         {
             if (track.Type == MediaTrackType.Video)
             {
-                if (Profile.ClearVideoTrackNames)
+                if (profile.ClearVideoTrackNames)
                 {
                     track.TrackName = null;
                 }
@@ -227,8 +245,8 @@
             }
 
             var settings = track.Type == MediaTrackType.Audio
-                ? Profile.AudioSettings
-                : Profile.SubtitleSettings;
+                ? profile.AudioSettings
+                : profile.SubtitleSettings;
 
             var totalTracksOfType = _editableTracks.Count(t => t.Type == track.Type);
             track.ApplyTrackMutations(settings, totalTracksOfType, tempFile.OriginalLanguage);

@@ -33,9 +33,9 @@
         }
         @if (!string.IsNullOrEmpty(Track.TrackName))
         {
-            <span class="text-muted small me-2 @(HasMetadataChange ? "text-decoration-line-through" : "")">@Track.TrackName</span>
+            <span class="text-muted small me-2 @(HasTrackNameChange ? "text-decoration-line-through" : "")">@Track.TrackName</span>
         }
-        @if (HasMetadataChange && !string.IsNullOrEmpty(Preview?.TrackName))
+        @if (HasTrackNameChange && !string.IsNullOrEmpty(Preview?.TrackName))
         {
             <span class="small text-info">@Preview.TrackName</span>
         }
@@ -56,12 +56,15 @@
 
     private string DisplayLanguage => ResolvedLanguage ?? Track.LanguageName;
 
+    private bool HasTrackNameChange =>
+        Preview != null && !string.Equals(Track.TrackName ?? "", Preview.TrackName ?? "", StringComparison.Ordinal);
+
     private bool HasMetadataChange =>
-        Preview != null && (
+        HasTrackNameChange
+        || (Preview != null && (
             Preview.LanguageName != Track.LanguageName
-            || !string.Equals(Track.TrackName ?? "", Preview.TrackName ?? "", StringComparison.Ordinal)
             || Preview.IsDefault != Track.IsDefault
-            || Preview.IsForced != Track.IsForced);
+            || Preview.IsForced != Track.IsForced));
 
     private string MetadataChangeTip
     {

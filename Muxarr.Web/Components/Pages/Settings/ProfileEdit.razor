@@ -99,8 +99,11 @@
         </div>
 
         <StickyBar>
-            <button type="button" class="btn btn-primary" @onclick="Save">
-                <i class="bi bi-save me-2"></i>Save Profile
+            <button type="button" class="btn btn-primary" @onclick="Save" disabled="@_saving">
+                <i class="bi bi-save me-2"></i>Save Settings
+            </button>
+            <button type="button" class="btn btn-outline-secondary ms-auto" @onclick="SaveAndScan" disabled="@_saving">
+                <i class="bi bi-arrow-repeat me-2"></i>Save Settings & Scan
             </button>
         </StickyBar>
     </EditForm>
@@ -117,6 +120,7 @@
 
     private Profile? _profile;
     private string _tab = "general";
+    private bool _saving;
     private bool IsNew => Id == 0;
 
     protected override async Task OnInitializedAsync()
@@ -138,42 +142,64 @@
 
     private async Task Save()
     {
-        if (_profile == null)
+        await SaveProfile(scan: false);
+    }
+
+    private async Task SaveAndScan()
+    {
+        await SaveProfile(scan: true);
+    }
+
+    private async Task SaveProfile(bool scan)
+    {
+        if (_profile == null || _saving)
         {
             return;
         }
 
-        _profile.Directories = _profile.Directories.Where(x => !string.IsNullOrEmpty(x)).ToList();
+        _saving = true;
 
-        await using var context = await ContextFactory.CreateDbContextAsync();
-
-        if (IsNew)
+        try
         {
-            context.Add(_profile);
+            _profile.Directories = _profile.Directories.Where(x => !string.IsNullOrEmpty(x)).ToList();
+
+            await using var context = await ContextFactory.CreateDbContextAsync();
+
+            if (IsNew)
+            {
+                context.Add(_profile);
+            }
+            else
+            {
+                var existing = await context.Profiles.FirstAsync(x => x.Id == _profile.Id);
+                existing.Name = _profile.Name;
+                existing.Directories = _profile.Directories;
+                existing.ClearVideoTrackNames = _profile.ClearVideoTrackNames;
+                existing.SkipHardlinkedFiles = _profile.SkipHardlinkedFiles;
+                existing.AudioSettings = _profile.AudioSettings;
+                existing.SubtitleSettings = _profile.SubtitleSettings;
+                context.Update(existing);
+            }
+
+            await context.SaveChangesAsync();
+            ToastService.ShowSuccess($"Profile '{_profile.Name}' saved successfully.");
+
+            if (IsNew)
+            {
+                // Navigate to the edit URL so subsequent saves are updates, not creates.
+                NavigationManager.NavigateTo($"/settings/profile/{_profile.Id}", replace: true);
+            }
+
+            if (scan)
+            {
+                _ = MediaScanner.ScanAll(false);
+                ToastService.ShowInfo("Library scan started.");
+                NavigationManager.NavigateTo("/settings");
+            }
         }
-        else
+        finally
         {
-            var existing = await context.Profiles.FirstAsync(x => x.Id == _profile.Id);
-            existing.Name = _profile.Name;
-            existing.Directories = _profile.Directories;
-            existing.ClearVideoTrackNames = _profile.ClearVideoTrackNames;
-            existing.SkipHardlinkedFiles = _profile.SkipHardlinkedFiles;
-            existing.AudioSettings = _profile.AudioSettings;
-            existing.SubtitleSettings = _profile.SubtitleSettings;
-            context.Update(existing);
+            _saving = false;
         }
-
-        await context.SaveChangesAsync();
-        ToastService.ShowSuccess($"Profile '{_profile.Name}' saved successfully.");
-
-        if (await ModalService.ShowConfirm(
-                "Would you like to scan the library now? This will apply the updated profile settings to your media files.",
-                "Scan Library?"))
-        {
-            _ = MediaScanner.ScanAll(false);
-            ToastService.ShowInfo("Library scan started.");
-        }
-
-        NavigationManager.NavigateTo("/settings");
     }
 }
