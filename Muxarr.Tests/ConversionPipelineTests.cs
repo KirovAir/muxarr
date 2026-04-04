@@ -65,14 +65,12 @@ public class ConversionPipelineTests
             audio: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage]
             },
             subtitle: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage]
             });
 
         var (allowed, outputs) = RunPipeline(file, profile);
@@ -98,14 +96,12 @@ public class ConversionPipelineTests
             audio: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = false
+                AllowedLanguages = [IsoLanguage.Find("English")]
             },
             subtitle: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = false
+                AllowedLanguages = [IsoLanguage.Find("English")]
             });
 
         var (allowed, outputs) = RunPipeline(file, profile);
@@ -585,15 +581,13 @@ public class ConversionPipelineTests
             audio: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true
             },
             subtitle: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
                 RemoveImpaired = true
             });
 
@@ -756,8 +750,7 @@ public class ConversionPipelineTests
             audio: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = false
+                AllowedLanguages = [IsoLanguage.Find("English")]
             });
 
         var (allowed, outputs) = RunPipeline(file, profile);
@@ -846,8 +839,7 @@ public class ConversionPipelineTests
             audio: new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage]
             });
 
         var (allowed, _) = RunPipeline(file, profile);

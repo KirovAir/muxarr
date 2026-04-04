@@ -7,15 +7,25 @@
     @if (Settings.Enabled)
     {
         <div class="mb-3">
-            <label class="form-label">Allowed @TrackType Languages</label>
-            <LanguageSelector SelectedItems="Settings.AllowedLanguages" />
-            <small class="form-text text-muted">When there is more than 1 @TrackTypeLabel.ToLower() language in a video file, only allowed @TrackTypeLabel.ToLower() languages are kept.</small>
-        </div>
-
-        <div class="mb-3 form-check form-switch">
-            <InputCheckbox id="@($"keepOriginal{TrackTypeLabel}")" class="form-check-input" @bind-Value="Settings.KeepOriginalLanguage" />
-            <label class="form-check-label" for="@($"keepOriginal{TrackTypeLabel}")">Always keep original @TrackTypeLabel.ToLower() language</label>
-            <small class="form-text text-muted d-block">Will always keep the original movie language, even if the allowed list does not contain it. (Sync with Radarr/Sonarr is required!)</small>
+            <div class="d-flex align-items-center gap-2 mb-1">
+                <label class="form-label mb-0">Allowed @TrackType Languages</label>
+                <div class="form-check form-switch mb-0 ms-auto">
+                    <InputCheckbox id="@($"applyPriority{TrackTypeLabel}")" class="form-check-input" @bind-Value="Settings.ApplyLanguagePriority" />
+                    <label class="form-check-label small text-muted" for="@($"applyPriority{TrackTypeLabel}")">Customize</label>
+                </div>
+            </div>
+            <LanguagePriorityEditor Languages="Settings.AllowedLanguages"
+                                    ShowPriority="Settings.ApplyLanguagePriority" />
+            <small class="form-text text-muted">
+                @if (Settings.ApplyLanguagePriority)
+                {
+                    <text>Drag to set priority. First language is used as default and tracks are reordered to match. Use <i class="bi bi-gear"></i> for per-language settings.</text>
+                }
+                else
+                {
+                    <text>When there is more than 1 @TrackTypeLabel.ToLower() language in a video file, only allowed @TrackTypeLabel.ToLower() languages are kept.</text>
+                }
+            </small>
         </div>
 
         <div class="mb-3 form-check form-switch">
@@ -139,10 +149,10 @@
     private string DefaultTemplate => IsAudio ? "{language} {channels}" : "{language}";
 
     private string PreviewLanguage =>
-        Settings.AllowedLanguages.Count > 0 ? Settings.AllowedLanguages[0].Name : "English";
+        Settings.AllowedLanguages.Count > 0 ? Settings.AllowedLanguages[0].Language.Name : "English";
 
     private string? SecondLanguage =>
-        Settings.AllowedLanguages.Count > 1 ? Settings.AllowedLanguages[1].Name : null;
+        Settings.AllowedLanguages.Count > 1 ? Settings.AllowedLanguages[1].Language.Name : null;
 
     private List<TrackSnapshot> GetPreviewTracks()
     {

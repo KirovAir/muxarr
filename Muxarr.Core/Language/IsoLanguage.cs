@@ -186,8 +186,15 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
 
     public const string UnknownName = "Unknown";
     public const string UndeterminedName = "Undetermined";
+    public const string OriginalLanguageName = "Original Language";
 
     public static IsoLanguage Unknown => new(UnknownName, UnknownName, "??", ["???"]);
+
+    /// <summary>
+    /// Sentinel value representing the file's original language (resolved dynamically from Sonarr/Radarr).
+    /// Used in AllowedLanguages to indicate that the original language should always be kept.
+    /// </summary>
+    public static IsoLanguage OriginalLanguage => new(OriginalLanguageName, OriginalLanguageName, "orig", ["orig"], "Original");
 
     // Equality members
     public bool Equals(IsoLanguage? other)

@@ -461,16 +461,14 @@ public class MkvToolNixComplexTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
                 RemoveImpaired = false
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
                 RemoveImpaired = true
             }
@@ -506,16 +504,14 @@ public class MkvToolNixComplexTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
                 RemoveImpaired = false  // The user's preference: keep HI
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
                 RemoveImpaired = false  // Keep HI subs
             }
@@ -542,8 +538,7 @@ public class MkvToolNixComplexTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {channels}"
@@ -551,8 +546,7 @@ public class MkvToolNixComplexTests
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveImpaired = true,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {hi}"
@@ -729,8 +723,7 @@ public class MkvToolNixComplexTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {channels}"
@@ -864,16 +857,14 @@ public class MkvToolNixComplexTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French"), IsoLanguage.OriginalLanguage],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {codec} {channels}"
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French"), IsoLanguage.Find("Spanish")],
-                KeepOriginalLanguage = true,
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French"), IsoLanguage.Find("Spanish"), IsoLanguage.OriginalLanguage],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {hi}"
             }

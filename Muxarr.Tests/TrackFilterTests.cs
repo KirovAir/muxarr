@@ -11,8 +11,7 @@ public class TrackFilterTests
     private static readonly TrackSettings EnglishDutchAudio = new()
     {
         Enabled = true,
-        AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch")],
-        KeepOriginalLanguage = true,
+        AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
         RemoveCommentary = true,
         RemoveImpaired = true
     };
@@ -20,8 +19,7 @@ public class TrackFilterTests
     private static readonly TrackSettings EnglishDutchSubtitles = new()
     {
         Enabled = true,
-        AllowedLanguages = [IsoLanguage.Find("Dutch"), IsoLanguage.Find("English")],
-        KeepOriginalLanguage = true,
+        AllowedLanguages = [IsoLanguage.Find("Dutch"), IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
         RemoveCommentary = true,
         RemoveImpaired = true
     };
@@ -130,8 +128,7 @@ public class TrackFilterTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("Dutch")],
-            KeepOriginalLanguage = true
+            AllowedLanguages = [IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage]
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -152,8 +149,7 @@ public class TrackFilterTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("English")],
-            KeepOriginalLanguage = true
+            AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage]
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -338,7 +334,7 @@ public class TrackFilterTests
         Assert.AreEqual(2, result.Count, "When all tracks are HI, safety check keeps them all");
     }
 
-    // --- KeepOriginalLanguage=false ---
+    // --- OriginalLanguage not in AllowedLanguages ---
 
     [TestMethod]
     public void Subtitles_OriginalLanguageDropped_WhenKeepOriginalDisabled()
@@ -352,7 +348,6 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            KeepOriginalLanguage = false,
             RemoveCommentary = true,
             RemoveImpaired = true
         };
@@ -373,8 +368,7 @@ public class TrackFilterTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("English")],
-            KeepOriginalLanguage = false
+            AllowedLanguages = [IsoLanguage.Find("English")]
         };
 
         var result = tracks.GetAllowedTracks(settings, "Japanese");
@@ -413,8 +407,7 @@ public class TrackFilterTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            AllowedLanguages = [],
-            KeepOriginalLanguage = true
+            AllowedLanguages = [IsoLanguage.OriginalLanguage]
         };
 
         var result = tracks.GetAllowedTracks(settings, "English");
@@ -434,8 +427,7 @@ public class TrackFilterTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            AllowedLanguages = [],
-            KeepOriginalLanguage = false
+            AllowedLanguages = []
         };
 
         var result = tracks.GetAllowedTracks(settings, "English");

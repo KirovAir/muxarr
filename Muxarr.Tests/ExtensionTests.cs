@@ -261,8 +261,7 @@ public class ExtensionTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("English")],
-            KeepOriginalLanguage = true,
+            AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
             AssumeUndeterminedIsOriginal = true
         };
 
@@ -274,8 +273,8 @@ public class ExtensionTests
     [TestMethod]
     public void GetAllowedTracks_UndeterminedAudio_NotKeptWithoutKeepOriginalWhenNotInAllowed()
     {
-        // Original language is Japanese, allowed is English only, KeepOriginalLanguage = false
-        // Single und track remapped to Japanese, but Japanese is not in allowed and KeepOriginal is off
+        // Original language is Japanese, allowed is English only, OriginalLanguage not in AllowedLanguages
+        // Single und track remapped to Japanese, but Japanese is not in allowed
         // Should fall through to fallback
         var tracks = new List<MediaTrack>
         {
@@ -285,7 +284,6 @@ public class ExtensionTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            KeepOriginalLanguage = false,
             AssumeUndeterminedIsOriginal = true
         };
 

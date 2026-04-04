@@ -6,20 +6,23 @@
 }
 else
 {
-    @if (Settings.KeepOriginalLanguage)
-    {
-        <ToolTip Tip="Original language track will be preserved">
-            <span class="badge text-bg-success me-1">Original</span>
-        </ToolTip>
-    }
     @foreach (var lang in Settings.AllowedLanguages)
     {
-        <ToolTip Tip="@($"Tracks in {lang.DisplayName} will be kept")">
-            <span class="badge text-bg-success me-1">@lang.DisplayName</span>
-        </ToolTip>
+        @if (lang.IsOriginalLanguagePlaceholder)
+        {
+            <ToolTip Tip="Original language track will be preserved">
+                <span class="badge text-bg-success me-1"><i class="bi bi-film me-1"></i>Original</span>
+            </ToolTip>
+        }
+        else
+        {
+            <ToolTip Tip="@($"Tracks in {lang.DisplayName} will be kept")">
+                <span class="badge text-bg-success me-1">@lang.DisplayName</span>
+            </ToolTip>
+        }
     }
 
-    if (Settings is { KeepOriginalLanguage: false, AllowedLanguages.Count: 0 })
+    if (Settings.AllowedLanguages.Count == 0)
     {
         <ToolTip Tip="WARNING: All tracks will be removed with this configuration!">
             <span class="badge text-bg-danger me-1">None</span>

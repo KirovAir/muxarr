@@ -142,7 +142,8 @@ public static class MediaFileExtensions
 
             var isAllowedLanguage = s.AllowedLanguages.Any(x => x.Name == language);
             var isOriginalLanguage = language == originalLanguage;
-            var keepLanguage = isAllowedLanguage || (isOriginalLanguage && s.KeepOriginalLanguage);
+            var keepOriginal = isOriginalLanguage && s.AllowedLanguages.Any(x => x.IsOriginalLanguagePlaceholder);
+            var keepLanguage = isAllowedLanguage || keepOriginal;
 
             if (!keepLanguage)
             {

@@ -51,11 +51,17 @@ namespace Muxarr.Data.Entities
     public class TrackSettings
     {
         public bool Enabled { get; set; }
-        public List<IsoLanguage> AllowedLanguages { get; set; } = new();
-        public bool KeepOriginalLanguage { get; set; }
+        public List<LanguagePreference> AllowedLanguages { get; set; } = new();
         public bool RemoveCommentary { get; set; }
         public bool RemoveImpaired { get; set; }
         public bool AssumeUndeterminedIsOriginal { get; set; }
+
+        /// <summary>
+        /// When enabled, the order of AllowedLanguages determines track ordering and default assignment.
+        /// The first language's first track is marked as default; tracks are reordered to match list priority.
+        /// </summary>
+        public bool ApplyLanguagePriority { get; set; }
+
         public bool StandardizeTrackNames { get; set; }
         public string TrackNameTemplate { get; set; } = string.Empty;
         public Dictionary<TrackFlag, string> TrackNameOverrides { get; set; } = new();
