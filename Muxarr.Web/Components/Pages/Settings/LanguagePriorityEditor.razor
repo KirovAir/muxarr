@@ -29,7 +29,9 @@
 
             @if (isOriginal)
             {
-                <i class="bi bi-film lpe-original-icon"></i>
+                <ToolTip Tip="Matches the language a movie or show was originally made in. Works like a wildcard - automatically picks the right language per file using data from Sonarr/Radarr.">
+                    <i class="bi bi-film lpe-original-icon"></i>
+                </ToolTip>
                 <span class="lpe-lang-name">Original Language</span>
             }
             else
@@ -62,7 +64,7 @@
         {
             <div class="lpe-advanced-panel">
                 <div class="row g-2">
-                    <div class="col-6">
+                    <div class="@(IsAudio ? "col-6" : "col-12")">
                         <label class="lpe-advanced-label">Max tracks</label>
                         <select class="form-select form-select-sm"
                                 value="@(pref.MaxTracks?.ToString() ?? "")"
@@ -72,17 +74,37 @@
                             <option value="2">Keep 2</option>
                             <option value="3">Keep 3</option>
                         </select>
+                        @if (pref.MaxTracks is > 0)
+                        {
+                            <small class="lpe-advanced-hint">
+                                @if (!IsAudio)
+                                {
+                                    <text>Text-based (SRT, ASS) preferred over bitmap (PGS, VobSub).</text>
+                                }
+                                else if (pref.QualityStrategy == AudioQualityStrategy.SmallestSize)
+                                {
+                                    <text>Lossy &gt; Lossless, fewest channels first.</text>
+                                }
+                                else
+                                {
+                                    <text>Lossless + Spatial &gt; Lossless &gt; Lossy, most channels first.</text>
+                                }
+                            </small>
+                        }
                     </div>
-                    <div class="col-6">
-                        <label class="lpe-advanced-label">Quality preference</label>
-                        <select class="form-select form-select-sm"
-                                value="@(pref.QualityStrategy?.ToString() ?? "")"
-                                @onchange="e => SetQualityStrategy(pref, e.Value?.ToString())">
-                            <option value="">Default (best quality)</option>
-                            <option value="@nameof(AudioQualityStrategy.BestQuality)">Best quality</option>
-                            <option value="@nameof(AudioQualityStrategy.SmallestSize)">Smallest size</option>
-                        </select>
-                    </div>
+                    @if (IsAudio)
+                    {
+                        <div class="col-6">
+                            <label class="lpe-advanced-label">Quality preference</label>
+                            <select class="form-select form-select-sm"
+                                    value="@(pref.QualityStrategy?.ToString() ?? "")"
+                                    @onchange="e => SetQualityStrategy(pref, e.Value?.ToString())">
+                                <option value="">Default (best quality)</option>
+                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Best quality</option>
+                                <option value="@nameof(AudioQualityStrategy.SmallestSize)">Smallest size</option>
+                            </select>
+                        </div>
+                    }
                 </div>
                 @if (pref.HasOverrides)
                 {
@@ -105,9 +127,11 @@
         </div>
         @if (!HasOriginalLanguage)
         {
-            <button type="button" class="btn btn-link btn-sm text-muted p-0" @onclick="AddOriginalLanguage">
-                <i class="bi bi-film me-1"></i>Add original language
-            </button>
+            <ToolTip Tip="Matches the language a movie or show was originally made in. Works like a wildcard - automatically picks the right language per file using data from Sonarr/Radarr.">
+                <button type="button" class="btn btn-link btn-sm text-muted p-0" @onclick="AddOriginalLanguage">
+                    <i class="bi bi-film me-1"></i>Add original language
+                </button>
+            </ToolTip>
         }
     </div>
 </div>
@@ -115,6 +139,9 @@
 @code {
     [Parameter, EditorRequired] public required List<LanguagePreference> Languages { get; set; }
     [Parameter] public bool ShowPriority { get; set; }
+    [Parameter] public MediaTrackType TrackType { get; set; }
+
+    private bool IsAudio => TrackType == MediaTrackType.Audio;
 
     private string _searchInput = string.Empty;
     private int _expandedIndex = -1;

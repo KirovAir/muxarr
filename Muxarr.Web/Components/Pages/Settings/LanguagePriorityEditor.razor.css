@@ -141,6 +141,14 @@
     display: block;
 }
 
+.lpe-advanced-hint {
+    font-size: 0.7rem;
+    color: var(--bs-secondary-color);
+    opacity: 0.7;
+    display: block;
+    margin-top: 0.2rem;
+}
+
 /* Add row: autocomplete + original language button */
 .lpe-add-row {
     display: flex;
@@ -150,8 +158,8 @@
 }
 
 .lpe-add-wrapper {
-    max-width: 420px;
-    flex-shrink: 0;
+    min-width: 420px;
+    flex-grow: 1;
 }
 
 .lpe-add-wrapper ::deep input {

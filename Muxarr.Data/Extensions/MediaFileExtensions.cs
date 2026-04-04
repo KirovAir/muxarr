@@ -181,6 +181,17 @@ public static class MediaFileExtensions
                 });
             }
 
+            // Apply per-language track limits (MaxTracks).
+            // After language/flag/codec filtering, keep only the top N tracks by quality score.
+            var pref = FindMatchingPreference(language, originalLanguage, s);
+            if (pref?.MaxTracks is > 0)
+            {
+                var strategy = pref.QualityStrategy ?? AudioQualityStrategy.BestQuality;
+                filteredTracks = filteredTracks
+                    .OrderByDescending(t => TrackQualityScorer.ScoreTrack(t, strategy))
+                    .Take(pref.MaxTracks.Value);
+            }
+
             allowedTracks.AddRange(filteredTracks);
         }
 
@@ -199,7 +210,51 @@ public static class MediaFileExtensions
             allowedTracks.Add(bestTracks.First());
         }
 
+        // Reorder tracks by language priority when enabled.
+        // Uses a stable sort so tracks within the same language keep their source order.
+        if (s.ApplyLanguagePriority && allowedTracks.Count > 1)
+        {
+            allowedTracks = allowedTracks
+                .OrderBy(t => GetLanguagePriority(t.LanguageName, s, originalLanguage))
+                .ToList();
+        }
+
         return allowedTracks;
+    }
+
+    /// <summary>
+    /// Finds the LanguagePreference that caused a language to be kept.
+    /// Explicit language matches take priority over the Original Language placeholder,
+    /// so per-language overrides on "English" are used instead of "Original Language" overrides
+    /// when both are in the list and the file's original language is English.
+    /// </summary>
+    private static LanguagePreference? FindMatchingPreference(string language, string? originalLanguage,
+        TrackSettings s)
+    {
+        return s.AllowedLanguages.FirstOrDefault(x => x.Name == language)
+               ?? (language == originalLanguage
+                   ? s.AllowedLanguages.FirstOrDefault(x => x.IsOriginalLanguagePlaceholder)
+                   : null);
+    }
+
+    /// <summary>
+    /// Returns the priority index for a language based on its position in AllowedLanguages.
+    /// Lower = higher priority. Handles the Original Language sentinel matching.
+    /// Returns int.MaxValue if not found (sorts to end).
+    /// </summary>
+    private static int GetLanguagePriority(string trackLanguage, TrackSettings s, string? originalLanguage)
+    {
+        var best = int.MaxValue;
+        for (var i = 0; i < s.AllowedLanguages.Count; i++)
+        {
+            var pref = s.AllowedLanguages[i];
+            if (pref.Name == trackLanguage ||
+                (pref.IsOriginalLanguagePlaceholder && trackLanguage == originalLanguage))
+            {
+                best = Math.Min(best, i);
+            }
+        }
+        return best;
     }
 
     public static bool IsAllowed(this IMediaTrack track, IEnumerable<IMediaTrack> allowedTracks)
@@ -294,6 +349,25 @@ public static class MediaFileExtensions
 
         }
 
+        // Check if language priority would change the default flag or track order.
+        if (profile.AudioSettings is { ApplyLanguagePriority: true } && allowedTracks.Count > 1)
+        {
+            var audioTracks = allowedTracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
+            if (audioTracks.Count > 0 && !audioTracks[0].IsDefault)
+            {
+                return true;
+            }
+        }
+
+        if (profile.SubtitleSettings is { ApplyLanguagePriority: true })
+        {
+            var subTracks = allowedTracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
+            if (subTracks.Count > 0 && !subTracks[0].IsDefault)
+            {
+                return true;
+            }
+        }
+
         return false;
     }
 
@@ -336,6 +410,10 @@ public static class MediaFileExtensions
 
             previews.Add(preview);
         }
+
+        // Reassign default flags based on language priority for accurate preview.
+        ReassignPreviewDefaultFlags(previews, profile.AudioSettings, MediaTrackType.Audio);
+        ReassignPreviewDefaultFlags(previews, profile.SubtitleSettings, MediaTrackType.Subtitles);
 
         return previews;
     }
@@ -520,7 +598,53 @@ public static class MediaFileExtensions
             trackOutputs.Add(output);
         }
 
+        // Reassign default flags based on language priority.
+        // First track of each type becomes the new default. Skipped for custom conversions
+        // (user manually controls flags) and when priority is not enabled.
+        if (!isCustomConversion)
+        {
+            ReassignDefaultFlags(trackOutputs, profile?.AudioSettings, MkvMerge.AudioTrack);
+            ReassignDefaultFlags(trackOutputs, profile?.SubtitleSettings, MkvMerge.SubtitlesTrack);
+        }
+
         return trackOutputs;
+    }
+
+    /// <summary>
+    /// Sets the first track of the given type as default when language priority is enabled.
+    /// Mirrors <see cref="ReassignPreviewDefaultFlags"/> for TrackSnapshot (preview).
+    /// </summary>
+    private static void ReassignDefaultFlags(List<TrackOutput> outputs, TrackSettings? settings,
+        string trackType)
+    {
+        if (settings is not { ApplyLanguagePriority: true })
+        {
+            return;
+        }
+
+        var tracksOfType = outputs.Where(t => t.Type == trackType).ToList();
+        for (var i = 0; i < tracksOfType.Count; i++)
+        {
+            tracksOfType[i].IsDefault = i == 0;
+        }
+    }
+
+    /// <summary>
+    /// Preview variant of <see cref="ReassignDefaultFlags"/> for TrackSnapshot objects.
+    /// </summary>
+    private static void ReassignPreviewDefaultFlags(List<TrackSnapshot> previews, TrackSettings? settings,
+        MediaTrackType trackType)
+    {
+        if (settings is not { ApplyLanguagePriority: true })
+        {
+            return;
+        }
+
+        var tracksOfType = previews.Where(t => t.Type == trackType).ToList();
+        for (var i = 0; i < tracksOfType.Count; i++)
+        {
+            tracksOfType[i].IsDefault = i == 0;
+        }
     }
 
     /// <summary>
