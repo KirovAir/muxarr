@@ -99,7 +99,13 @@ public static class Mp4PropEdit
             var disposition = FFmpegHelper.BuildDispositionValue(track);
             if (disposition != null)
             {
-                sb.Append($" -disposition:s:{idx} {disposition}");
+                // NOTE: -disposition uses ffmpeg's general stream specifier
+                // syntax, where "s:N" means "subtitle stream N (relative)",
+                // not "stream index N". The bare absolute index is what we
+                // actually want here. This is different from -metadata:s:N
+                // which uses metadata-specifier syntax where s:N really does
+                // mean "stream index N". Yes, this is as confusing as it sounds.
+                sb.Append($" -disposition:{idx} {disposition}");
             }
         }
 

@@ -80,7 +80,7 @@ public class Mp4PropEditTests
         var args = Mp4PropEdit.BuildArguments("/in.mp4", "/out.muxtmp", tracks);
 
         Assert.IsFalse(args.Contains("-metadata:s:2"));
-        Assert.IsFalse(args.Contains("-disposition:s:2"));
+        Assert.IsFalse(args.Contains("-disposition:2"));
     }
 
     [TestMethod]
@@ -132,7 +132,9 @@ public class Mp4PropEditTests
 
         var args = Mp4PropEdit.BuildArguments("/in.mp4", "/out.muxtmp", tracks);
 
-        StringAssert.Contains(args, "-disposition:s:2 +default-forced");
+        // Bare absolute stream index - "s:N" in disposition context means
+        // "subtitle stream N (relative)" in ffmpeg, which is not what we want.
+        StringAssert.Contains(args, "-disposition:2 +default-forced");
     }
 
     [TestMethod]
@@ -148,7 +150,7 @@ public class Mp4PropEditTests
         var args = Mp4PropEdit.BuildArguments("/in.mp4", "/out.muxtmp", tracks);
 
         StringAssert.Contains(args, "-metadata:s:1 language=eng");
-        StringAssert.Contains(args, "-disposition:s:1 +default");
+        StringAssert.Contains(args, "-disposition:1 +default");
         StringAssert.Contains(args, "-metadata:s:2 language=dut");
         StringAssert.Contains(args, "-metadata:s:2 title=\"Dutch\"");
     }
@@ -323,6 +325,88 @@ public class Mp4PropEditTests
         var outSub = outProbe.Result?.Streams.FirstOrDefault(s => s.CodecType == "subtitle");
         Assert.IsNotNull(outSub);
         Assert.AreEqual("mov_text", outSub.CodecName);
+    }
+
+    [TestMethod]
+    public async Task EditTrackProperties_SetsCommentaryFlagOnMp4()
+    {
+        // Regression: ffmpeg's -disposition uses the general stream specifier
+        // syntax where "s:N" means "subtitle N (relative)", not "stream index
+        // N". An earlier version of BuildArguments emitted "-disposition:s:N"
+        // and was silently ignored on MP4 for every non-subtitle track.
+        var output = _workingCopy + ".muxtmp";
+
+        var tracks = new List<TrackOutput>
+        {
+            new() { TrackNumber = 1, Type = MkvMerge.AudioTrack, IsCommentary = true },
+            new() { TrackNumber = 2, Type = MkvMerge.AudioTrack, IsCommentary = false }
+        };
+
+        var result = await Mp4PropEdit.EditTrackProperties(_workingCopy, output, tracks);
+        Assert.IsTrue(FFmpeg.IsSuccess(result), $"Mp4PropEdit failed: {result.Error}");
+
+        var probe = await FFmpeg.GetStreamInfo(output);
+        var track1 = probe.Result!.Streams.First(s => s.Index == 1);
+        var track2 = probe.Result.Streams.First(s => s.Index == 2);
+
+        Assert.AreEqual(1, track1.Disposition!.Comment, "Commentary flag must be set on track 1");
+        Assert.AreEqual(0, track2.Disposition!.Comment, "Commentary flag must be cleared on track 2");
+    }
+
+    [TestMethod]
+    public async Task EditTrackProperties_SetsDefaultAndForcedFlagsOnMp4()
+    {
+        var output = _workingCopy + ".muxtmp";
+
+        var tracks = new List<TrackOutput>
+        {
+            new() { TrackNumber = 1, Type = MkvMerge.AudioTrack, IsDefault = false },
+            new() { TrackNumber = 2, Type = MkvMerge.AudioTrack, IsDefault = true },
+            new() { TrackNumber = 3, Type = MkvMerge.SubtitlesTrack, IsForced = true }
+        };
+
+        var result = await Mp4PropEdit.EditTrackProperties(_workingCopy, output, tracks);
+        Assert.IsTrue(FFmpeg.IsSuccess(result), $"Mp4PropEdit failed: {result.Error}");
+
+        var probe = await FFmpeg.GetStreamInfo(output);
+        var audio1 = probe.Result!.Streams.First(s => s.Index == 1);
+        var audio2 = probe.Result.Streams.First(s => s.Index == 2);
+        var sub = probe.Result.Streams.First(s => s.Index == 3);
+
+        Assert.AreEqual(0, audio1.Disposition!.Default);
+        Assert.AreEqual(1, audio2.Disposition!.Default);
+        Assert.AreEqual(1, sub.Disposition!.Forced);
+    }
+
+    [TestMethod]
+    public async Task EditTrackProperties_DispositionRoundTripsThroughSetFileDataFromFFprobe()
+    {
+        // Full loop: set flags via Mp4PropEdit, re-read via SetFileDataFromFFprobe,
+        // confirm the MediaTrack flags reflect what we asked for. This is the
+        // path the scanner takes after a conversion finishes.
+        var output = _workingCopy + ".muxtmp";
+
+        var tracks = new List<TrackOutput>
+        {
+            new() { TrackNumber = 1, Type = MkvMerge.AudioTrack, IsCommentary = true, IsDefault = false },
+            new() { TrackNumber = 3, Type = MkvMerge.SubtitlesTrack, IsHearingImpaired = true }
+        };
+
+        var result = await Mp4PropEdit.EditTrackProperties(_workingCopy, output, tracks);
+        Assert.IsTrue(FFmpeg.IsSuccess(result), $"Mp4PropEdit failed: {result.Error}");
+
+        var probe = await FFmpeg.GetStreamInfo(output);
+        Assert.IsNotNull(probe.Result);
+
+        var file = new MediaFile { Path = output };
+        file.SetFileDataFromFFprobe(probe.Result);
+
+        var audio = file.Tracks.First(t => t.TrackNumber == 1);
+        Assert.IsTrue(audio.IsCommentary);
+        Assert.IsFalse(audio.IsDefault);
+
+        var sub = file.Tracks.First(t => t.TrackNumber == 3);
+        Assert.IsTrue(sub.IsHearingImpaired);
     }
 
     [TestMethod]
