@@ -302,21 +302,11 @@ public class MediaConverterService(
             conversion.Log("Track order changed by language priority. Remuxing to apply new order..", logger);
         }
 
-        // MP4 metadata-only edits go through ffmpeg stream-copy so the
-        // container and every codec (notably tx3g) survive. Fall back to
-        // mkvmerge remux if ffprobe's stream indices don't line up with
-        // mkvmerge's track IDs.
-        var useFfmpegMp4MetadataEdit = canSkipRemux
-                                       && hasMetadataChanges
-                                       && family == ContainerFamily.Mp4
-                                       && await Mp4PropEdit.CanEditAsync(conversion.MediaFile.Path, trackOutputs);
-
-        if (canSkipRemux && hasMetadataChanges && !useFfmpegMp4MetadataEdit && family != ContainerFamily.Matroska)
-        {
-            conversion.Log(
-                $"Metadata changes needed but container ({conversion.MediaFile.ContainerType}) has no in-place editor. Falling back to full remux.",
-                logger);
-        }
+        // Matroska writes go through mkvmerge. Everything else goes through
+        // ffmpeg stream-copy so the container and every codec survive
+        // byte-identical (metadata edits, track removal, and reorder all use
+        // the same writer).
+        var useFFmpeg = family != ContainerFamily.Matroska;
 
         // Place temp file next to source so the final move is an atomic rename
         // instead of a cross-filesystem copy (e.g. /tmp -> mounted media volume).
@@ -328,9 +318,9 @@ public class MediaConverterService(
             conversion.Progress = 0;
             await context.SaveChangesAsync(token);
 
-            if (useFfmpegMp4MetadataEdit)
+            if (useFFmpeg)
             {
-                await RunFfmpegMp4MetadataEditAsync(conversion, trackOutputs, tmp, context, token);
+                await RunFFmpegRemuxAsync(conversion, trackOutputs, tmp, context, token);
             }
             else
             {
@@ -462,18 +452,19 @@ public class MediaConverterService(
     }
 
     /// <summary>
-    /// Runs ffmpeg stream-copy to write updated metadata into the temp file
-    /// while keeping the MP4 container and every codec intact.
+    /// Runs ffmpeg stream-copy to write the output file for any non-Matroska
+    /// source. Handles metadata edits, track filtering, and reordering in a
+    /// single pass while keeping the container and every codec byte-identical.
     /// </summary>
-    private async Task RunFfmpegMp4MetadataEditAsync(MediaConversion conversion, List<TrackOutput> trackOutputs,
+    private async Task RunFFmpegRemuxAsync(MediaConversion conversion, List<TrackOutput> trackOutputs,
         string tmp, AppDbContext context, CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
-        conversion.Log($"Fixing metadata in-place with ffmpeg (MP4 stream copy) for {mediaFile.GetName()}..", logger);
+        conversion.Log($"Starting ffmpeg stream copy for {mediaFile.GetName()}..", logger);
         await context.SaveChangesAsync(token);
 
         var reportProgress = BuildProgressReporter(conversion);
-        var result = await Mp4PropEdit.EditTrackProperties(mediaFile.Path, tmp, trackOutputs, mediaFile.DurationMs,
+        var result = await FFmpeg.RemuxFile(mediaFile.Path, tmp, trackOutputs, mediaFile.DurationMs,
             (line, progress, isStderr) =>
             {
                 // Only stderr is human-readable; the -progress pipe:1 stream
@@ -490,10 +481,10 @@ public class MediaConverterService(
         if (!FFmpeg.IsSuccess(result))
         {
             throw new Exception(
-                $"Error during ffmpeg metadata edit for: {mediaFile.GetName()}. Error: {result.Error} Output: {result.Output}");
+                $"Error during ffmpeg stream copy for: {mediaFile.GetName()}. Error: {result.Error} Output: {result.Output}");
         }
 
-        conversion.Log($"Finished metadata edit for {mediaFile.GetName()}.", logger);
+        conversion.Log($"Finished ffmpeg stream copy for {mediaFile.GetName()}.", logger);
         await context.SaveChangesAsync(token);
     }
 

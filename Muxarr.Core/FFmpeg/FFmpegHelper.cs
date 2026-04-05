@@ -9,7 +9,7 @@ public static class FFmpegHelper
 {
     /// <summary>
     /// Escapes a value for use in ffmpeg command arguments. Only used for
-    /// user-supplied metadata values, not file paths (see Mp4PropEdit).
+    /// user-supplied metadata values, not file paths.
     /// </summary>
     public static string EscapeValue(string value) => MkvToolNixHelper.EscapeValue(value);
 

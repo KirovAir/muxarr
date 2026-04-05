@@ -9,7 +9,7 @@
 
 *Ever had your player pick the wrong audio language, or show 20 subtitle options you'll never use? Most media files ship with far more tracks than you need.*
 
-Muxarr cleans them up by removing redundant audio and subtitle tracks and standardizing track metadata. It uses **mkvmerge** to remux - not re-encode - so there is zero quality loss. A 4GB file takes about a minute instead of hours, even on low-end hardware like a NAS or Raspberry Pi.
+Muxarr cleans them up by removing redundant audio and subtitle tracks and standardizing track metadata. It uses **mkvmerge** for MKV files and **ffmpeg** with stream copy for other containers, so tracks are remuxed rather than re-encoded and there is zero quality loss. A 4GB file takes about a minute instead of hours, even on low-end hardware like a NAS or Raspberry Pi.
 
 **Hooks into Sonarr & Radarr** for original language detection and automatic processing - new imports get cleaned up as they arrive.
 
@@ -131,7 +131,7 @@ Muxarr exposes a stats API at `/api/stats` (authenticated via `X-Api-Key` header
 
 - [.NET 10](https://dotnet.microsoft.com/) / Blazor
 - [MKVToolNix](https://mkvtoolnix.download/) (mkvmerge, mkvpropedit)
-- [FFmpeg](https://ffmpeg.org/)
+- [FFmpeg](https://ffmpeg.org/) (ffmpeg, ffprobe)
 
 ## License
 
