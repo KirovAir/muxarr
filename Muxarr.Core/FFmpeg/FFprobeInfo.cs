@@ -22,6 +22,11 @@ public class FFprobeStream
     [JsonPropertyName("codec_name")]
     public string? CodecName { get; set; }
 
+    // Profile string for the codec, used to disambiguate variants that share
+    // a codec name (notably DTS vs DTS-HD MA, which both come through as "dts").
+    [JsonPropertyName("profile")]
+    public string? Profile { get; set; }
+
     [JsonPropertyName("width")]
     public int? Width { get; set; }
 
@@ -60,6 +65,11 @@ public class FFprobeDisposition
 
     [JsonPropertyName("visual_impaired")]
     public int VisualImpaired { get; set; }
+
+    // ffprobe splits visual-impairment signalling between visual_impaired and
+    // descriptions (the latter maps to Matroska's flag_text_descriptions).
+    [JsonPropertyName("descriptions")]
+    public int Descriptions { get; set; }
 
     [JsonPropertyName("comment")]
     public int Comment { get; set; }

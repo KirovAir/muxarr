@@ -11,7 +11,7 @@ public class MediaFile : AuditableEntity
     public string? OriginalLanguage { get; set; }
     public string Path { get; set; } = string.Empty;
     public long Size { get; set; }
-    public string? MkvMergeOutput { get; set; }
+    public string? ProbeOutput { get; set; }
     public ICollection<MediaTrack> Tracks { get; set; } = new List<MediaTrack>();
     public int TrackCount { get; set; }
     public bool HasRedundantTracks { get; set; }
@@ -80,7 +80,7 @@ public class MediaFileConfiguration : AuditEntityConfiguration<MediaFile>
             .IsRequired()
             .HasMaxLength(4096);
 
-        builder.Property(e => e.MkvMergeOutput);
+        builder.Property(e => e.ProbeOutput);
 
         builder.Property(e => e.TrackCount)
             .IsRequired();

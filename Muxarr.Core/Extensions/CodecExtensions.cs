@@ -6,10 +6,13 @@ namespace Muxarr.Core.Extensions;
 public static class CodecExtensions
 {
     /// <summary>
-    /// Parses a raw mkvmerge codec string and returns the enum ToString() value for DB storage.
-    /// Tries video, audio, then subtitle parsers. Falls through to the raw string for unknown codecs.
+    /// Parses a raw mkvmerge or ffprobe codec string and returns the enum
+    /// ToString() value for DB storage. Tries video, audio, then subtitle
+    /// parsers. Falls through to the raw string for unknown codecs.
+    /// The optional <paramref name="profile"/> is ffprobe's codec profile,
+    /// used to distinguish DTS-HD MA from plain DTS.
     /// </summary>
-    public static string ParseCodec(string rawCodec)
+    public static string ParseCodec(string rawCodec, string? profile = null)
     {
         var video = VideoCodecExtensions.ParseVideoCodec(rawCodec);
         if (video != VideoCodec.Unknown)
@@ -17,7 +20,7 @@ public static class CodecExtensions
             return video.ToString();
         }
 
-        var audio = AudioCodecExtensions.ParseAudioCodec(rawCodec);
+        var audio = AudioCodecExtensions.ParseAudioCodec(rawCodec, profile);
         if (audio != AudioCodec.Unknown)
         {
             return audio.ToString();

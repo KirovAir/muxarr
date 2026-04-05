@@ -162,19 +162,19 @@
             </div>
         }
 
-        <!-- MKVMerge Output -->
-        @if (!string.IsNullOrEmpty(File.MkvMergeOutput))
+        <!-- Probe Output -->
+        @if (!string.IsNullOrEmpty(File.ProbeOutput))
         {
             <div class="col-12">
                 <div class="border rounded p-4">
                     <div class="d-flex align-items-center mb-3">
                         <i class="bi bi-terminal text-primary me-2"></i>
-                        <h5 class="mb-0">MKVMerge Output</h5>
+                        <h5 class="mb-0">Probe Output</h5>
                     </div>
                     <div class="border rounded">
                         <pre class="m-0 p-3 small bg-body-tertiary text-body"
                              style="max-height: 500px; overflow: auto;"><code
-                                class="text-body">@File.MkvMergeOutput</code></pre>
+                                class="text-body">@File.ProbeOutput</code></pre>
                     </div>
                 </div>
             </div>

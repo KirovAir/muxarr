@@ -146,7 +146,7 @@ public static class MediaFileExtensions
             {
                 Type = type,
                 TrackNumber = stream.Index,
-                Codec = CodecExtensions.ParseCodec(stream.CodecName ?? string.Empty),
+                Codec = CodecExtensions.ParseCodec(stream.CodecName ?? string.Empty, stream.Profile),
                 LanguageCode = language,
                 LanguageName = IsoLanguage.Find(language).Name,
                 TrackName = trackName,
@@ -154,7 +154,12 @@ public static class MediaFileExtensions
                 IsDefault = disposition.Default == 1,
                 IsForced = disposition.Forced == 1 || TrackNameFlags.ContainsForced(trackName),
                 IsHearingImpaired = disposition.HearingImpaired == 1 || TrackNameFlags.ContainsHearingImpaired(trackName),
-                IsVisualImpaired = disposition.VisualImpaired == 1 || TrackNameFlags.ContainsVisualImpaired(trackName),
+                // flag_text_descriptions in Matroska is exposed by ffprobe
+                // as disposition.descriptions; merge it in so the parity
+                // against mkvmerge's IsVisualImpaired stays tight.
+                IsVisualImpaired = disposition.VisualImpaired == 1
+                                   || disposition.Descriptions == 1
+                                   || TrackNameFlags.ContainsVisualImpaired(trackName),
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
                 IsOriginal = disposition.Original == 1
             };
