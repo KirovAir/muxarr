@@ -204,11 +204,21 @@ public class FFmpegTests
         _mp4Fixture = Path.Combine(Path.GetTempPath(), $"muxarr_mp4fixture_{Guid.NewGuid():N}.mp4");
         _workingCopy = Path.Combine(Path.GetTempPath(), $"muxarr_mp4test_{Guid.NewGuid():N}.mp4");
 
-        // Generate an MP4 from the MKV fixture via stream-copy, converting
-        // SRT to mov_text so the fixture exercises the tx3g preservation path.
+        // Generate an MP4 from the MKV fixture. SRT subs are converted to
+        // mov_text so the fixture exercises the tx3g preservation path.
+        // Track titles are injected explicitly and +use_metadata_tags is set
+        // so the fixture is deterministic across ffmpeg versions (older
+        // ffmpeg builds on Linux CI don't persist default per-stream titles
+        // to MP4 without this flag).
         var genArgs =
             $"-y -hide_banner -loglevel error -i \"{SourceFixture}\" -map 0:v -map 0:a -map 0:s " +
-            $"-c:v copy -c:a copy -c:s mov_text -f mp4 \"{_mp4Fixture}\"";
+            $"-c:v copy -c:a copy -c:s mov_text " +
+            $"-metadata:s:0 title=\"Video 1080p\" " +
+            $"-metadata:s:1 title=\"Surround 5.1\" " +
+            $"-metadata:s:2 title=\"DTS-HD MA 5.1\" " +
+            $"-metadata:s:3 title=\"English SDH\" " +
+            $"-metadata:s:4 title=\"Nederlands voor doven en slechthorenden\" " +
+            $"-movflags +use_metadata_tags -f mp4 \"{_mp4Fixture}\"";
         var gen = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", genArgs, TimeSpan.FromSeconds(30));
         Assert.IsTrue(gen.ExitCode == 0, $"Failed to generate MP4 fixture: {gen.Error}");
 
@@ -481,6 +491,82 @@ public class FFmpegTests
         Assert.AreEqual("audio", probe.Result.Streams[0].CodecType);
         Assert.AreEqual("video", probe.Result.Streams[1].CodecType);
         Assert.AreEqual("subtitle", probe.Result.Streams[2].CodecType);
+    }
+
+    // --- MP4-family extension smoke tests ---
+
+    [TestMethod]
+    [DataRow(".mp4", "mp4")]
+    [DataRow(".m4v", "mp4")]
+    [DataRow(".mov", "mov")]
+    [DataRow(".3gp", "3gp")]
+    [DataRow(".3g2", "3g2")]
+    public async Task RemuxFile_FullPath_WorksForEveryMp4FamilyExtension(string extension, string ffmpegFormat)
+    {
+        // Proves every extension in the MP4 family round-trips through the
+        // full scan -> remux -> validate pipeline. All five share the same
+        // ISO-BMFF muxer so behaviour should match, but the extension on
+        // disk is what the scanner dispatches on so every one deserves a
+        // direct smoke test.
+        var fixture = Path.Combine(Path.GetTempPath(), $"muxarr_ext_{Guid.NewGuid():N}{extension}");
+        var output = fixture + ".muxtmp";
+
+        try
+        {
+            // Generate a video + audio fixture in the requested format. Subs
+            // are dropped here to avoid 3GP codec restrictions.
+            var genArgs =
+                $"-y -hide_banner -loglevel error -i \"{SourceFixture}\" -map 0:v -map 0:a " +
+                $"-c copy -metadata:s:0 title=\"Video\" -metadata:s:1 title=\"Audio {extension}\" " +
+                $"-movflags +use_metadata_tags -f {ffmpegFormat} \"{fixture}\"";
+            var gen = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", genArgs, TimeSpan.FromSeconds(30));
+            Assert.IsTrue(gen.ExitCode == 0, $"Failed to generate {extension} fixture: {gen.Error}");
+
+            // Scanner path: ffprobe then SetFileDataFromFFprobe.
+            var source = new MediaFile();
+            source.SetFileDataFromFFprobe((await FFmpeg.GetStreamInfo(fixture)).Result!);
+
+            Assert.AreEqual(ContainerFamily.Mp4, source.ContainerType.ToContainerFamily(),
+                $"{extension} should classify as Mp4 family, got '{source.ContainerType}'.");
+            Assert.IsTrue(source.Tracks.Count > 0);
+
+            // Converter path: run a full remux with a metadata change on the
+            // audio track, then validate through the same OutputValidator
+            // FinalizeTemporaryOutputAsync calls in production.
+            var tracks = source.Tracks.Select(t => new TrackOutput
+            {
+                TrackNumber = t.TrackNumber,
+                Type = t.Type switch
+                {
+                    MediaTrackType.Video => MkvMerge.VideoTrack,
+                    MediaTrackType.Audio => MkvMerge.AudioTrack,
+                    _ => MkvMerge.SubtitlesTrack
+                },
+                Name = t.Type == MediaTrackType.Audio ? $"Renamed {extension}" : null
+            }).ToList();
+
+            var result = await FFmpeg.RemuxFile(fixture, output, tracks, source.DurationMs);
+            Assert.IsTrue(FFmpeg.IsSuccess(result), $"{extension}: RemuxFile failed: {result.Error}");
+
+            var probed = new MediaFile();
+            probed.SetFileDataFromFFprobe((await FFmpeg.GetStreamInfo(output)).Result!);
+
+            OutputValidator.ValidateOrThrow(probed, source, source.Tracks.ToSnapshots());
+
+            // The audio title change actually landed.
+            var audio = probed.Tracks.First(t => t.Type == MediaTrackType.Audio);
+            Assert.AreEqual($"Renamed {extension}", audio.TrackName);
+        }
+        finally
+        {
+            foreach (var path in new[] { fixture, output })
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+        }
     }
 
     [TestMethod]
