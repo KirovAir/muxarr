@@ -47,5 +47,11 @@ public static class OutputValidator
                     $"(tolerance {tolerance}ms). File may be truncated.");
             }
         }
+
+        if (actual.HasScanWarning && !source.HasScanWarning)
+        {
+            throw new Exception(
+                "ffprobe flagged the output file with a warning that was not present on the source.");
+        }
     }
 }

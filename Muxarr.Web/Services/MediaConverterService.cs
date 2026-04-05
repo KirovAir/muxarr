@@ -242,6 +242,12 @@ public class MediaConverterService(
         // Re-scan file to get fresh track data before converting.
         // Prevents stale AllowedTracks from a previous conversion or outdated scan.
         await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
+
+        if (conversion.MediaFile.HasScanWarning)
+        {
+            conversion.Log("Warning: source file has a ffprobe scan warning. Conversion might fail.", logger);
+        }
+
         if (!conversion.IsCustomConversion)
         {
             conversion.AllowedTracks =
