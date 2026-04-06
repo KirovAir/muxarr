@@ -279,6 +279,7 @@
             Conversion.Progress = e.Conversion.Progress;
             Conversion.State = e.Conversion.State;
             Conversion.StartedDate ??= e.Conversion.StartedDate;
+            Conversion.UpdatedDate = e.Conversion.UpdatedDate;
 
             StateHasChanged();
         });
