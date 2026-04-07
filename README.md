@@ -2,6 +2,7 @@
   <img src="docs/logo.png" alt="Muxarr" width="120"/><br/>
   <a href="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml"><img src="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml/badge.svg" alt="Build and Deploy"/></a>
   <a href="https://github.com/KirovAir/muxarr/pkgs/container/muxarr"><img src="https://img.shields.io/badge/ghcr.io-kirovair%2Fmuxarr-blue?logo=docker" alt="Docker Image"/></a>
+  <a href="https://github.com/KirovAir/muxarr/stargazers"><img src="https://img.shields.io/github/stars/KirovAir/muxarr?style=flat" alt="GitHub Stars"/></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"/></a>
 </p>
 
@@ -9,9 +10,14 @@
 
 *Ever had your player pick the wrong audio language, or show 20 subtitle options you'll never use? Most media files ship with far more tracks than you need.*
 
-Muxarr cleans them up by removing redundant audio and subtitle tracks and standardizing track metadata. It uses **mkvmerge** for MKV files and **ffmpeg** with stream copy for other containers, so tracks are remuxed rather than re-encoded and there is zero quality loss. A 4GB file takes about a minute instead of hours, even on low-end hardware like a NAS or Raspberry Pi.
+Muxarr cleans them up by removing unwanted audio and subtitle tracks and standardizing track metadata. It uses **mkvmerge** for MKV files and **ffmpeg** with stream copy for other containers, so tracks are remuxed rather than re-encoded and there is zero quality loss. A 4GB file takes about a minute instead of hours, even on low-end hardware like a NAS or Raspberry Pi.
 
 **Hooks into Sonarr & Radarr** for original language detection and automatic processing - new imports get cleaned up as they arrive.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/demo.gif" alt="Muxarr Demo" width="800"/><br/>
+  <em>A quick demo of a file being optimized (35.9% reduction)</em>
+</p>
 
 ### Quick Start
 
@@ -34,23 +40,20 @@ services:
 
 ## Features
 
-- **Supported containers** - Matroska (`.mkv`, `.webm`) and MP4-family (`.mp4`, `.m4v`)
-- **Lossless track removal** - strip redundant audio tracks (commentary, foreign dubs) and subtitles (SDH, foreign). A typical 4GB file processes in about a minute depending on disk speed, saving up to 10% in file size.
+- **Strip unwanted tracks** - remove audio (commentary, foreign dubs) and subtitles (SDH, foreign) without re-encoding, so quality is untouched. A typical 4GB file processes in about a minute depending on disk speed, saving up to 10% in file size.
 - **Original language detection** - integrates with your *arr stack so foreign films and shows always keep the correct audio track
 - **Automatic processing** - webhook support to process new imports as they arrive
 - **Per-directory profiles** - different language and track rules for different collections (e.g. anime vs western media)
 - **Language priority & track limits** - control track ordering per language, limit tracks per language (e.g. keep only the best English audio track), and choose between best quality or smallest size
 - **Smart metadata fixes** - cleans up encoder tags and codec dumps from track names. Uses mkvpropedit for metadata-only changes (instant, no remux needed)
 - **Safe by default** - validates the output file before replacing the original. If anything fails, the original is untouched.
-- **Library overview** - browse your library with codec, resolution, and language breakdowns
+- **Library overview** - full breakdown of codecs, resolutions, and languages across your library
 
-## Screenshots
+Supports Matroska (`.mkv`, `.webm`) and MP4-family (`.mp4`, `.m4v`).
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/demo.gif" alt="Muxarr Demo" width="800"/><br/>
-  <em>A quick demo of a file being optimized (35.9% reduction)</em>
-</p>
-
+<details>
+<summary>More screenshots</summary>
+<br/>
 <p align="center">
   <img src="https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/before.png" alt="Before" width="600"/><br/>
   ⬇️<br/>
@@ -58,9 +61,6 @@ services:
   <em>Before and after metadata cleanup</em>
 </p>
 
-<details>
-<summary>More screenshots</summary>
-<br/>
 <p align="center">
   <img src="https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/filedetails.png" alt="File Details" width="800"/><br/>
   <em>File details with track preview</em>
