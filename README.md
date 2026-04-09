@@ -124,6 +124,12 @@ docker run -d \
 4. Create a profile with your media directories and language rules
 5. Scan your library, preview the changes, and queue files for processing
 
+### Media Server Refresh
+
+Muxarr can notify Jellyfin, Emby, and Plex after a successful conversion so your library can pick up the updated file.
+
+For the most reliable refresh behavior, mount your media with the same absolute paths in both containers, for example `/mnt/media:/media` in Muxarr and your media server. Path mapping between different container paths is not supported.
+
 ### API
 
 Muxarr exposes a stats API at `/api/stats` (authenticated via `X-Api-Key` header). Works with [Homepage](https://gethomepage.dev/widgets/services/customapi/) and other dashboards. See Settings > API for examples.
