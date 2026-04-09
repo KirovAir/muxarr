@@ -13,6 +13,7 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<MediaTrack> MediaTracks { get; set; }
     public DbSet<MediaConversion> MediaConversions { get; set; }
     public DbSet<MediaInfo> MediaInfos { get; set; }
+    public DbSet<Integration> Integrations { get; set; }
     public DbSet<LogEntry> LogEntries { get; set; }
     public DbSet<DataProtectionKey> DataProtectionKeys { get; set; }
 

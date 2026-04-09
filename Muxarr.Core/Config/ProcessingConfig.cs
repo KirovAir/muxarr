@@ -1,16 +1,19 @@
 namespace Muxarr.Core.Config;
 
-public class PostProcessingConfig
+public class ProcessingConfig
 {
-    public bool Enabled { get; set; }
-    public string Command { get; set; } = string.Empty;
+    public int ScanIntervalMinutes { get; set; }
+    public int ConversionTimeoutMinutes { get; set; } = 60;
+
+    public bool PostProcessingEnabled { get; set; }
+    public string PostProcessingCommand { get; set; } = string.Empty;
 
     public string ResolveCommand(string filePath)
     {
         var directory = Path.GetDirectoryName(filePath) ?? string.Empty;
         var filename = Path.GetFileNameWithoutExtension(filePath);
 
-        return Command
+        return PostProcessingCommand
             .Replace("{{file}}", filePath)
             .Replace("{file}", filePath)
             .Replace("{{filename}}", filename)

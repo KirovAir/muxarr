@@ -1,6 +1,5 @@
 using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Api;
-using Muxarr.Core.Config;
 using Muxarr.Data;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -15,7 +14,7 @@ public class ArrSyncService(
 {
     private DateTime _lastSync;
 
-    public override TimeSpan Interval => TimeSpan.FromDays(1);
+    public override TimeSpan? Interval => TimeSpan.FromDays(1);
 
     protected override async Task ExecuteAsync(CancellationToken token)
     {
@@ -36,50 +35,69 @@ public class ArrSyncService(
 
     private async Task SyncArrs(AppDbContext context, CancellationToken token)
     {
-        var radarrCfg = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.RadarrKey);
-        var sonarrCfg = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.SonarrKey);
+        var connections = await context.Integrations.ToListAsync(token);
 
-        // Sync Radarr Movies
-        var radarrResult = await arrApi.SyncMovies(radarrCfg);
-        if (radarrResult.Count > 0)
+        foreach (var conn in connections)
         {
-            logger.LogInformation("Synced {Count} movie(s) from Radarr", radarrResult.Count);
+            if (string.IsNullOrWhiteSpace(conn.Url) || string.IsNullOrWhiteSpace(conn.ApiKey))
+            {
+                continue;
+            }
+
+            try
+            {
+                if (conn.Type == IntegrationType.Radarr)
+                {
+                    var result = await arrApi.SyncMovies(conn);
+                    if (result.Count > 0)
+                    {
+                        logger.LogInformation("Synced {Count} movie(s) from {Name}", result.Count, conn.Name);
+                    }
+
+                    await SyncMedia(context, result.Select(x => new MediaInfo
+                    {
+                        ExternalId = x.Id,
+                        IntegrationId = conn.Id,
+                        IsMovie = true,
+                        OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
+                        Path = x.MovieFile.Path,
+                        Title = x.Title
+                    }), conn.Id, token);
+                }
+                else
+                {
+                    var result = await arrApi.SyncSeries(conn);
+                    if (result.Count > 0)
+                    {
+                        logger.LogInformation("Synced {Count} series from {Name}", result.Count, conn.Name);
+                    }
+
+                    await SyncMedia(context, result.Select(x => new MediaInfo
+                    {
+                        ExternalId = x.Id,
+                        IntegrationId = conn.Id,
+                        IsMovie = false,
+                        OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
+                        Path = x.Path,
+                        Title = x.Title
+                    }), conn.Id, token);
+                }
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                logger.LogError(ex, "Failed to sync {Name}, skipping", conn.Name);
+            }
         }
-
-        await SyncMedia(context, radarrResult.Select(x => new MediaInfo
-        {
-            ExternalId = x.Id,
-            IsMovie = true,
-            OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
-            Path = x.MovieFile.Path,
-            Title = x.Title
-        }), true, token);
-
-        // Sync Sonarr Series
-        var sonarrResult = await arrApi.SyncSeries(sonarrCfg);
-        if (sonarrResult.Count > 0)
-        {
-            logger.LogInformation("Synced {Count} series from Sonarr", sonarrResult.Count);
-        }
-
-        await SyncMedia(context, sonarrResult.Select(x => new MediaInfo
-        {
-            ExternalId = x.Id,
-            IsMovie = false,
-            OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
-            Path = x.Path,
-            Title = x.Title
-        }), false, token);
     }
 
-    private static async Task SyncMedia(AppDbContext context, IEnumerable<MediaInfo> newMedia, bool isMovie,
+    private static async Task SyncMedia(AppDbContext context, IEnumerable<MediaInfo> newMedia, int externalServiceId,
         CancellationToken token)
     {
-        var currentMedia = await context.MediaInfos.Where(x => x.IsMovie == isMovie).ToListAsync(token);
+        var currentMedia = await context.MediaInfos.Where(x => x.IntegrationId == externalServiceId).ToListAsync(token);
         var newMediaDict = newMedia.ToDictionary(m => m.ExternalId);
 
-        // Update or Add Records
         foreach (var media in currentMedia)
+        {
             if (newMediaDict.TryGetValue(media.ExternalId, out var updatedMedia))
             {
                 if (media.OriginalLanguage != updatedMedia.OriginalLanguage ||
@@ -89,14 +107,14 @@ public class ArrSyncService(
                     media.Path = updatedMedia.Path;
                 }
 
-                newMediaDict.Remove(media.ExternalId); // Remove from newMediaDict as it’s already processed
+                newMediaDict.Remove(media.ExternalId);
             }
             else
             {
-                context.MediaInfos.Remove(media); // Delete if not in new media
+                context.MediaInfos.Remove(media);
             }
+        }
 
-        // Add Remaining New Records
         context.MediaInfos.AddRange(newMediaDict.Values);
 
         await context.SaveChangesAsync(token);

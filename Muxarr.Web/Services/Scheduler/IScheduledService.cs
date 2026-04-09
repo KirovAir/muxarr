@@ -5,7 +5,7 @@ namespace Muxarr.Web.Services.Scheduler;
 /// </summary>
 public interface IScheduledService : IMutexService
 {
-    TimeSpan Interval { get; }
+    TimeSpan? Interval { get; }
     bool ShouldRun();
     bool IsRunning();
 }

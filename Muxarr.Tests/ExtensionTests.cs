@@ -360,6 +360,7 @@ public class ExtensionTests
     [DataRow("Accessibility Track", DisplayName = "CC inside Accessibility")]
     [DataRow("Subs for Chinese Audio", DisplayName = "HI inside Chinese")]
     [DataRow("Design Notes", DisplayName = "Signs inside Design")]
+    [DataRow("English DTSHD MA 5.1", DisplayName = "SDH inside DTSHD")]
     public void CorrectFlagsFromTrackName_NoFalsePositive(string trackName)
     {
         var track = new TrackSnapshot { TrackName = trackName };

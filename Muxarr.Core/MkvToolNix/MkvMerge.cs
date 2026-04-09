@@ -39,7 +39,7 @@ public static class MkvMerge
     }
     
     public static async Task<ProcessResult> RemuxFile(string file, string outputFile, List<TrackOutput> tracks,
-        Action<string, int>? onProgress = null)
+        Action<string, int>? onProgress = null, TimeSpan? timeout = null)
     {
         if (tracks.Count == 0)
         {
@@ -103,7 +103,7 @@ public static class MkvMerge
         command += $" --track-order {string.Join(",", tracks.Select(t => $"0:{t.TrackNumber}"))}";
 
         var lastProgress = 0;
-        return await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, command, TimeSpan.FromMinutes(60), onOutputLine: OnOutputLine);
+        return await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, command, timeout, onOutputLine: OnOutputLine);
 
         void OnOutputLine(string line, bool error)
         {

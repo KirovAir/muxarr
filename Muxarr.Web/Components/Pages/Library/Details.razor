@@ -233,7 +233,7 @@
         PreviewTracks = File.GetPreviewTracks(_selectedProfile);
     }
 
-    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    private void OnConverterStateChanged(ConverterProgressEvent e)
     {
         _ = InvokeAsync(async () =>
         {

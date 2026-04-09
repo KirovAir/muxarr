@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Muxarr.Data;
 
@@ -10,9 +11,11 @@ using Muxarr.Data;
 namespace Muxarr.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260409154440_RenamePostProcessingConfig")]
+    partial class RenamePostProcessingConfig
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
@@ -52,43 +55,6 @@ namespace Muxarr.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Config", (string)null);
-                });
-
-            modelBuilder.Entity("Muxarr.Data.Entities.Integration", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ApiKey")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("UpdatedDate")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Url")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("Integration", (string)null);
                 });
 
             modelBuilder.Entity("Muxarr.Data.Entities.LogEntry", b =>
@@ -298,9 +264,6 @@ namespace Muxarr.Data.Migrations
                     b.Property<int>("ExternalId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("IntegrationId")
-                        .HasColumnType("INTEGER");
-
                     b.Property<bool>("IsMovie")
                         .HasColumnType("INTEGER");
 
@@ -324,11 +287,9 @@ namespace Muxarr.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("IntegrationId");
-
                     b.HasIndex("Path");
 
-                    b.HasIndex("ExternalId", "IntegrationId")
+                    b.HasIndex("ExternalId", "IsMovie")
                         .IsUnique();
 
                     b.ToTable("MediaInfo", (string)null);
@@ -471,16 +432,6 @@ namespace Muxarr.Data.Migrations
                     b.Navigation("Profile");
                 });
 
-            modelBuilder.Entity("Muxarr.Data.Entities.MediaInfo", b =>
-                {
-                    b.HasOne("Muxarr.Data.Entities.Integration", "Integration")
-                        .WithMany("MediaInfos")
-                        .HasForeignKey("IntegrationId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("Integration");
-                });
-
             modelBuilder.Entity("Muxarr.Data.Entities.MediaTrack", b =>
                 {
                     b.HasOne("Muxarr.Data.Entities.MediaFile", "MediaFile")
@@ -490,11 +441,6 @@ namespace Muxarr.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("MediaFile");
-                });
-
-            modelBuilder.Entity("Muxarr.Data.Entities.Integration", b =>
-                {
-                    b.Navigation("MediaInfos");
                 });
 
             modelBuilder.Entity("Muxarr.Data.Entities.MediaFile", b =>

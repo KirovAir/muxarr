@@ -1,4 +1,5 @@
 @using Muxarr.Core.Config
+@using Muxarr.Core.Utilities
 <p class="text-muted">Configure processing behavior and automation after conversions.</p>
 
 <EditForm Model="WebhookConfig" OnValidSubmit="HandleSubmit">
@@ -26,19 +27,63 @@
     </div>
 
     <div class="border rounded p-4 mb-4">
+        <h5 class="mb-3"><i class="bi bi-gear me-2"></i>Service Settings</h5>
+
+        <div class="mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <label for="scan-interval" class="form-label mb-0 text-nowrap">Scan interval</label>
+                <InputNumber id="scan-interval" class="form-control form-control-sm" style="width: 80px;"
+                             @bind-Value="ProcessingConfig.ScanIntervalMinutes"/>
+                <span class="text-muted small text-nowrap">
+                    minutes
+                    @if (ProcessingConfig.ScanIntervalMinutes <= 0)
+                    {
+                        @("(disabled)")
+                    }
+                    else if (ProcessingConfig.ScanIntervalMinutes >= 60)
+                    {
+                        @($"({TimeHelper.FormatMinutes(ProcessingConfig.ScanIntervalMinutes)})")
+                    }
+                </span>
+            </div>
+            <small class="form-text text-muted">Set to 0 to disable when using webhooks. Manual scans can always be triggered from the library page.</small>
+        </div>
+
+        <div class="mb-3">
+            <div class="d-flex align-items-center gap-2">
+                <label for="conversion-timeout" class="form-label mb-0 text-nowrap">Conversion timeout</label>
+                <InputNumber id="conversion-timeout" class="form-control form-control-sm" style="width: 80px;"
+                             @bind-Value="ProcessingConfig.ConversionTimeoutMinutes"/>
+                <span class="text-muted small text-nowrap">
+                    minutes
+                    @if (ProcessingConfig.ConversionTimeoutMinutes <= 0)
+                    {
+                        @("(unlimited)")
+                    }
+                    else if (ProcessingConfig.ConversionTimeoutMinutes >= 60)
+                    {
+                        @($"({TimeHelper.FormatMinutes(ProcessingConfig.ConversionTimeoutMinutes)})")
+                    }
+                </span>
+            </div>
+            <small class="form-text text-muted">Maximum time for a single file conversion. Set to 0 to disable.</small>
+        </div>
+    </div>
+
+    <div class="border rounded p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-terminal me-2"></i>Post-Processing</h5>
         <p class="text-muted small mb-3">Run a custom command after each successful conversion. Useful for refreshing
             media servers, cleaning subtitles, or other automation.</p>
 
         <div class="mb-3 form-check form-switch">
-            <InputCheckbox id="pp-enabled" class="form-check-input" @bind-Value="PostProcessingConfig.Enabled"/>
+            <InputCheckbox id="pp-enabled" class="form-check-input" @bind-Value="ProcessingConfig.PostProcessingEnabled"/>
             <label for="pp-enabled" class="form-check-label">Enable post-processing</label>
         </div>
 
         <div class="mb-3">
             <label for="pp-command" class="form-label">Command</label>
             <InputTextArea id="pp-command" class="form-control font-monospace" rows="3"
-                           @bind-Value="PostProcessingConfig.Command"/>
+                           @bind-Value="ProcessingConfig.PostProcessingCommand"/>
             <small class="form-text text-muted">The command to execute after a successful conversion.</small>
         </div>
 
@@ -68,12 +113,12 @@
             </table>
         </div>
 
-        @if (!string.IsNullOrWhiteSpace(PostProcessingConfig.Command))
+        @if (!string.IsNullOrWhiteSpace(ProcessingConfig.PostProcessingCommand))
         {
             <div class="mb-3">
                 <label class="form-label text-muted">Preview</label>
                 <div class="bg-dark text-light p-2 rounded font-monospace small">
-                    @PostProcessingConfig.ResolveCommand("/media/movies/Example Movie (2024)/Example.Movie.2024.1080p.mkv")
+                    @ProcessingConfig.ResolveCommand("/media/movies/Example Movie (2024)/Example.Movie.2024.1080p.mkv")
                 </div>
             </div>
         }
@@ -91,13 +136,13 @@
     [Inject] public required IToastService ToastService { get; set; }
 
     private WebhookConfig WebhookConfig { get; set; } = new();
-    private PostProcessingConfig PostProcessingConfig { get; set; } = new();
+    private ProcessingConfig ProcessingConfig { get; set; } = new();
 
     protected override async Task OnInitializedAsync()
     {
         await using var context = await ContextFactory.CreateDbContextAsync();
         WebhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
-        PostProcessingConfig = context.Configs.GetOrDefault<PostProcessingConfig>();
+        ProcessingConfig = context.Configs.GetOrDefault<ProcessingConfig>();
     }
 
     private async Task HandleSubmit()
@@ -106,7 +151,7 @@
         {
             await using var context = await ContextFactory.CreateDbContextAsync();
             context.Configs.Set(WebhookConfig);
-            context.Configs.Set(PostProcessingConfig);
+            context.Configs.Set(ProcessingConfig);
             await context.SaveChangesAsync();
             ToastService.ShowSuccess("Processing settings saved.");
         }

@@ -16,7 +16,7 @@ public class WebhookService(
     ILogger<WebhookService> logger) : ScheduledServiceBase(logger)
 {
     private readonly ConcurrentQueue<WebhookQueueItem> _queue = new();
-    public override TimeSpan Interval => TimeSpan.FromSeconds(10);
+    public override TimeSpan? Interval => TimeSpan.FromSeconds(10);
 
     public void Enqueue(WebhookFileItem item)
     {

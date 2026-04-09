@@ -31,7 +31,7 @@ await builder.RunWithLoggingAsync(async b =>
     b.Services.AddDbContext<AppDbContext>();
     b.Services.AddDataProtection()
         .PersistKeysToDbContext<AppDbContext>();
-    b.Services.AddHttpClient("Arr", client => { client.Timeout = TimeSpan.FromSeconds(10); });
+    b.Services.AddHttpClient(ArrApiClient.HttpClientName, client => { client.Timeout = TimeSpan.FromSeconds(10); });
 
     // Authentication & rate limiting
     b.Services.AddMuxarrAuthentication();
@@ -62,7 +62,8 @@ await builder.RunWithLoggingAsync(async b =>
     using (var scope = app.Services.CreateScope())
     {
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await context.Initialize();
+        var logger = scope.ServiceProvider.GetRequiredService<ILogger<AppDbContext>>();
+        await context.Initialize(logger);
     }
 
     // HTTP pipeline

@@ -1,9 +1,9 @@
 @using Muxarr.Core.Api
-@using Muxarr.Core.Config
+@using Muxarr.Data.Entities
 <div class="border rounded p-4">
     <div class="d-flex flex-wrap align-items-center gap-1 mb-3">
         <i class="bi @IconClass text-primary me-2"></i>
-        <h5 class="mb-0">@Name</h5>
+        <h5 class="mb-0">@Service.Name</h5>
         @if (_isConnected != null)
         {
             <span class="badge @(_isConnected.Value ? "text-bg-success" : "text-bg-danger")">
@@ -18,33 +18,38 @@
         }
     </div>
 
+    @if (ShowName)
+    {
+        <div class="mb-3">
+            <label for="@($"name-{ElementId}")" class="form-label">Name</label>
+            <InputText id="@($"name-{ElementId}")" class="form-control" @bind-Value="Service.Name"/>
+        </div>
+    }
+
     <div class="mb-3">
-        <label for="@($"url-{Name}")" class="form-label">URL</label>
-        <InputText id="@($"url-{Name}")" class="form-control" @bind-Value="Config.Url"/>
-        <ValidationMessage For="@(() => Config.Url)"/>
-        <small class="form-text text-muted">Example: @Example</small>
+        <label for="@($"url-{ElementId}")" class="form-label">URL</label>
+        <InputText id="@($"url-{ElementId}")" class="form-control" placeholder="@Example" @bind-Value="Service.Url"/>
     </div>
 
     <div class="mb-3">
-        <label for="@($"apiKey-{Name}")" class="form-label">API Key</label>
+        <label for="@($"apiKey-{ElementId}")" class="form-label">API Key</label>
         <div class="input-group">
-            <InputText id="@($"apiKey-{Name}")"
+            <InputText id="@($"apiKey-{ElementId}")"
                        class="form-control"
                        type="@ApiKeyInputType"
                        autocomplete="current-password"
-                       @bind-Value="Config.ApiKey"/>
+                       @bind-Value="Service.ApiKey"/>
             <ToolTip Tip="@ApiKeyVisibilityTooltip">
                 <button type="button"
                         class="btn btn-outline-secondary"
-                        aria-label="@(_showApiKey ? $"Hide {Name} API key" : $"Show {Name} API key")"
+                        aria-label="@(_showApiKey ? $"Hide {Service.Name} API key" : $"Show {Service.Name} API key")"
                         aria-pressed="@_showApiKey"
                         @onclick="ToggleApiKeyVisibility">
                     <i class="bi @(_showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
                 </button>
             </ToolTip>
         </div>
-        <ValidationMessage For="@(() => Config.ApiKey)"/>
-        <small class="form-text text-muted">Found in @Name &gt; Settings &gt; General &gt; Security</small>
+        <small class="form-text text-muted">Found in @TypeName &gt; Settings &gt; General &gt; Security</small>
     </div>
 
     <div class="d-flex gap-2 flex-wrap">
@@ -56,22 +61,37 @@
             <i class="bi bi-plug me-1"></i>Test Connection
         </button>
 
-        <button type="button" class="btn btn-outline-success btn-sm" @onclick="ConnectWebhook" disabled="@_isBusy">
-            <i class="bi bi-link-45deg me-1"></i>Connect Webhook
-        </button>
+        @if (_isConnected == true && _isWebhookConnected != true)
+        {
+            <button type="button" class="btn btn-outline-success btn-sm" @onclick="ConnectWebhook" disabled="@_isBusy">
+                <i class="bi bi-link-45deg me-1"></i>Connect Webhook
+            </button>
+        }
         @if (_isWebhookConnected == true)
         {
             <button type="button" class="btn btn-outline-danger btn-sm" @onclick="DisconnectWebhook"
                     disabled="@_isBusy">
-                <i class="bi bi-x-circle me-1"></i>Disconnect
+                <i class="bi bi-x-circle me-1"></i>Disconnect Webhook
+            </button>
+        }
+
+        @if (CanDelete)
+        {
+            <button type="button" class="btn btn-outline-danger btn-sm" @onclick="OnDelete"
+                    disabled="@_isBusy">
+                <i class="bi bi-trash me-1"></i>Remove
             </button>
         }
     </div>
 </div>
 
 @code {
-    private string Example => $"http://{Name.ToLower()}.instance:{(Name.ToLower() == "sonarr" ? 8989 : 7878)}";
-    private string IconClass => Name.ToLower() == "sonarr" ? "bi-tv" : "bi-film";
+    private string TypeName => Service.Type == IntegrationType.Sonarr ? "Sonarr" : "Radarr";
+    private string Example => Service.Type == IntegrationType.Sonarr
+        ? "http://sonarr.instance:8989"
+        : "http://radarr.instance:7878";
+    private string IconClass => Service.Type == IntegrationType.Sonarr ? "bi-tv" : "bi-film";
+    private string ElementId => Service.Id != 0 ? Service.Id.ToString() : Service.GetHashCode().ToString();
 
     private bool _isBusy;
     private bool? _isConnected;
@@ -81,12 +101,12 @@
     private string ApiKeyInputType => _showApiKey ? "text" : "password";
     private string ApiKeyVisibilityTooltip => _showApiKey ? "Hide API key" : "Show API key";
 
-    [Parameter] [EditorRequired] public required ArrConfig Config { get; set; }
-    [Parameter] [EditorRequired] public required string Name { get; set; }
-
-    [Parameter] public string ConfigKey { get; set; } = "";
+    [Parameter] [EditorRequired] public required Integration Service { get; set; }
+    [Parameter] public bool ShowName { get; set; }
+    [Parameter] public bool CanDelete { get; set; }
     [Parameter] public Func<string>? GetWebhookUrl { get; set; }
     [Parameter] public Func<Task>? AutoSave { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
 
     [Inject] public required ArrApiClient ArrApi { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
@@ -94,18 +114,18 @@
 
     protected override async Task OnInitializedAsync()
     {
-        if (string.IsNullOrWhiteSpace(Config.Url) || string.IsNullOrWhiteSpace(Config.ApiKey))
+        if (string.IsNullOrWhiteSpace(Service.Url) || string.IsNullOrWhiteSpace(Service.ApiKey))
         {
             return;
         }
 
         try
         {
-            _isConnected = await ArrApi.CanConnect(Config);
+            _isConnected = await ArrApi.CanConnect(Service);
 
             if (_isConnected == true)
             {
-                var notification = await ArrApi.FindMuxarrNotification(Config);
+                var notification = await ArrApi.FindMuxarrNotification(Service);
                 _isWebhookConnected = notification != null;
             }
         }
@@ -117,14 +137,15 @@
 
     private async Task TestConnection()
     {
-        if (string.IsNullOrWhiteSpace(Config.Url) || string.IsNullOrWhiteSpace(Config.ApiKey))
+        if (string.IsNullOrWhiteSpace(Service.Url) || string.IsNullOrWhiteSpace(Service.ApiKey))
         {
-            ToastService.ShowWarning($"Please enter a URL and API key for {Name}.");
+            ToastService.ShowWarning($"Please enter a URL and API key for {Service.Name}.");
             return;
         }
 
         _isBusy = true;
         _isConnected = null;
+        _isWebhookConnected = null;
         StateHasChanged();
 
         try
@@ -134,25 +155,25 @@
                 await AutoSave();
             }
 
-            Config.Url = SanitizeUrl(Config.Url);
-            _isConnected = await ArrApi.CanConnect(Config);
+            Service.Url = Service.Url.SanitizeUrl();
+            _isConnected = await ArrApi.CanConnect(Service);
 
             if (_isConnected == true)
             {
-                ToastService.ShowSuccess($"{Name} connection successful!");
+                ToastService.ShowSuccess($"{Service.Name} connection successful!");
 
-                var notification = await ArrApi.FindMuxarrNotification(Config);
+                var notification = await ArrApi.FindMuxarrNotification(Service);
                 _isWebhookConnected = notification != null;
             }
             else
             {
-                ToastService.ShowError($"Could not connect to {Name}. Check URL and API key.");
+                ToastService.ShowError($"Could not connect to {Service.Name}. Check URL and API key.");
             }
         }
         catch
         {
             _isConnected = false;
-            ToastService.ShowError($"Could not connect to {Name}. Check URL and API key.");
+            ToastService.ShowError($"Could not connect to {Service.Name}. Check URL and API key.");
         }
         finally
         {
@@ -180,27 +201,27 @@
             }
 
             await using var context = await ContextFactory.CreateDbContextAsync();
-            var arrConfig = context.Configs.GetOrDefault<ArrConfig>(ConfigKey);
+            var svc = await context.Integrations.FindAsync(Service.Id);
 
-            if (string.IsNullOrWhiteSpace(arrConfig.Url) || string.IsNullOrWhiteSpace(arrConfig.ApiKey))
+            if (svc == null || string.IsNullOrWhiteSpace(svc.Url) || string.IsNullOrWhiteSpace(svc.ApiKey))
             {
-                ToastService.ShowWarning($"{Name} is not configured. Enter the URL and API key first.");
+                ToastService.ShowWarning($"{Service.Name} is not configured. Enter the URL and API key first.");
                 return;
             }
 
-            var existing = await ArrApi.FindMuxarrNotification(arrConfig);
+            var existing = await ArrApi.FindMuxarrNotification(svc);
             var success = existing != null
-                ? await ArrApi.UpdateWebhookNotification(arrConfig, existing, webhookUrl)
-                : await ArrApi.CreateWebhookNotification(arrConfig, webhookUrl);
+                ? await ArrApi.UpdateWebhookNotification(svc, existing, webhookUrl)
+                : await ArrApi.CreateWebhookNotification(svc, webhookUrl);
 
             if (success)
             {
                 _isWebhookConnected = true;
-                ToastService.ShowSuccess($"Webhook {(existing != null ? "updated" : "created")} in {Name}!");
+                ToastService.ShowSuccess($"Webhook {(existing != null ? "updated" : "created")} in {Service.Name}!");
             }
             else
             {
-                ToastService.ShowError($"Failed to set up webhook in {Name}.");
+                ToastService.ShowError($"Failed to set up webhook in {Service.Name}.");
             }
         }
         catch (Exception ex)
@@ -221,25 +242,30 @@
         try
         {
             await using var context = await ContextFactory.CreateDbContextAsync();
-            var arrConfig = context.Configs.GetOrDefault<ArrConfig>(ConfigKey);
+            var svc = await context.Integrations.FindAsync(Service.Id);
 
-            var existing = await ArrApi.FindMuxarrNotification(arrConfig);
-            if (existing == null)
+            if (svc == null)
             {
-                _isWebhookConnected = false;
-                ToastService.ShowInfo($"No Muxarr webhook found in {Name}.");
                 return;
             }
 
-            var success = await ArrApi.DeleteWebhookNotification(arrConfig, existing.Id);
+            var existing = await ArrApi.FindMuxarrNotification(svc);
+            if (existing == null)
+            {
+                _isWebhookConnected = false;
+                ToastService.ShowInfo($"No Muxarr webhook found in {Service.Name}.");
+                return;
+            }
+
+            var success = await ArrApi.DeleteWebhookNotification(svc, existing.Id);
             if (success)
             {
                 _isWebhookConnected = false;
-                ToastService.ShowSuccess($"Webhook removed from {Name}.");
+                ToastService.ShowSuccess($"Webhook removed from {Service.Name}.");
             }
             else
             {
-                ToastService.ShowError($"Failed to remove webhook from {Name}.");
+                ToastService.ShowError($"Failed to remove webhook from {Service.Name}.");
             }
         }
         catch (Exception ex)
@@ -252,14 +278,8 @@
         }
     }
 
-    public static string SanitizeUrl(string url)
-    {
-        return new string(url.Where(c => !char.IsWhiteSpace(c)).ToArray()).TrimEnd('/');
-    }
-
     private void ToggleApiKeyVisibility()
     {
         _showApiKey = !_showApiKey;
     }
-
 }

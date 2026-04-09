@@ -1,8 +1,9 @@
 @using Muxarr.Core.Config
+@using Muxarr.Data.Entities
 <p class="text-muted">Connect Muxarr to Sonarr and Radarr for original language detection and automatic file
     processing.</p>
 
-<EditForm Model="ArrConfigs" OnValidSubmit="HandleSubmit">
+<EditForm Model="Services" OnValidSubmit="HandleSubmit">
     <DataAnnotationsValidator/>
 
     <div class="border rounded p-4 mb-4">
@@ -11,40 +12,53 @@
             <InputText class="form-control" @bind-Value="WebhookConfig.MuxarrUrl"/>
             <small class="form-text text-muted">
                 The URL that Sonarr/Radarr can reach Muxarr at. Example: <code>http://muxarr:8183</code>
+                (Docker) or <code>http://x.x.x.x:8183</code> (LAN IP)
             </small>
         </div>
     </div>
 
     <div class="row g-4 mb-4">
-        <div class="col-lg-6">
-            <ArrServiceCard Name="Sonarr" Config="@ArrConfigs.Sonarr"
-                            ConfigKey="@ArrConfig.SonarrKey"
-                            GetWebhookUrl="@(() => WebhookUrl)"
-                            AutoSave="@SaveSettingsSilent"/>
-        </div>
-        <div class="col-lg-6">
-            <ArrServiceCard Name="Radarr" Config="@ArrConfigs.Radarr"
-                            ConfigKey="@ArrConfig.RadarrKey"
-                            GetWebhookUrl="@(() => WebhookUrl)"
-                            AutoSave="@SaveSettingsSilent"/>
-        </div>
-    </div>
-
-    <div class="border rounded p-4 mb-4">
-        <h5 class="mb-3"><i class="bi bi-info-circle me-2"></i>Manual Webhook Setup</h5>
-        <p class="text-muted mb-2">If you prefer to configure webhooks manually in Sonarr/Radarr:</p>
-        <ol class="text-muted">
-            <li>Go to Settings &gt; Connect &gt; Add &gt; Webhook</li>
-            <li>Set the URL to: <code>@WebhookUrl</code></li>
-            <li>Set Method to <strong>POST</strong></li>
-            <li>Enable <strong>On Import</strong> and <strong>On Rename</strong></li>
-        </ol>
-        @if (!string.IsNullOrEmpty(WebhookConfig.ApiKey))
+        @foreach (var svc in Services)
         {
-            <p class="text-muted small"><i class="bi bi-shield-lock me-1"></i>The API key is included in the URL above
-                as a query parameter.</p>
+            <div class="col-lg-6">
+                <ArrServiceCard Service="svc"
+                                ShowName="@HasMultiple(svc.Type)"
+                                CanDelete="@(!IsDefault(svc))"
+                                GetWebhookUrl="@(() => WebhookUrl)"
+                                AutoSave="@SaveSettingsSilent"
+                                OnDelete="@(() => RemoveService(svc))"/>
+            </div>
         }
     </div>
+
+    <div class="d-flex gap-2 mb-4">
+        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(IntegrationType.Sonarr)">
+            <i class="bi bi-plus-circle me-1"></i>Add Sonarr
+        </button>
+        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(IntegrationType.Radarr)">
+            <i class="bi bi-plus-circle me-1"></i>Add Radarr
+        </button>
+    </div>
+
+    <details class="mb-4">
+        <summary class="text-muted" role="button">
+            <i class="bi bi-info-circle me-1"></i>Manual Webhook Setup
+        </summary>
+        <div class="border rounded p-4 mt-2">
+            <p class="text-muted mb-2">If you prefer to configure webhooks manually in Sonarr/Radarr:</p>
+            <ol class="text-muted">
+                <li>Go to Settings &gt; Connect &gt; Add &gt; Webhook</li>
+                <li>Set the URL to: <code>@WebhookUrl</code></li>
+                <li>Set Method to <strong>POST</strong></li>
+                <li>Enable <strong>On Import</strong> and <strong>On Rename</strong></li>
+            </ol>
+            @if (!string.IsNullOrEmpty(WebhookConfig.ApiKey))
+            {
+                <p class="text-muted small mb-0"><i class="bi bi-shield-lock me-1"></i>The API key is included in the
+                    URL above as a query parameter.</p>
+            }
+        </div>
+    </details>
 
     <StickyBar>
         <button type="submit" class="btn btn-primary">
@@ -56,8 +70,9 @@
 @code {
     [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required IModalService ModalService { get; set; }
 
-    private ArrConfigs ArrConfigs { get; } = new();
+    private List<Integration> Services { get; set; } = [];
     private WebhookConfig WebhookConfig { get; set; } = new();
 
     private string WebhookUrl
@@ -79,13 +94,76 @@
         }
     }
 
+    private bool HasMultiple(IntegrationType type) => Services.Count(s => s.Type == type) > 1;
+
+    private bool IsDefault(Integration svc) =>
+        svc == Services.FirstOrDefault(s => s.Type == svc.Type);
+
     protected override async Task OnInitializedAsync()
     {
         await using var context = await ContextFactory.CreateDbContextAsync();
 
-        ArrConfigs.Sonarr = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.SonarrKey);
-        ArrConfigs.Radarr = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.RadarrKey);
+        Services = await context.Integrations.OrderBy(c => c.Id).ToListAsync();
+
+        // Ensure default Sonarr/Radarr records always exist
+        var changed = false;
+        if (!Services.Any(s => s.Type == IntegrationType.Sonarr))
+        {
+            var sonarr = new Integration { Name = "Sonarr", Type = IntegrationType.Sonarr };
+            context.Integrations.Add(sonarr);
+            Services.Insert(0, sonarr);
+            changed = true;
+        }
+        if (!Services.Any(s => s.Type == IntegrationType.Radarr))
+        {
+            var radarr = new Integration { Name = "Radarr", Type = IntegrationType.Radarr };
+            context.Integrations.Add(radarr);
+            Services.Add(radarr);
+            changed = true;
+        }
+        if (changed)
+        {
+            await context.SaveChangesAsync();
+        }
+
         WebhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
+    }
+
+    private void AddService(IntegrationType type)
+    {
+        var name = type == IntegrationType.Sonarr ? "Sonarr" : "Radarr";
+        name += $" {Services.Count(c => c.Type == type) + 1}";
+
+        Services.Add(new Integration { Name = name, Type = type });
+    }
+
+    private async Task RemoveService(Integration svc)
+    {
+        if (svc.Id != 0)
+        {
+            if (!await ModalService.ShowConfirm(
+                    $"Remove '{svc.Name}'? All synced media info from this connection will be deleted.",
+                    $"Remove {svc.Name}?"))
+            {
+                return;
+            }
+        }
+
+        Services.Remove(svc);
+
+        if (svc.Id != 0)
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            var existing = await context.Integrations.FindAsync(svc.Id);
+            if (existing != null)
+            {
+                context.Integrations.Remove(existing);
+                await context.SaveChangesAsync();
+            }
+        }
+
+        ToastService.ShowSuccess($"{svc.Name} removed.");
+        StateHasChanged();
     }
 
     private Task HandleSubmit()
@@ -104,14 +182,41 @@
         {
             await using var context = await ContextFactory.CreateDbContextAsync();
 
-            ArrConfigs.Sonarr.Url = ArrServiceCard.SanitizeUrl(ArrConfigs.Sonarr.Url);
-            ArrConfigs.Radarr.Url = ArrServiceCard.SanitizeUrl(ArrConfigs.Radarr.Url);
             WebhookConfig.MuxarrUrl = WebhookConfig.MuxarrUrl.Trim().TrimEnd('/');
-
-            context.Configs.Set(ArrConfigs.Sonarr, ArrConfig.SonarrKey);
-            context.Configs.Set(ArrConfigs.Radarr, ArrConfig.RadarrKey);
             context.Configs.Set(WebhookConfig);
+
+            foreach (var svc in Services)
+            {
+                if (string.IsNullOrWhiteSpace(svc.Name))
+                {
+                    svc.Name = svc.Type == IntegrationType.Sonarr ? "Sonarr" : "Radarr";
+                }
+
+                svc.Url = svc.Url.SanitizeUrl();
+
+                if (svc.Id == 0)
+                {
+                    context.Integrations.Add(svc);
+                }
+                else
+                {
+                    var existing = await context.Integrations.FindAsync(svc.Id);
+                    if (existing != null)
+                    {
+                        existing.Name = svc.Name;
+                        existing.Url = svc.Url;
+                        existing.ApiKey = svc.ApiKey;
+                    }
+                }
+            }
+
             await context.SaveChangesAsync();
+
+            // Refresh IDs for newly added services
+            if (Services.Any(c => c.Id == 0))
+            {
+                Services = await context.Integrations.OrderBy(c => c.Id).ToListAsync();
+            }
 
             if (showToast)
             {

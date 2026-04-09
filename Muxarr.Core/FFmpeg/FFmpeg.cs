@@ -66,7 +66,8 @@ public static class FFmpeg
         List<TrackOutput> tracks,
         long durationMs = 0,
         Action<string, int, bool>? onOutput = null,
-        bool faststart = false)
+        bool faststart = false,
+        TimeSpan? timeout = null)
     {
         if (string.IsNullOrEmpty(input))
         {
@@ -87,7 +88,7 @@ public static class FFmpeg
 
         return await ExecuteAsync(
             BuildRemuxArguments(input, output, tracks, GetMp4MuxerFormat(input), faststart),
-            durationMs, onOutput);
+            durationMs, onOutput, timeout);
     }
 
     /// <summary>

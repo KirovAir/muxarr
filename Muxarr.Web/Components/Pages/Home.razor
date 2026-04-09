@@ -254,7 +254,7 @@
             .ToListAsync();
     }
 
-    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    private void OnConverterStateChanged(ConverterProgressEvent e)
     {
         if (_disposed)
         {

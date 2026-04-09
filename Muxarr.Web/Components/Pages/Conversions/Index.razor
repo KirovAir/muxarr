@@ -374,7 +374,7 @@
         ToastService.ShowSuccess($"Deleted {deletable.Count} conversion(s).");
     }
 
-    private void OnQueueStateChanged(object? sender, EventArgs e)
+    private void OnQueueStateChanged()
     {
         _ = InvokeAsync(StateHasChanged);
     }
@@ -384,7 +384,7 @@
         NavigationManager.NavigateTo($"/conversions/{conversion.Id}");
     }
 
-    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    private void OnConverterStateChanged(ConverterProgressEvent e)
     {
         _ = InvokeAsync(async () =>
         {

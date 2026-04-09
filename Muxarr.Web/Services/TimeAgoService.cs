@@ -6,7 +6,7 @@ public class TimeAgoService(ILogger<TimeAgoService> logger) : ScheduledServiceBa
 {
     private readonly Lock _lock = new();
     private readonly List<Action> _subscribers = new();
-    public override TimeSpan Interval => TimeSpan.FromMinutes(1);
+    public override TimeSpan? Interval => TimeSpan.FromMinutes(1);
 
     protected override Task ExecuteAsync(CancellationToken token)
     {

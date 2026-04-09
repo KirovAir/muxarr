@@ -2,6 +2,7 @@ using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Muxarr.Core.Config;
 using Muxarr.Data.Extensions;
 
@@ -26,9 +27,9 @@ public static class Configurator
                .AddInterceptors(new SqlitePerformanceInterceptor());
     }
 
-    public static async Task Initialize(this AppDbContext context)
+    public static async Task Initialize(this AppDbContext context, ILogger? logger = null)
     {
-        await BackupBeforeMigration(context);
+        await BackupBeforeMigration(context, logger);
         await context.Database.MigrateAsync();
         await context.Database.ExecuteSqlRawAsync(SqlitePerformanceInterceptor.InitializationPragma);
 
@@ -57,13 +58,16 @@ public static class Configurator
     /// Only creates a backup when there are pending migrations (i.e., an actual schema change).
     /// Keeps the single most recent backup as muxarr.db.bak.
     /// </summary>
-    private static async Task BackupBeforeMigration(AppDbContext context)
+    private static async Task BackupBeforeMigration(AppDbContext context, ILogger? logger)
     {
-        var pending = await context.Database.GetPendingMigrationsAsync();
-        if (!pending.Any())
+        var pending = (await context.Database.GetPendingMigrationsAsync()).ToList();
+        if (pending.Count == 0)
         {
             return;
         }
+
+        logger?.LogInformation("Applying {Count} pending migration(s): {Migrations}",
+            pending.Count, string.Join(", ", pending));
 
         var dbPath = context.Database.GetDbConnection().DataSource;
         if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
@@ -76,5 +80,6 @@ public static class Configurator
 
         var backupPath = dbPath + ".bak";
         File.Copy(dbPath, backupPath, overwrite: true);
+        logger?.LogInformation("Database backed up to {BackupPath}", backupPath);
     }
 }

@@ -14,7 +14,7 @@ public class LogWriterService(
     private const int MaxEntries = 10_000;
     private DateTime _lastPurge = DateTime.MinValue;
 
-    public override TimeSpan Interval => TimeSpan.FromSeconds(5);
+    public override TimeSpan? Interval => TimeSpan.FromSeconds(5);
 
     protected override async Task ExecuteAsync(CancellationToken token)
     {

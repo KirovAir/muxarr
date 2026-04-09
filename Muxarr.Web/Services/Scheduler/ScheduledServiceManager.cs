@@ -10,18 +10,29 @@ public class ScheduledServiceManager(ILogger<ScheduledServiceManager> logger, IE
     {
         logger.LogInformation("Starting scheduled background services");
         foreach (var service in services)
-            logger.LogInformation("{ServiceName} will run every {ServiceInterval:N2} seconds", service.GetType().Name,
-                service.Interval.TotalSeconds);
+        {
+            if (service.Interval.HasValue)
+            {
+                logger.LogInformation("{ServiceName} will run every {ServiceInterval:N0} seconds",
+                    service.GetType().Name, service.Interval.Value.TotalSeconds);
+            }
+            else
+            {
+                logger.LogInformation("{ServiceName} is disabled", service.GetType().Name);
+            }
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
                 foreach (var service in services)
+                {
                     if (service.ShouldRun() && !service.IsRunning())
                     {
                         _ = service.RunAsync(stoppingToken);
                     }
+                }
             }
             catch (Exception ex)
             {

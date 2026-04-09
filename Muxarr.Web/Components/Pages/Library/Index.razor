@@ -614,7 +614,7 @@
         NavigationManager.NavigateTo($"/library/{file.Id}");
     }
 
-    private void OnScanningStateChanged(object? sender, bool isScanning)
+    private void OnScanningStateChanged(bool isScanning)
     {
         if (_disposed)
         {

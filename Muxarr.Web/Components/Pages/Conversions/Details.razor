@@ -23,9 +23,7 @@
     <h2 class="border-bottom pb-3 mb-4 text-break">
         <i class="bi bi-arrow-repeat me-2"></i>@Conversion.Name
     </h2>
-
-
-
+    
     <div class="row g-4">
         <!-- Progress -->
         @if (Conversion.State == ConversionState.Processing)
@@ -264,7 +262,7 @@
         NavigationManager.NavigateTo($"/library/{Conversion!.MediaFileId}");
     }
 
-    private void OnConverterStateChanged(object? sender, ConverterProgressEvent e)
+    private void OnConverterStateChanged(ConverterProgressEvent e)
     {
         _ = InvokeAsync(() =>
         {

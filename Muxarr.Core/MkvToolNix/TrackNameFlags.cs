@@ -7,12 +7,11 @@ namespace Muxarr.Core.MkvToolNix;
 public static class TrackNameFlags
 {
     // Word-boundary matched to avoid false positives (e.g. "CC" in "Accessibility").
-    private static readonly string[] HearingImpairedAbbreviations = ["CC", "HI", "HOH"];
+    private static readonly string[] HearingImpairedAbbreviations = ["CC", "HI", "HOH", "SDH", "SHD"];
 
     // Substring matched - long enough to be safe.
     private static readonly string[] HearingImpairedKeywords =
     [
-        "SDH", "SHD",
         "Closed Caption", "Hearing Impaired", "for Deaf",
         "doven", "slechthorend",                        // Dutch
         "Hörgeschädigte", "Gehörlose", "Schwerhörige",  // German
