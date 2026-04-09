@@ -243,9 +243,20 @@ public class JellyfinEmbyApiClient : IMediaServerClient
     private static Uri BuildUrl(IApiCredentials config, string relativeUrl,
         IReadOnlyDictionary<string, string>? query = null)
     {
-        var baseUri = new Uri($"{config.Url.Trim().TrimEnd('/')}/");
+        var sanitizedBaseUrl = $"{config.Url.Trim().TrimEnd('/')}/";
+        if (!Uri.TryCreate(sanitizedBaseUrl, UriKind.Absolute, out var baseUri))
+        {
+            throw new UriFormatException($"Invalid media server URL: '{config.Url}'.");
+        }
+
         var relative = BuildRelativeUrl(relativeUrl, query);
-        return new Uri(baseUri, relative.TrimStart('/'));
+        if (!Uri.TryCreate(baseUri, relative.TrimStart('/'), out var requestUri))
+        {
+            throw new UriFormatException(
+                $"Invalid request URL. Base URL: '{config.Url}', relative URL: '{relativeUrl}'.");
+        }
+
+        return requestUri;
     }
 
     private static string BuildRelativeUrl(string relativeUrl, IReadOnlyDictionary<string, string>? query)
