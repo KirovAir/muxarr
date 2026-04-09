@@ -750,7 +750,15 @@ public class MediaConverterService(
         }
 
         conversion.Log("Refreshing media servers..", logger);
-        await mediaServerClientFactory.RefreshAll(conversion.MediaFile!.Path);
+
+        try
+        {
+            await mediaServerClientFactory.RefreshAll(conversion.MediaFile!.Path);
+        }
+        catch (Exception e)
+        {
+            conversion.Log($"Media server refresh failed: {e.Message}", logger, true);
+        }
     }
 }
 
