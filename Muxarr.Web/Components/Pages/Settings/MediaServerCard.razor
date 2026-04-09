@@ -1,0 +1,216 @@
+@using Muxarr.Core.Api
+@using Muxarr.Data.Entities
+<div class="border rounded p-4">
+    @if (ShowTypeSelector)
+    {
+        <div class="mb-3">
+            <h5 class="mb-3"><i class="bi bi-collection-play text-primary me-2"></i>Media Server</h5>
+            <div class="btn-group w-100" role="group">
+                <button type="button" class="btn @(CurrentType == IntegrationType.Jellyfin ? "btn-primary" : "btn-outline-primary") btn-sm"
+                        @onclick="() => SelectType(IntegrationType.Jellyfin)">Jellyfin</button>
+                <button type="button" class="btn @(CurrentType == IntegrationType.Emby ? "btn-primary" : "btn-outline-primary") btn-sm"
+                        @onclick="() => SelectType(IntegrationType.Emby)">Emby</button>
+                <button type="button" class="btn @(CurrentType == IntegrationType.Plex ? "btn-primary" : "btn-outline-primary") btn-sm"
+                        @onclick="() => SelectType(IntegrationType.Plex)">Plex</button>
+            </div>
+        </div>
+    }
+
+    <div class="d-flex flex-wrap align-items-center gap-1 mb-3">
+        <i class="bi @GetIconClass(CurrentType) text-primary me-2"></i>
+        <h5 class="mb-0">@(!string.IsNullOrWhiteSpace(Service.Name) && ShowName ? Service.Name : CurrentType?.ToString() ?? "Media Server")</h5>
+        @if (_isConnected != null)
+        {
+            <span class="badge @(_isConnected.Value ? "text-bg-success" : "text-bg-danger")">
+                <i class="bi @(_isConnected.Value ? "bi-check-circle" : "bi-x-circle") me-1"></i>@(_isConnected.Value ? "Connected" : "Not Connected")
+            </span>
+        }
+    </div>
+
+    @if (ShowName)
+    {
+        <div class="mb-3">
+            <label for="@($"name-{ElementId}")" class="form-label">Name</label>
+            <InputText id="@($"name-{ElementId}")" class="form-control" @bind-Value="Service.Name"/>
+        </div>
+    }
+
+    <div class="mb-3">
+        <label for="@($"url-{ElementId}")" class="form-label">URL</label>
+        <InputText id="@($"url-{ElementId}")" class="form-control" placeholder="@GetUrlPlaceholder(CurrentType)"
+                   disabled="@(CurrentType is null)" @bind-Value="Service.Url"/>
+    </div>
+
+    <div class="mb-2">
+        <label for="@($"apiKey-{ElementId}")" class="form-label">API Key</label>
+        <InputText id="@($"apiKey-{ElementId}")" class="form-control" disabled="@(CurrentType is null)" @bind-Value="Service.ApiKey"/>
+        <small class="form-text text-muted">@GetApiKeyHint(CurrentType)</small>
+    </div>
+
+    <p class="text-muted small mb-3">Lets Muxarr automatically refresh your library after processing files. Enable this in the Processing tab.</p>
+
+    <div class="d-flex gap-2 flex-wrap">
+        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="TestConnection" disabled="@(_isBusy || CurrentType is null)">
+            @if (_isBusy)
+            {
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+            }
+            <i class="bi bi-plug me-1"></i>Test Connection
+        </button>
+
+        @if (CanDelete)
+        {
+            <button type="button" class="btn btn-outline-danger btn-sm" @onclick="OnDelete" disabled="@_isBusy">
+                <i class="bi bi-trash me-1"></i>Remove
+            </button>
+        }
+    </div>
+</div>
+
+@code {
+    private string ElementId => Service.Id != 0 ? Service.Id.ToString() : Service.GetHashCode().ToString();
+    private IntegrationType? CurrentType => SelectedType ?? (Integration.IsMediaServerType(Service.Type) ? Service.Type : null);
+
+    private bool _isBusy;
+    private bool? _isConnected;
+
+    [Parameter] [EditorRequired] public required Integration Service { get; set; }
+    [Parameter] public bool ShowTypeSelector { get; set; }
+    [Parameter] public IntegrationType? SelectedType { get; set; }
+    [Parameter] public EventCallback<IntegrationType> OnTypeSelected { get; set; }
+    [Parameter] public bool ShowName { get; set; }
+    [Parameter] public bool CanDelete { get; set; }
+    [Parameter] public Func<Task>? AutoSave { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    [Inject] public required MediaServerClientFactory MediaServerClientFactory { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    private async Task SelectType(IntegrationType type)
+    {
+        if (!ShowTypeSelector || CurrentType == type)
+        {
+            return;
+        }
+
+        _isConnected = null;
+
+        if (OnTypeSelected.HasDelegate)
+        {
+            await OnTypeSelected.InvokeAsync(type);
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(Service.Url) || string.IsNullOrWhiteSpace(Service.ApiKey))
+        {
+            return;
+        }
+
+        if (CurrentType is not { } currentType)
+        {
+            return;
+        }
+
+        var client = MediaServerClientFactory.GetClient(currentType);
+        if (client == null)
+        {
+            return;
+        }
+
+        try
+        {
+            _isConnected = await client.CanConnect(Service);
+        }
+        catch
+        {
+            _isConnected = false;
+        }
+    }
+
+    private async Task TestConnection()
+    {
+        if (CurrentType is not { } currentType)
+        {
+            ToastService.ShowWarning("Select Jellyfin, Emby, or Plex first.");
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(Service.Url) || string.IsNullOrWhiteSpace(Service.ApiKey))
+        {
+            ToastService.ShowWarning($"Please enter a URL and API key for {currentType}.");
+            return;
+        }
+
+        var client = MediaServerClientFactory.GetClient(currentType);
+        if (client == null)
+        {
+            ToastService.ShowError($"No API client available for {currentType}.");
+            return;
+        }
+
+        _isBusy = true;
+        _isConnected = null;
+        StateHasChanged();
+
+        try
+        {
+            if (AutoSave != null)
+            {
+                await AutoSave();
+            }
+
+            Service.Url = Service.Url.SanitizeUrl();
+            _isConnected = await client.CanConnect(Service);
+
+            if (_isConnected == true)
+            {
+                ToastService.ShowSuccess($"{currentType} connection successful!");
+            }
+            else
+            {
+                ToastService.ShowError($"Could not connect to {currentType}. Check URL and API key.");
+            }
+        }
+        catch
+        {
+            _isConnected = false;
+            ToastService.ShowError($"Could not connect to {currentType}. Check URL and API key.");
+        }
+        finally
+        {
+            _isBusy = false;
+        }
+    }
+
+    private static string GetIconClass(IntegrationType? type) => type switch
+    {
+        IntegrationType.Jellyfin => "bi-collection-play",
+        IntegrationType.Emby => "bi-collection-play",
+        IntegrationType.Plex => "bi-collection-play",
+        IntegrationType.Sonarr => "bi-tv",
+        IntegrationType.Radarr => "bi-film",
+        _ => "bi-app"
+    };
+
+    private static string GetUrlPlaceholder(IntegrationType? type) => type switch
+    {
+        IntegrationType.Jellyfin => "http://jellyfin:8096",
+        IntegrationType.Emby => "http://emby:8096",
+        IntegrationType.Plex => "http://plex:32400",
+        IntegrationType.Sonarr => "http://sonarr:8989",
+        IntegrationType.Radarr => "http://radarr:7878",
+        _ => "http://localhost"
+    };
+
+    private static string GetApiKeyHint(IntegrationType? type) => type switch
+    {
+        IntegrationType.Jellyfin => "Found in Jellyfin > Dashboard > API Keys",
+        IntegrationType.Emby => "Found in Emby > Server > API Keys",
+        IntegrationType.Plex => "Found in Plex > Settings > Account > X-Plex-Token (or use a Plex token)",
+        IntegrationType.Sonarr => "Found in Sonarr > Settings > General > Security",
+        IntegrationType.Radarr => "Found in Radarr > Settings > General > Security",
+        _ => "Select Jellyfin, Emby, or Plex first."
+    };
+}

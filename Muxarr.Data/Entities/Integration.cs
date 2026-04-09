@@ -7,7 +7,10 @@ namespace Muxarr.Data.Entities;
 public enum IntegrationType
 {
     Sonarr,
-    Radarr
+    Radarr,
+    Jellyfin,
+    Emby,
+    Plex
 }
 
 public class Integration : AuditableEntity, IApiCredentials
@@ -19,6 +22,12 @@ public class Integration : AuditableEntity, IApiCredentials
     public string ApiKey { get; set; } = string.Empty;
 
     public List<MediaInfo> MediaInfos { get; set; } = [];
+
+    public static bool IsArrServiceType(IntegrationType type) =>
+        type is IntegrationType.Sonarr or IntegrationType.Radarr;
+
+    public static bool IsMediaServerType(IntegrationType type) =>
+        type is IntegrationType.Jellyfin or IntegrationType.Emby or IntegrationType.Plex;
 }
 
 public class IntegrationConfiguration : AuditEntityConfiguration<Integration>

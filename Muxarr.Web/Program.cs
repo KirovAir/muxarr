@@ -32,12 +32,17 @@ await builder.RunWithLoggingAsync(async b =>
     b.Services.AddDataProtection()
         .PersistKeysToDbContext<AppDbContext>();
     b.Services.AddHttpClient(ArrApiClient.HttpClientName, client => { client.Timeout = TimeSpan.FromSeconds(10); });
+    b.Services.AddHttpClient(JellyfinEmbyApiClient.HttpClientName, client => { client.Timeout = TimeSpan.FromSeconds(10); });
+    b.Services.AddHttpClient(PlexApiClient.HttpClientName, client => { client.Timeout = TimeSpan.FromSeconds(10); });
 
     // Authentication & rate limiting
     b.Services.AddMuxarrAuthentication();
 
     // Background services
     b.Services.AddSingleton<ArrApiClient>();
+    b.Services.AddSingleton<JellyfinEmbyApiClient>();
+    b.Services.AddSingleton<PlexApiClient>();
+    b.Services.AddSingleton<MediaServerClientFactory>();
     b.Services.AddScheduledService<TimeAgoService>();
     b.Services.AddScheduledService<MediaConverterService>();
     b.Services.AddScheduledService<ArrSyncService>();

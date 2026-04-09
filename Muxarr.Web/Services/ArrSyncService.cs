@@ -64,7 +64,7 @@ public class ArrSyncService(
                         Title = x.Title
                     }), conn.Id, token);
                 }
-                else
+                else if (conn.Type == IntegrationType.Sonarr)
                 {
                     var result = await arrApi.SyncSeries(conn);
                     if (result.Count > 0)
@@ -81,6 +81,10 @@ public class ArrSyncService(
                         Path = x.Path,
                         Title = x.Title
                     }), conn.Id, token);
+                }
+                else
+                {
+                    continue;
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

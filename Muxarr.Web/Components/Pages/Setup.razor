@@ -52,11 +52,11 @@
     }
     else if (_step == 2)
     {
-        <h4 class="mb-2">Connect Sonarr & Radarr</h4>
+        <h4 class="mb-2">Connect Your Apps</h4>
         <p class="text-muted small mb-4">
-            Optionally connect your Sonarr and Radarr instances. Muxarr uses these to automatically
-            process files when imported or renamed, and to retrieve original language metadata for
-            smarter track filtering. You can always configure this later in Settings.
+            Optionally connect your Sonarr, Radarr and Media Server instances. Muxarr uses these to automatically
+            process files when imported or renamed, to retrieve original language metadata for
+            smarter track filtering and to refresh your media server library. You can always configure this later in Settings.
         </p>
 
         <EditForm Model="_sonarrService" FormName="arr-setup">
@@ -79,6 +79,13 @@
                     <ArrServiceCard Service="_radarrService"
                                     GetWebhookUrl="@GetWebhookUrl"
                                     AutoSave="@PersistConnections"/>
+                </div>
+                <div class="col-md-6">
+                    <MediaServerCard Service="_mediaServerService"
+                                     ShowTypeSelector="true"
+                                     SelectedType="_mediaServerType"
+                                     OnTypeSelected="SetMediaServerType"
+                                     AutoSave="@PersistConnections"/>
                 </div>
             </div>
 
@@ -144,6 +151,8 @@
     private string? _error;
     private Integration _sonarrService = new() { Name = "Sonarr", Type = IntegrationType.Sonarr };
     private Integration _radarrService = new() { Name = "Radarr", Type = IntegrationType.Radarr };
+    private Integration _mediaServerService = new();
+    private IntegrationType? _mediaServerType;
 
     private string GetWebhookUrl()
     {
@@ -173,6 +182,7 @@
         var existing = await context.Integrations.ToListAsync();
         var sonarr = existing.FirstOrDefault(c => c.Type == IntegrationType.Sonarr);
         var radarr = existing.FirstOrDefault(c => c.Type == IntegrationType.Radarr);
+        var mediaServer = existing.FirstOrDefault(c => Integration.IsMediaServerType(c.Type));
         if (sonarr != null)
         {
             _sonarrService = sonarr;
@@ -180,6 +190,11 @@
         if (radarr != null)
         {
             _radarrService = radarr;
+        }
+        if (mediaServer != null)
+        {
+            _mediaServerService = mediaServer;
+            _mediaServerType = mediaServer.Type;
         }
 
         var webhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
@@ -233,6 +248,20 @@
         GoToStep(2);
     }
 
+    private void SetMediaServerType(IntegrationType type)
+    {
+        if (_mediaServerType == type)
+        {
+            return;
+        }
+
+        _mediaServerType = type;
+        _mediaServerService.Name = type.ToString();
+        _mediaServerService.Type = type;
+        _mediaServerService.Url = string.Empty;
+        _mediaServerService.ApiKey = string.Empty;
+    }
+
     private async Task SaveAndContinue()
     {
         await PersistConnections();
@@ -258,6 +287,29 @@
                 {
                     existing.Url = svc.Url;
                     existing.ApiKey = svc.ApiKey;
+                }
+            }
+        }
+
+        if (_mediaServerType.HasValue)
+        {
+            _mediaServerService.Name = _mediaServerType.Value.ToString();
+            _mediaServerService.Type = _mediaServerType.Value;
+            _mediaServerService.Url = _mediaServerService.Url.SanitizeUrl();
+
+            if (_mediaServerService.Id == 0)
+            {
+                context.Integrations.Add(_mediaServerService);
+            }
+            else
+            {
+                var existingMediaServer = await context.Integrations.FindAsync(_mediaServerService.Id);
+                if (existingMediaServer != null)
+                {
+                    existingMediaServer.Name = _mediaServerService.Name;
+                    existingMediaServer.Type = _mediaServerService.Type;
+                    existingMediaServer.Url = _mediaServerService.Url;
+                    existingMediaServer.ApiKey = _mediaServerService.ApiKey;
                 }
             }
         }

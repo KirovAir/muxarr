@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Muxarr.Core.Api;
 using Muxarr.Core.Config;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.FFmpeg;
@@ -15,6 +16,7 @@ namespace Muxarr.Web.Services;
 public class MediaConverterService(
     IServiceScopeFactory serviceScopeFactory,
     MediaScannerService scanner,
+    MediaServerClientFactory mediaServerClientFactory,
     ILogger<MediaConverterService> logger)
     : ConfigurableServiceBase<ProcessingConfig>(serviceScopeFactory, logger)
 {
@@ -696,6 +698,12 @@ public class MediaConverterService(
 
     private async Task RunPostProcessing(MediaConversion conversion)
     {
+        await RunCustomPostProcessing(conversion);
+        await RunMediaServerRefresh(conversion);
+    }
+
+    private async Task RunCustomPostProcessing(MediaConversion conversion)
+    {
         if (!Config.PostProcessingEnabled || string.IsNullOrWhiteSpace(Config.PostProcessingCommand))
         {
             return;
@@ -732,6 +740,17 @@ public class MediaConverterService(
         {
             conversion.Log($"Post-processing failed: {e.Message}", logger, true);
         }
+    }
+
+    private async Task RunMediaServerRefresh(MediaConversion conversion)
+    {
+        if (!Config.MediaServerRefreshEnabled)
+        {
+            return;
+        }
+
+        conversion.Log("Refreshing media servers..", logger);
+        await mediaServerClientFactory.RefreshAll(conversion.MediaFile!.Path);
     }
 }
 
