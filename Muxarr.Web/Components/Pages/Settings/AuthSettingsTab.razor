@@ -60,11 +60,11 @@
 
                 <div class="mb-3">
                     <div class="input-group">
-                        <InputText type="@ApiKeyInputType"
-                                   class="form-control"
-                                   @bind-Value="_apiKey"
-                                   readonly
-                                   autocomplete="off"/>
+                        <input type="@ApiKeyInputType"
+                               class="form-control"
+                               value="@_apiKey"
+                               readonly
+                               autocomplete="off"/>
                         <ToolTip Tip="@ApiKeyVisibilityTooltip">
                             <button type="button"
                                     class="btn btn-outline-secondary"
