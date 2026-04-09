@@ -18,7 +18,7 @@ public class ScheduledServiceManager(ILogger<ScheduledServiceManager> logger, IE
             }
             else
             {
-                logger.LogInformation("{ServiceName} is disabled", service.GetType().Name);
+                logger.LogInformation("{ServiceName} scheduling is disabled", service.GetType().Name);
             }
         }
 

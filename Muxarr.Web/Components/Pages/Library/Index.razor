@@ -71,7 +71,7 @@
         <div class="col">
             <SearchBar Parent="this"></SearchBar>
         </div>
-        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
+        <div class="col-12 col-md-auto d-flex flex-wrap gap-2 align-items-center">
             <ResetFilters Parent="this"></ResetFilters>
             @if (_profileSummaries.Count > 1)
             {
@@ -94,8 +94,6 @@
                     @onclick="() => _showAdvanced = !_showAdvanced">
                 <i class="bi bi-funnel me-1"></i>Advanced
             </button>
-        </div>
-        <div class="col-auto">
             <ItemsPerPage Parent="this"/>
         </div>
     </div>

@@ -1,9 +1,7 @@
-<div class="form-group">
-    @if (Parent.HasActiveFilters)
-    {
-        <button class="btn btn-outline-primary btn-sm" @onclick="() => Parent.LoadFilters(true)">Reset filters</button>
-    }
-</div>
+@if (Parent.HasActiveFilters)
+{
+    <button class="btn btn-outline-primary btn-sm" @onclick="() => Parent.LoadFilters(true)">Reset filters</button>
+}
 
 @code {
     [Parameter] [EditorRequired] public required PaginatedListComponentBase Parent { get; set; }

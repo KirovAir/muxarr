@@ -129,7 +129,7 @@
         <div class="col">
             <SearchBar Parent="this"></SearchBar>
         </div>
-        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
+        <div class="col-12 col-md-auto d-flex flex-wrap gap-2 align-items-center">
             <div class="btn-group btn-group-sm">
                 @foreach (var state in _stateOptions)
                 {
@@ -139,11 +139,7 @@
                     </button>
                 }
             </div>
-        </div>
-        <div class="col-auto d-flex justify-content-center gap-2 align-items-center">
             <ResetFilters Parent="this"></ResetFilters>
-        </div>
-        <div class="col-auto">
             <ItemsPerPage Parent="this"/>
         </div>
     </div>
