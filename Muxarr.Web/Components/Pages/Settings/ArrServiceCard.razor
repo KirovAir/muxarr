@@ -31,13 +31,13 @@
         <InputText id="@($"url-{ElementId}")" class="form-control" placeholder="@Example" @bind-Value="Service.Url"/>
     </div>
 
-                       autocomplete="off"
+    <div class="mb-3">
         <label for="@($"apiKey-{ElementId}")" class="form-label">API Key</label>
         <div class="input-group">
             <InputText id="@($"apiKey-{ElementId}")"
                        class="form-control"
                        type="@ApiKeyInputType"
-                       autocomplete="current-password"
+                       autocomplete="off"
                        @bind-Value="Service.ApiKey"/>
             <ToolTip Tip="@ApiKeyVisibilityTooltip">
                 <button type="button"
