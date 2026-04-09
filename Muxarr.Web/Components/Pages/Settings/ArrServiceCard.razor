@@ -21,19 +21,19 @@
     @if (ShowName)
     {
         <div class="mb-3">
-            <label for="@($"name-{Service.Id}")" class="form-label">Name</label>
-            <InputText id="@($"name-{Service.Id}")" class="form-control" @bind-Value="Service.Name"/>
+            <label for="@($"name-{ElementId}")" class="form-label">Name</label>
+            <InputText id="@($"name-{ElementId}")" class="form-control" @bind-Value="Service.Name"/>
         </div>
     }
 
     <div class="mb-3">
-        <label for="@($"url-{Service.Id}")" class="form-label">URL</label>
-        <InputText id="@($"url-{Service.Id}")" class="form-control" placeholder="@Example" @bind-Value="Service.Url"/>
+        <label for="@($"url-{ElementId}")" class="form-label">URL</label>
+        <InputText id="@($"url-{ElementId}")" class="form-control" placeholder="@Example" @bind-Value="Service.Url"/>
     </div>
 
     <div class="mb-3">
-        <label for="@($"apiKey-{Service.Id}")" class="form-label">API Key</label>
-        <InputText id="@($"apiKey-{Service.Id}")" class="form-control" @bind-Value="Service.ApiKey"/>
+        <label for="@($"apiKey-{ElementId}")" class="form-label">API Key</label>
+        <InputText id="@($"apiKey-{ElementId}")" class="form-control" @bind-Value="Service.ApiKey"/>
         <small class="form-text text-muted">Found in @TypeName &gt; Settings &gt; General &gt; Security</small>
     </div>
 
@@ -76,6 +76,7 @@
         ? "http://sonarr.instance:8989"
         : "http://radarr.instance:7878";
     private string IconClass => Service.Type == IntegrationType.Sonarr ? "bi-tv" : "bi-film";
+    private string ElementId => Service.Id != 0 ? Service.Id.ToString() : Service.GetHashCode().ToString();
 
     private bool _isBusy;
     private bool? _isConnected;

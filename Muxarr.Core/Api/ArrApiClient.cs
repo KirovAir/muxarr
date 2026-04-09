@@ -17,6 +17,8 @@ public class ArrApiClient
         _httpClientFactory = httpClientFactory;
     }
 
+    public const string HttpClientName = "Arr";
+
     private const string MovieUrl = "/api/v3/movie";
     private const string SeriesUrl = "/api/v3/series";
     private const string EpisodesUrl = "/api/v3/episode?seriesId={0}&includeEpisodeFile=true";
@@ -133,7 +135,7 @@ public class ArrApiClient
 
         try
         {
-            using var client = _httpClientFactory.CreateClient("Arr");
+            using var client = _httpClientFactory.CreateClient(HttpClientName);
             using var request = new HttpRequestMessage(HttpMethod.Get, requestUrl);
             request.Headers.Add("X-Api-Key", config.ApiKey.Trim());
 
@@ -185,7 +187,7 @@ public class ArrApiClient
 
         try
         {
-            using var client = _httpClientFactory.CreateClient("Arr");
+            using var client = _httpClientFactory.CreateClient(HttpClientName);
             using var request = new HttpRequestMessage(method, requestUrl);
             request.Headers.Add("X-Api-Key", config.ApiKey.Trim());
 

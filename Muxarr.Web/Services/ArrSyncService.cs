@@ -44,41 +44,48 @@ public class ArrSyncService(
                 continue;
             }
 
-            if (conn.Type == IntegrationType.Radarr)
+            try
             {
-                var result = await arrApi.SyncMovies(conn);
-                if (result.Count > 0)
+                if (conn.Type == IntegrationType.Radarr)
                 {
-                    logger.LogInformation("Synced {Count} movie(s) from {Name}", result.Count, conn.Name);
-                }
+                    var result = await arrApi.SyncMovies(conn);
+                    if (result.Count > 0)
+                    {
+                        logger.LogInformation("Synced {Count} movie(s) from {Name}", result.Count, conn.Name);
+                    }
 
-                await SyncMedia(context, result.Select(x => new MediaInfo
+                    await SyncMedia(context, result.Select(x => new MediaInfo
+                    {
+                        ExternalId = x.Id,
+                        IntegrationId = conn.Id,
+                        IsMovie = true,
+                        OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
+                        Path = x.MovieFile.Path,
+                        Title = x.Title
+                    }), conn.Id, token);
+                }
+                else
                 {
-                    ExternalId = x.Id,
-                    IntegrationId = conn.Id,
-                    IsMovie = true,
-                    OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
-                    Path = x.MovieFile.Path,
-                    Title = x.Title
-                }), conn.Id, token);
+                    var result = await arrApi.SyncSeries(conn);
+                    if (result.Count > 0)
+                    {
+                        logger.LogInformation("Synced {Count} series from {Name}", result.Count, conn.Name);
+                    }
+
+                    await SyncMedia(context, result.Select(x => new MediaInfo
+                    {
+                        ExternalId = x.Id,
+                        IntegrationId = conn.Id,
+                        IsMovie = false,
+                        OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
+                        Path = x.Path,
+                        Title = x.Title
+                    }), conn.Id, token);
+                }
             }
-            else
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                var result = await arrApi.SyncSeries(conn);
-                if (result.Count > 0)
-                {
-                    logger.LogInformation("Synced {Count} series from {Name}", result.Count, conn.Name);
-                }
-
-                await SyncMedia(context, result.Select(x => new MediaInfo
-                {
-                    ExternalId = x.Id,
-                    IntegrationId = conn.Id,
-                    IsMovie = false,
-                    OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
-                    Path = x.Path,
-                    Title = x.Title
-                }), conn.Id, token);
+                logger.LogError(ex, "Failed to sync {Name}, skipping", conn.Name);
             }
         }
     }
