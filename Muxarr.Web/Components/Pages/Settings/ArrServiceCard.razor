@@ -27,7 +27,22 @@
 
     <div class="mb-3">
         <label for="@($"apiKey-{Name}")" class="form-label">API Key</label>
-        <InputText id="@($"apiKey-{Name}")" class="form-control" @bind-Value="Config.ApiKey"/>
+        <div class="input-group">
+            <InputText id="@($"apiKey-{Name}")"
+                       class="form-control"
+                       type="@ApiKeyInputType"
+                       autocomplete="current-password"
+                       @bind-Value="Config.ApiKey"/>
+            <ToolTip Tip="@ApiKeyVisibilityTooltip">
+                <button type="button"
+                        class="btn btn-outline-secondary"
+                        aria-label="@(_showApiKey ? $"Hide {Name} API key" : $"Show {Name} API key")"
+                        aria-pressed="@_showApiKey"
+                        @onclick="ToggleApiKeyVisibility">
+                    <i class="bi @(_showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
+                </button>
+            </ToolTip>
+        </div>
         <ValidationMessage For="@(() => Config.ApiKey)"/>
         <small class="form-text text-muted">Found in @Name &gt; Settings &gt; General &gt; Security</small>
     </div>
@@ -61,6 +76,10 @@
     private bool _isBusy;
     private bool? _isConnected;
     private bool? _isWebhookConnected;
+    private bool _showApiKey;
+
+    private string ApiKeyInputType => _showApiKey ? "text" : "password";
+    private string ApiKeyVisibilityTooltip => _showApiKey ? "Hide API key" : "Show API key";
 
     [Parameter] [EditorRequired] public required ArrConfig Config { get; set; }
     [Parameter] [EditorRequired] public required string Name { get; set; }
@@ -236,6 +255,11 @@
     public static string SanitizeUrl(string url)
     {
         return new string(url.Where(c => !char.IsWhiteSpace(c)).ToArray()).TrimEnd('/');
+    }
+
+    private void ToggleApiKeyVisibility()
+    {
+        _showApiKey = !_showApiKey;
     }
 
 }

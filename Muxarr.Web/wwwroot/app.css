@@ -402,6 +402,32 @@
     transform: translateX(-50%);
 }
 
+.input-group > .mux-tooltip-trigger {
+    display: flex;
+    align-items: stretch;
+}
+
+.input-group > .mux-tooltip-trigger > .btn {
+    position: relative;
+    z-index: 2;
+}
+
+.input-group > .mux-tooltip-trigger:not(:first-child) > .btn {
+    margin-left: calc(var(--bs-border-width) * -1);
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.input-group > .mux-tooltip-trigger:not(:last-child) > .btn {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+.input-group > .mux-tooltip-trigger > .btn:focus,
+.input-group > .mux-tooltip-trigger > .btn:hover {
+    z-index: 5;
+}
+
 @keyframes mux-tooltip-in {
     from {
         opacity: 0;

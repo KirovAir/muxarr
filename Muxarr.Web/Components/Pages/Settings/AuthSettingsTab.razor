@@ -60,7 +60,20 @@
 
                 <div class="mb-3">
                     <div class="input-group">
-                        <input type="text" class="form-control" value="@_apiKey" readonly/>
+                        <InputText type="@ApiKeyInputType"
+                                   class="form-control"
+                                   @bind-Value="_apiKey"
+                                   readonly
+                                   autocomplete="off"/>
+                        <ToolTip Tip="@ApiKeyVisibilityTooltip">
+                            <button type="button"
+                                    class="btn btn-outline-secondary"
+                                    aria-label="@ApiKeyVisibilityTooltip"
+                                    aria-pressed="@_showApiKey"
+                                    @onclick="ToggleApiKeyVisibility">
+                                <i class="bi @(_showApiKey ? "bi-eye-slash" : "bi-eye")"></i>
+                            </button>
+                        </ToolTip>
                         <ToolTip Tip="Regenerate API key">
                             <button type="button" class="btn btn-outline-secondary" @onclick="RegenerateApiKey">
                                 <i class="bi bi-arrow-clockwise"></i>
@@ -84,6 +97,10 @@
     private bool IsConfigured { get; set; }
     private string CurrentUsername { get; set; } = string.Empty;
     private string _apiKey = string.Empty;
+    private bool _showApiKey;
+
+    private string ApiKeyInputType => _showApiKey ? "text" : "password";
+    private string ApiKeyVisibilityTooltip => _showApiKey ? "Hide API key" : "Show API key";
 
     protected override async Task OnInitializedAsync()
     {
@@ -192,6 +209,11 @@
         await context.SaveChangesAsync();
 
         ToastService.ShowInfo("New API key generated. Reconnect your *Arr instances and external integrations.");
+    }
+
+    private void ToggleApiKeyVisibility()
+    {
+        _showApiKey = !_showApiKey;
     }
 
     private class AuthFormModel
