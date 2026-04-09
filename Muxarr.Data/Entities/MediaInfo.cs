@@ -7,10 +7,13 @@ namespace Muxarr.Data.Entities
     {
         public int Id { get; set; }
         public int ExternalId { get; set; }
+        public int? IntegrationId { get; set; }
         public string Title { get; set; } = string.Empty;
         public string OriginalLanguage { get; set; } = string.Empty;
         public string Path { get; set; } = string.Empty;
         public bool IsMovie { get; set; }
+
+        public Integration? Integration { get; set; }
     }
 
     public class MediaInfoConfiguration : AuditEntityConfiguration<MediaInfo>
@@ -25,8 +28,10 @@ namespace Muxarr.Data.Entities
             builder.Property(e => e.Id)
                 .ValueGeneratedOnAdd();
 
-            builder.HasIndex(e => new { e.ExternalId, e.IsMovie })
+            builder.HasIndex(e => new { e.ExternalId, e.IntegrationId })
                 .IsUnique();
+
+            builder.HasIndex(e => e.IntegrationId);
 
             builder.HasIndex(e => e.Path);
 

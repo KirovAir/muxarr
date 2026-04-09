@@ -31,7 +31,7 @@ await builder.RunWithLoggingAsync(async b =>
     b.Services.AddDbContext<AppDbContext>();
     b.Services.AddDataProtection()
         .PersistKeysToDbContext<AppDbContext>();
-    b.Services.AddHttpClient("Arr", client => { client.Timeout = TimeSpan.FromSeconds(10); });
+    b.Services.AddHttpClient(ArrApiClient.HttpClientName, client => { client.Timeout = TimeSpan.FromSeconds(10); });
 
     // Authentication & rate limiting
     b.Services.AddMuxarrAuthentication();

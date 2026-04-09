@@ -6,4 +6,9 @@ public static class StringExtensions
     {
         return !source.EndsWith(value) ? source : source.Remove(source.LastIndexOf(value, StringComparison.Ordinal));
     }
+
+    public static string SanitizeUrl(this string url)
+    {
+        return new string(url.Where(c => !char.IsWhiteSpace(c)).ToArray()).TrimEnd('/');
+    }
 }

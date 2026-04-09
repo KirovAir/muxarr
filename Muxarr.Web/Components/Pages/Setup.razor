@@ -1,6 +1,7 @@
 @page "/setup"
 @using Microsoft.AspNetCore.Identity
 @using Muxarr.Core.Config
+@using Muxarr.Data.Entities
 @using Muxarr.Web.Components.Layout
 @using Muxarr.Web.Components.Pages.Settings
 @layout SetupLayout
@@ -58,7 +59,7 @@
             smarter track filtering. You can always configure this later in Settings.
         </p>
 
-        <EditForm Model="_arrConfigs" FormName="arr-setup">
+        <EditForm Model="_sonarrService" FormName="arr-setup">
             <div class="border rounded p-4 mb-4">
                 <h5 class="mb-3"><i class="bi bi-link-45deg me-2"></i>Muxarr URL</h5>
                 <input type="text" class="form-control" @bind="_muxarrUrl" placeholder="http://muxarr:8183"/>
@@ -70,14 +71,12 @@
 
             <div class="row g-4 mb-4">
                 <div class="col-md-6">
-                    <ArrServiceCard Name="Sonarr" Config="_sonarrConfig"
-                                    ConfigKey="@ArrConfig.SonarrKey"
+                    <ArrServiceCard Service="_sonarrService"
                                     GetWebhookUrl="@GetWebhookUrl"
                                     AutoSave="@PersistConnections"/>
                 </div>
                 <div class="col-md-6">
-                    <ArrServiceCard Name="Radarr" Config="_radarrConfig"
-                                    ConfigKey="@ArrConfig.RadarrKey"
+                    <ArrServiceCard Service="_radarrService"
                                     GetWebhookUrl="@GetWebhookUrl"
                                     AutoSave="@PersistConnections"/>
                 </div>
@@ -143,9 +142,8 @@
     private string _muxarrUrl = "";
     private string _webhookApiKey = "";
     private string? _error;
-    private readonly ArrConfigs _arrConfigs = new();
-    private ArrConfig _sonarrConfig => _arrConfigs.Sonarr;
-    private ArrConfig _radarrConfig => _arrConfigs.Radarr;
+    private Integration _sonarrService = new() { Name = "Sonarr", Type = IntegrationType.Sonarr };
+    private Integration _radarrService = new() { Name = "Radarr", Type = IntegrationType.Radarr };
 
     private string GetWebhookUrl()
     {
@@ -163,9 +161,6 @@
         return url;
     }
 
-    private bool HasSonarr => !string.IsNullOrWhiteSpace(_sonarrConfig.Url) && !string.IsNullOrWhiteSpace(_sonarrConfig.ApiKey);
-    private bool HasRadarr => !string.IsNullOrWhiteSpace(_radarrConfig.Url) && !string.IsNullOrWhiteSpace(_radarrConfig.ApiKey);
-
     protected override async Task OnInitializedAsync()
     {
         await using var context = await ContextFactory.CreateDbContextAsync();
@@ -175,8 +170,18 @@
             return;
         }
 
-        _arrConfigs.Sonarr = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.SonarrKey);
-        _arrConfigs.Radarr = context.Configs.GetOrDefault<ArrConfig>(ArrConfig.RadarrKey);
+        var existing = await context.Integrations.ToListAsync();
+        var sonarr = existing.FirstOrDefault(c => c.Type == IntegrationType.Sonarr);
+        var radarr = existing.FirstOrDefault(c => c.Type == IntegrationType.Radarr);
+        if (sonarr != null)
+        {
+            _sonarrService = sonarr;
+        }
+        if (radarr != null)
+        {
+            _radarrService = radarr;
+        }
+
         var webhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
         _muxarrUrl = !string.IsNullOrWhiteSpace(webhookConfig.MuxarrUrl)
             ? webhookConfig.MuxarrUrl
@@ -238,20 +243,27 @@
     {
         await using var context = await ContextFactory.CreateDbContextAsync();
 
-        if (HasSonarr)
+        foreach (var svc in new[] { _sonarrService, _radarrService })
         {
-            _sonarrConfig.Url = ArrServiceCard.SanitizeUrl(_sonarrConfig.Url);
-            context.Configs.Set(_sonarrConfig, ArrConfig.SonarrKey);
-        }
+            svc.Url = svc.Url.SanitizeUrl();
 
-        if (HasRadarr)
-        {
-            _radarrConfig.Url = ArrServiceCard.SanitizeUrl(_radarrConfig.Url);
-            context.Configs.Set(_radarrConfig, ArrConfig.RadarrKey);
+            if (svc.Id == 0)
+            {
+                context.Integrations.Add(svc);
+            }
+            else
+            {
+                var existing = await context.Integrations.FindAsync(svc.Id);
+                if (existing != null)
+                {
+                    existing.Url = svc.Url;
+                    existing.ApiKey = svc.ApiKey;
+                }
+            }
         }
 
         var webhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
-        webhookConfig.MuxarrUrl = ArrServiceCard.SanitizeUrl(_muxarrUrl);
+        webhookConfig.MuxarrUrl = _muxarrUrl.SanitizeUrl();
 
         if (string.IsNullOrEmpty(webhookConfig.ApiKey))
         {
