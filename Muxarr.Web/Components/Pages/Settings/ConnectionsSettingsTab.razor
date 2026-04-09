@@ -12,6 +12,7 @@
             <InputText class="form-control" @bind-Value="WebhookConfig.MuxarrUrl"/>
             <small class="form-text text-muted">
                 The URL that Sonarr/Radarr can reach Muxarr at. Example: <code>http://muxarr:8183</code>
+                (Docker) or <code>http://x.x.x.x:8183</code> (LAN IP)
             </small>
         </div>
     </div>
@@ -31,29 +32,33 @@
     </div>
 
     <div class="d-flex gap-2 mb-4">
-        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(ExternalServiceType.Sonarr)">
+        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(IntegrationType.Sonarr)">
             <i class="bi bi-plus-circle me-1"></i>Add Sonarr
         </button>
-        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(ExternalServiceType.Radarr)">
+        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(IntegrationType.Radarr)">
             <i class="bi bi-plus-circle me-1"></i>Add Radarr
         </button>
     </div>
 
-    <div class="border rounded p-4 mb-4">
-        <h5 class="mb-3"><i class="bi bi-info-circle me-2"></i>Manual Webhook Setup</h5>
-        <p class="text-muted mb-2">If you prefer to configure webhooks manually in Sonarr/Radarr:</p>
-        <ol class="text-muted">
-            <li>Go to Settings &gt; Connect &gt; Add &gt; Webhook</li>
-            <li>Set the URL to: <code>@WebhookUrl</code></li>
-            <li>Set Method to <strong>POST</strong></li>
-            <li>Enable <strong>On Import</strong> and <strong>On Rename</strong></li>
-        </ol>
-        @if (!string.IsNullOrEmpty(WebhookConfig.ApiKey))
-        {
-            <p class="text-muted small"><i class="bi bi-shield-lock me-1"></i>The API key is included in the URL above
-                as a query parameter.</p>
-        }
-    </div>
+    <details class="mb-4">
+        <summary class="text-muted" role="button">
+            <i class="bi bi-info-circle me-1"></i>Manual Webhook Setup
+        </summary>
+        <div class="border rounded p-4 mt-2">
+            <p class="text-muted mb-2">If you prefer to configure webhooks manually in Sonarr/Radarr:</p>
+            <ol class="text-muted">
+                <li>Go to Settings &gt; Connect &gt; Add &gt; Webhook</li>
+                <li>Set the URL to: <code>@WebhookUrl</code></li>
+                <li>Set Method to <strong>POST</strong></li>
+                <li>Enable <strong>On Import</strong> and <strong>On Rename</strong></li>
+            </ol>
+            @if (!string.IsNullOrEmpty(WebhookConfig.ApiKey))
+            {
+                <p class="text-muted small mb-0"><i class="bi bi-shield-lock me-1"></i>The API key is included in the
+                    URL above as a query parameter.</p>
+            }
+        </div>
+    </details>
 
     <StickyBar>
         <button type="submit" class="btn btn-primary">
@@ -67,7 +72,7 @@
     [Inject] public required IToastService ToastService { get; set; }
     [Inject] public required IModalService ModalService { get; set; }
 
-    private List<ExternalService> Services { get; set; } = [];
+    private List<Integration> Services { get; set; } = [];
     private WebhookConfig WebhookConfig { get; set; } = new();
 
     private string WebhookUrl
@@ -89,30 +94,30 @@
         }
     }
 
-    private bool HasMultiple(ExternalServiceType type) => Services.Count(s => s.Type == type) > 1;
+    private bool HasMultiple(IntegrationType type) => Services.Count(s => s.Type == type) > 1;
 
-    private bool IsDefault(ExternalService svc) =>
+    private bool IsDefault(Integration svc) =>
         svc == Services.FirstOrDefault(s => s.Type == svc.Type);
 
     protected override async Task OnInitializedAsync()
     {
         await using var context = await ContextFactory.CreateDbContextAsync();
 
-        Services = await context.ExternalServices.OrderBy(c => c.Id).ToListAsync();
+        Services = await context.Integrations.OrderBy(c => c.Id).ToListAsync();
 
         // Ensure default Sonarr/Radarr records always exist
         var changed = false;
-        if (!Services.Any(s => s.Type == ExternalServiceType.Sonarr))
+        if (!Services.Any(s => s.Type == IntegrationType.Sonarr))
         {
-            var sonarr = new ExternalService { Name = "Sonarr", Type = ExternalServiceType.Sonarr };
-            context.ExternalServices.Add(sonarr);
+            var sonarr = new Integration { Name = "Sonarr", Type = IntegrationType.Sonarr };
+            context.Integrations.Add(sonarr);
             Services.Insert(0, sonarr);
             changed = true;
         }
-        if (!Services.Any(s => s.Type == ExternalServiceType.Radarr))
+        if (!Services.Any(s => s.Type == IntegrationType.Radarr))
         {
-            var radarr = new ExternalService { Name = "Radarr", Type = ExternalServiceType.Radarr };
-            context.ExternalServices.Add(radarr);
+            var radarr = new Integration { Name = "Radarr", Type = IntegrationType.Radarr };
+            context.Integrations.Add(radarr);
             Services.Add(radarr);
             changed = true;
         }
@@ -124,15 +129,15 @@
         WebhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
     }
 
-    private void AddService(ExternalServiceType type)
+    private void AddService(IntegrationType type)
     {
-        var name = type == ExternalServiceType.Sonarr ? "Sonarr" : "Radarr";
+        var name = type == IntegrationType.Sonarr ? "Sonarr" : "Radarr";
         name += $" {Services.Count(c => c.Type == type) + 1}";
 
-        Services.Add(new ExternalService { Name = name, Type = type });
+        Services.Add(new Integration { Name = name, Type = type });
     }
 
-    private async Task RemoveService(ExternalService svc)
+    private async Task RemoveService(Integration svc)
     {
         if (svc.Id != 0)
         {
@@ -149,10 +154,10 @@
         if (svc.Id != 0)
         {
             await using var context = await ContextFactory.CreateDbContextAsync();
-            var existing = await context.ExternalServices.FindAsync(svc.Id);
+            var existing = await context.Integrations.FindAsync(svc.Id);
             if (existing != null)
             {
-                context.ExternalServices.Remove(existing);
+                context.Integrations.Remove(existing);
                 await context.SaveChangesAsync();
             }
         }
@@ -184,18 +189,18 @@
             {
                 if (string.IsNullOrWhiteSpace(svc.Name))
                 {
-                    svc.Name = svc.Type == ExternalServiceType.Sonarr ? "Sonarr" : "Radarr";
+                    svc.Name = svc.Type == IntegrationType.Sonarr ? "Sonarr" : "Radarr";
                 }
 
                 svc.Url = svc.Url.SanitizeUrl();
 
                 if (svc.Id == 0)
                 {
-                    context.ExternalServices.Add(svc);
+                    context.Integrations.Add(svc);
                 }
                 else
                 {
-                    var existing = await context.ExternalServices.FindAsync(svc.Id);
+                    var existing = await context.Integrations.FindAsync(svc.Id);
                     if (existing != null)
                     {
                         existing.Name = svc.Name;
@@ -210,7 +215,7 @@
             // Refresh IDs for newly added services
             if (Services.Any(c => c.Id == 0))
             {
-                Services = await context.ExternalServices.OrderBy(c => c.Id).ToListAsync();
+                Services = await context.Integrations.OrderBy(c => c.Id).ToListAsync();
             }
 
             if (showToast)

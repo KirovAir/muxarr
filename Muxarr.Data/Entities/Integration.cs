@@ -4,30 +4,30 @@ using Muxarr.Core.Config;
 
 namespace Muxarr.Data.Entities;
 
-public enum ExternalServiceType
+public enum IntegrationType
 {
-    Sonarr = 0,
-    Radarr = 1
+    Sonarr,
+    Radarr
 }
 
-public class ExternalService : AuditableEntity, IApiCredentials
+public class Integration : AuditableEntity, IApiCredentials
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public ExternalServiceType Type { get; set; }
+    public IntegrationType Type { get; set; }
     public string Url { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
 
     public List<MediaInfo> MediaInfos { get; set; } = [];
 }
 
-public class ExternalServiceConfiguration : AuditEntityConfiguration<ExternalService>
+public class IntegrationConfiguration : AuditEntityConfiguration<Integration>
 {
-    public override void Configure(EntityTypeBuilder<ExternalService> builder)
+    public override void Configure(EntityTypeBuilder<Integration> builder)
     {
         base.Configure(builder);
 
-        builder.ToTable(nameof(ExternalService));
+        builder.ToTable(nameof(Integration));
 
         builder.HasKey(e => e.Id);
         builder.Property(e => e.Id)
@@ -51,8 +51,8 @@ public class ExternalServiceConfiguration : AuditEntityConfiguration<ExternalSer
             .HasMaxLength(500);
 
         builder.HasMany(e => e.MediaInfos)
-            .WithOne(e => e.ExternalService)
-            .HasForeignKey(e => e.ExternalServiceId)
+            .WithOne(e => e.Integration)
+            .HasForeignKey(e => e.IntegrationId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

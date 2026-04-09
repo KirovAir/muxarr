@@ -142,8 +142,8 @@
     private string _muxarrUrl = "";
     private string _webhookApiKey = "";
     private string? _error;
-    private ExternalService _sonarrService = new() { Name = "Sonarr", Type = ExternalServiceType.Sonarr };
-    private ExternalService _radarrService = new() { Name = "Radarr", Type = ExternalServiceType.Radarr };
+    private Integration _sonarrService = new() { Name = "Sonarr", Type = IntegrationType.Sonarr };
+    private Integration _radarrService = new() { Name = "Radarr", Type = IntegrationType.Radarr };
 
     private string GetWebhookUrl()
     {
@@ -170,9 +170,9 @@
             return;
         }
 
-        var existing = await context.ExternalServices.ToListAsync();
-        var sonarr = existing.FirstOrDefault(c => c.Type == ExternalServiceType.Sonarr);
-        var radarr = existing.FirstOrDefault(c => c.Type == ExternalServiceType.Radarr);
+        var existing = await context.Integrations.ToListAsync();
+        var sonarr = existing.FirstOrDefault(c => c.Type == IntegrationType.Sonarr);
+        var radarr = existing.FirstOrDefault(c => c.Type == IntegrationType.Radarr);
         if (sonarr != null)
         {
             _sonarrService = sonarr;
@@ -249,11 +249,11 @@
 
             if (svc.Id == 0)
             {
-                context.ExternalServices.Add(svc);
+                context.Integrations.Add(svc);
             }
             else
             {
-                var existing = await context.ExternalServices.FindAsync(svc.Id);
+                var existing = await context.Integrations.FindAsync(svc.Id);
                 if (existing != null)
                 {
                     existing.Url = svc.Url;

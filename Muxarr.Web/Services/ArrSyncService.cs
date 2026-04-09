@@ -35,7 +35,7 @@ public class ArrSyncService(
 
     private async Task SyncArrs(AppDbContext context, CancellationToken token)
     {
-        var connections = await context.ExternalServices.ToListAsync(token);
+        var connections = await context.Integrations.ToListAsync(token);
 
         foreach (var conn in connections)
         {
@@ -44,7 +44,7 @@ public class ArrSyncService(
                 continue;
             }
 
-            if (conn.Type == ExternalServiceType.Radarr)
+            if (conn.Type == IntegrationType.Radarr)
             {
                 var result = await arrApi.SyncMovies(conn);
                 if (result.Count > 0)
@@ -55,7 +55,7 @@ public class ArrSyncService(
                 await SyncMedia(context, result.Select(x => new MediaInfo
                 {
                     ExternalId = x.Id,
-                    ExternalServiceId = conn.Id,
+                    IntegrationId = conn.Id,
                     IsMovie = true,
                     OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
                     Path = x.MovieFile.Path,
@@ -73,7 +73,7 @@ public class ArrSyncService(
                 await SyncMedia(context, result.Select(x => new MediaInfo
                 {
                     ExternalId = x.Id,
-                    ExternalServiceId = conn.Id,
+                    IntegrationId = conn.Id,
                     IsMovie = false,
                     OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
                     Path = x.Path,
@@ -86,7 +86,7 @@ public class ArrSyncService(
     private static async Task SyncMedia(AppDbContext context, IEnumerable<MediaInfo> newMedia, int externalServiceId,
         CancellationToken token)
     {
-        var currentMedia = await context.MediaInfos.Where(x => x.ExternalServiceId == externalServiceId).ToListAsync(token);
+        var currentMedia = await context.MediaInfos.Where(x => x.IntegrationId == externalServiceId).ToListAsync(token);
         var newMediaDict = newMedia.ToDictionary(m => m.ExternalId);
 
         foreach (var media in currentMedia)

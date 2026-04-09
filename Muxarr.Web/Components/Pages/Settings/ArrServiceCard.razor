@@ -28,14 +28,13 @@
 
     <div class="mb-3">
         <label for="@($"url-{Service.Id}")" class="form-label">URL</label>
-        <InputText id="@($"url-{Service.Id}")" class="form-control" @bind-Value="Service.Url"/>
-        <small class="form-text text-muted">Example: @Example</small>
+        <InputText id="@($"url-{Service.Id}")" class="form-control" placeholder="@Example" @bind-Value="Service.Url"/>
     </div>
 
     <div class="mb-3">
         <label for="@($"apiKey-{Service.Id}")" class="form-label">API Key</label>
         <InputText id="@($"apiKey-{Service.Id}")" class="form-control" @bind-Value="Service.ApiKey"/>
-        <small class="form-text text-muted">Found in @TypeName > Settings > General > Security</small>
+        <small class="form-text text-muted">Found in @TypeName &gt; Settings &gt; General &gt; Security</small>
     </div>
 
     <div class="d-flex gap-2 flex-wrap">
@@ -47,14 +46,17 @@
             <i class="bi bi-plug me-1"></i>Test Connection
         </button>
 
-        <button type="button" class="btn btn-outline-success btn-sm" @onclick="ConnectWebhook" disabled="@_isBusy">
-            <i class="bi bi-link-45deg me-1"></i>Connect Webhook
-        </button>
+        @if (_isConnected == true && _isWebhookConnected != true)
+        {
+            <button type="button" class="btn btn-outline-success btn-sm" @onclick="ConnectWebhook" disabled="@_isBusy">
+                <i class="bi bi-link-45deg me-1"></i>Connect Webhook
+            </button>
+        }
         @if (_isWebhookConnected == true)
         {
             <button type="button" class="btn btn-outline-danger btn-sm" @onclick="DisconnectWebhook"
                     disabled="@_isBusy">
-                <i class="bi bi-x-circle me-1"></i>Disconnect
+                <i class="bi bi-x-circle me-1"></i>Disconnect Webhook
             </button>
         }
 
@@ -69,17 +71,17 @@
 </div>
 
 @code {
-    private string TypeName => Service.Type == ExternalServiceType.Sonarr ? "Sonarr" : "Radarr";
-    private string Example => Service.Type == ExternalServiceType.Sonarr
+    private string TypeName => Service.Type == IntegrationType.Sonarr ? "Sonarr" : "Radarr";
+    private string Example => Service.Type == IntegrationType.Sonarr
         ? "http://sonarr.instance:8989"
         : "http://radarr.instance:7878";
-    private string IconClass => Service.Type == ExternalServiceType.Sonarr ? "bi-tv" : "bi-film";
+    private string IconClass => Service.Type == IntegrationType.Sonarr ? "bi-tv" : "bi-film";
 
     private bool _isBusy;
     private bool? _isConnected;
     private bool? _isWebhookConnected;
 
-    [Parameter] [EditorRequired] public required ExternalService Service { get; set; }
+    [Parameter] [EditorRequired] public required Integration Service { get; set; }
     [Parameter] public bool ShowName { get; set; }
     [Parameter] public bool CanDelete { get; set; }
     [Parameter] public Func<string>? GetWebhookUrl { get; set; }
@@ -123,6 +125,7 @@
 
         _isBusy = true;
         _isConnected = null;
+        _isWebhookConnected = null;
         StateHasChanged();
 
         try
@@ -178,7 +181,7 @@
             }
 
             await using var context = await ContextFactory.CreateDbContextAsync();
-            var svc = await context.ExternalServices.FindAsync(Service.Id);
+            var svc = await context.Integrations.FindAsync(Service.Id);
 
             if (svc == null || string.IsNullOrWhiteSpace(svc.Url) || string.IsNullOrWhiteSpace(svc.ApiKey))
             {
@@ -219,7 +222,7 @@
         try
         {
             await using var context = await ContextFactory.CreateDbContextAsync();
-            var svc = await context.ExternalServices.FindAsync(Service.Id);
+            var svc = await context.Integrations.FindAsync(Service.Id);
 
             if (svc == null)
             {

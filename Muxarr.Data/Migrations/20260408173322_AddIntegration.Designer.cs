@@ -11,8 +11,8 @@ using Muxarr.Data;
 namespace Muxarr.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260408173322_AddExternalService")]
-    partial class AddExternalService
+    [Migration("20260408173322_AddIntegration")]
+    partial class AddIntegration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -57,7 +57,7 @@ namespace Muxarr.Data.Migrations
                     b.ToTable("Config", (string)null);
                 });
 
-            modelBuilder.Entity("Muxarr.Data.Entities.ExternalService", b =>
+            modelBuilder.Entity("Muxarr.Data.Entities.Integration", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -91,7 +91,7 @@ namespace Muxarr.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("ExternalService", (string)null);
+                    b.ToTable("Integration", (string)null);
                 });
 
             modelBuilder.Entity("Muxarr.Data.Entities.LogEntry", b =>
@@ -301,7 +301,7 @@ namespace Muxarr.Data.Migrations
                     b.Property<int>("ExternalId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<int?>("ExternalServiceId")
+                    b.Property<int?>("IntegrationId")
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsMovie")
@@ -327,11 +327,11 @@ namespace Muxarr.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ExternalServiceId");
+                    b.HasIndex("IntegrationId");
 
                     b.HasIndex("Path");
 
-                    b.HasIndex("ExternalId", "ExternalServiceId")
+                    b.HasIndex("ExternalId", "IntegrationId")
                         .IsUnique();
 
                     b.ToTable("MediaInfo", (string)null);
@@ -476,12 +476,12 @@ namespace Muxarr.Data.Migrations
 
             modelBuilder.Entity("Muxarr.Data.Entities.MediaInfo", b =>
                 {
-                    b.HasOne("Muxarr.Data.Entities.ExternalService", "ExternalService")
+                    b.HasOne("Muxarr.Data.Entities.Integration", "Integration")
                         .WithMany("MediaInfos")
-                        .HasForeignKey("ExternalServiceId")
+                        .HasForeignKey("IntegrationId")
                         .OnDelete(DeleteBehavior.Cascade);
 
-                    b.Navigation("ExternalService");
+                    b.Navigation("Integration");
                 });
 
             modelBuilder.Entity("Muxarr.Data.Entities.MediaTrack", b =>
@@ -495,7 +495,7 @@ namespace Muxarr.Data.Migrations
                     b.Navigation("MediaFile");
                 });
 
-            modelBuilder.Entity("Muxarr.Data.Entities.ExternalService", b =>
+            modelBuilder.Entity("Muxarr.Data.Entities.Integration", b =>
                 {
                     b.Navigation("MediaInfos");
                 });
