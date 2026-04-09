@@ -1,18 +1,16 @@
+@using Muxarr.Core.Utilities
 @inject TimeAgoService TimeAgoService
 @inherits DisposableComponent
 
 <ToolTip Tip="@DateTime.ToLocalTime().ToString("g")">
-    <span class="text-body">@TimeAgoText</span>
+    <span class="text-body">@TimeHelper.FormatTimeAgo(DateTime)</span>
 </ToolTip>
 
 @code {
     [Parameter] [EditorRequired] public DateTime DateTime { get; set; }
 
-    private string TimeAgoText => GetTimeAgo(DateTime);
-
     protected override void OnInitialized()
     {
-        // Todo: check if we can fix performance with a check if render is needed?
         TimeAgoService.Subscribe(TriggerRender);
     }
 
@@ -20,43 +18,14 @@
     {
         if ((DateTime.UtcNow - DateTime).TotalMinutes > 60)
         {
-            return; // Skip 
+            return;
         }
 
         _ = InvokeAsync(StateHasChanged);
-    }
-
-    private string GetTimeAgo(DateTime dateTime)
-    {
-        var timespan = DateTime.UtcNow - dateTime;
-
-        if (timespan.TotalMinutes < 1)
-            return "just now";
-        if (timespan.TotalMinutes < 60)
-            return FormatTimeAgo(timespan.TotalMinutes, "minute");
-        if (timespan.TotalHours < 24)
-            return FormatTimeAgo(timespan.TotalHours, "hour");
-        if (timespan.TotalDays < 30)
-            return FormatTimeAgo(timespan.TotalDays, "day");
-
-        return dateTime.ToString("MMMM d, yyyy");
-    }
-
-    private string FormatTimeAgo(double timeValue, string unit)
-    {
-        var roundedValue = (int)Math.Floor(timeValue);
-
-        // Singular form for "1 minute", "1 hour", etc.
-        if (roundedValue == 1)
-            return $"1 {unit} ago";
-
-        // Plural form for values greater than 1
-        return $"{roundedValue} {unit}s ago";
     }
 
     public override void Dispose()
     {
         TimeAgoService.Unsubscribe(TriggerRender);
     }
-
 }

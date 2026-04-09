@@ -1,26 +1,22 @@
 @using Muxarr.Core.Config
+@using Muxarr.Core.Utilities
 <p class="text-muted">Configure processing behavior and automation after conversions.</p>
 
 <EditForm Model="WebhookConfig" OnValidSubmit="HandleSubmit">
     <div class="border rounded p-4 mb-4">
         <h5 class="mb-3"><i class="bi bi-search me-2"></i>Library Scanning</h5>
         <p class="text-muted small mb-3">Configure how often the library is automatically scanned for changes.
-            Manual scans can always be triggered from the library page.</p>
+            Set to 0 to disable when using webhooks. Manual scans can always be triggered from the library page.</p>
 
         <div class="mb-3">
-            <label for="scan-interval" class="form-label">Scan interval (minutes)</label>
-            <InputNumber id="scan-interval" class="form-control" style="max-width: 200px;"
-                         @bind-Value="ProcessingConfig.ScanIntervalMinutes"/>
-            <small class="form-text text-muted">
-                @if (ProcessingConfig.ScanIntervalMinutes <= 0)
-                {
-                    @:Disabled
-                }
-                else
-                {
-                    @($"{ProcessingConfig.ScanIntervalMinutes / 1440.0:G3} days")
-                }
-            </small>
+            <div class="d-flex align-items-center gap-2">
+                <label for="scan-interval" class="form-label mb-0 text-nowrap">Scan interval</label>
+                <InputNumber id="scan-interval" class="form-control form-control-sm" style="width: 80px;"
+                             @bind-Value="ProcessingConfig.ScanIntervalMinutes"/>
+                <span class="text-muted small text-nowrap">
+                    minutes (@TimeHelper.FormatMinutes(ProcessingConfig.ScanIntervalMinutes))
+                </span>
+            </div>
         </div>
     </div>
 

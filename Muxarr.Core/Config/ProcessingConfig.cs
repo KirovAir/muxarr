@@ -2,11 +2,7 @@ namespace Muxarr.Core.Config;
 
 public class ProcessingConfig
 {
-    /// <summary>
-    /// Interval in minutes between automatic library scans.
-    /// Set to 0 to disable scheduled scanning (manual scans still work).
-    /// </summary>
-    public int ScanIntervalMinutes { get; set; } = 1440;
+    public int ScanIntervalMinutes { get; set; }
 
     public bool PostProcessingEnabled { get; set; }
     public string PostProcessingCommand { get; set; } = string.Empty;
