@@ -613,7 +613,8 @@ public static class MediaFileExtensions
         double? truncateTarget = null;
         if (profile.TruncateToShortest)
         {
-            if (snapshots.OrderBy(t => t.Duration).First() is { Type: MediaTrackType.Video } shortest)
+            // Ensure video track is first when video/audio tracks are the same length
+            if (snapshots.OrderBy(t => t.Duration).ThenBy(t => t.Type is MediaTrackType.Video ? 0 : 1).First() is { Type: MediaTrackType.Video } shortest)
             {
                 truncateTarget = shortest.Duration;
             }
