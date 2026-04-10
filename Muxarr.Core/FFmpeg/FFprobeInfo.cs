@@ -39,6 +39,9 @@ public class FFprobeStream
     // String to tolerate ffprobe's "N/A" for non-video streams.
     [JsonPropertyName("bits_per_raw_sample")]
     public string? BitsPerRawSample { get; set; }
+    
+    [JsonPropertyName("duration")]
+    public double? Duration { get; set; }
 
     [JsonPropertyName("disposition")]
     public FFprobeDisposition? Disposition { get; set; }
@@ -90,5 +93,5 @@ public class FFprobeFormat
     public string? FormatName { get; set; }
 
     [JsonPropertyName("duration")]
-    public string? Duration { get; set; }
+    public double? Duration { get; set; }
 }

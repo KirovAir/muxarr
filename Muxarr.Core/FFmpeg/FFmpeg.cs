@@ -29,7 +29,7 @@ public static class FFmpeg
     {
         var result = await ProcessExecutor.ExecuteProcessAsync(
             FfprobeExecutable,
-            $"-v error -print_format json -show_streams -show_format \"{file}\"",
+            $"-v error -print_format json -show_streams -show_format -show_entries stream \"{file}\"",
             TimeSpan.FromSeconds(30));
 
         var json = new ProcessJsonResult<FFprobeResult>(result);

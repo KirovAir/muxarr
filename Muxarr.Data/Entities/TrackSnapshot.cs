@@ -20,6 +20,8 @@ public class TrackSnapshot : IMediaTrack
     public string LanguageCode { get; set; } = string.Empty;
     public string LanguageName { get; set; } = string.Empty;
     public string? TrackName { get; set; } = string.Empty;
+    
+    public double? Duration { get; set; }
 
     [JsonPropertyName("Id")]
     public int TrackNumber { get; set; }

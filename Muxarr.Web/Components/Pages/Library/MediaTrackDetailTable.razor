@@ -3,6 +3,7 @@
     <tr>
         <th style="width: 35px;">#</th>
         <th>Language</th>
+        <th>Duration</th>
         <th>Format</th>
         <th>Details</th>
     </tr>
@@ -22,6 +23,7 @@
             <td>
                 <MediaTrackLabel Track="track" ShowAllFlags="true"/>
             </td>
+            <td>@track.Duration</td>
             <td><code>@track.Codec.FormatCodec()</code></td>
             <td><i class="bi bi-x-circle-fill text-danger"></i> will be removed</td>
         </tr>

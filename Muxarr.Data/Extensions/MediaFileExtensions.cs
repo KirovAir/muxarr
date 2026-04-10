@@ -84,7 +84,8 @@ public static class MediaFileExtensions
                 AudioChannels = x.Properties.AudioChannels,
                 Codec = CodecExtensions.ParseCodec(x.Codec),
                 TrackName = x.Properties.TrackName,
-                TrackNumber = x.Id
+                TrackNumber = x.Id,
+                Duration = 0
             };
 
             if (track.Type != MediaTrackType.Video
@@ -180,8 +181,20 @@ public static class MediaFileExtensions
                                    || disposition.Descriptions == 1
                                    || TrackNameFlags.ContainsVisualImpaired(trackName),
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
-                IsOriginal = disposition.Original == 1
+                IsOriginal = disposition.Original == 1,
+                Duration = type switch
+                {
+                    MediaTrackType.Video or MediaTrackType.Audio => stream.Duration ?? probe.Format?.Duration,
+                    MediaTrackType.Subtitles => stream.Duration,
+                    _ => null
+                }
             };
+
+            // static double? ParseTagDuration(Dictionary<string, string>? tags)
+            // {
+            //     if (tags is null || !tags.ContainsKey("DURATION"))
+            //         return null;
+            // }
 
             if (track.Type != MediaTrackType.Video
                 && (track.LanguageName == IsoLanguage.UnknownName || track.LanguageName == IsoLanguage.UndeterminedName))
@@ -206,10 +219,11 @@ public static class MediaFileExtensions
         }
         file.VideoBitDepth = int.TryParse(video?.BitsPerRawSample, out var depth) ? depth : 0;
 
-        if (double.TryParse(probe.Format?.Duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var durationSec))
-        {
-            file.DurationMs = (long)(durationSec * 1000);
-        }
+        // TODO: stewie - use json converter for all duration fields and convert to ms
+        // if (double.TryParse(probe.Format?.Duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var durationSec))
+        // {
+            file.DurationMs = (long)(probe.Format?.Duration ?? 0 * 1000);
+        // }
 
         return probeResult;
     }

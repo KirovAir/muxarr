@@ -15,4 +15,5 @@ public interface IMediaTrack
     bool IsDefault { get; }
     bool IsForced { get; }
     bool IsOriginal { get; }
+    double? Duration { get; }
 }
