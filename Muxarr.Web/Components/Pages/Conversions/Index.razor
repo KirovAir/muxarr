@@ -55,7 +55,7 @@
                         {
                             <tr>
                                 <td>
-                                    <a href="" @onclick="@(() => Navigate(_currentConversion))" @onclick:preventDefault>
+                                    <a href="/conversions/@_currentConversion.Id">
                                         <span class="small">@_currentConversion.Name</span>
                                     </a>
                                 </td>
@@ -80,7 +80,7 @@
                         {
                             <tr>
                                 <td>
-                                    <a href="" @onclick="@(() => Navigate(conversion))" @onclick:preventDefault>
+                                    <a href="/conversions/@conversion.Id">
                                         <span class="small">@conversion.Name</span>
                                     </a>
                                 </td>
@@ -189,7 +189,7 @@
                             <SelectionCheckbox TType="MediaConversion" Parent="this" Item="conversion"/>
                         </td>
                         <td>
-                            <a href="" @onclick="@(() => Navigate(conversion))" @onclick:preventDefault>
+                            <a href="/conversions/@conversion.Id">
                             <span class="small">
                                 @(conversion.Name)
                             </span>
@@ -375,11 +375,6 @@
         _ = InvokeAsync(StateHasChanged);
     }
 
-    private void Navigate(MediaConversion conversion)
-    {
-        NavigationManager.NavigateTo($"/conversions/{conversion.Id}");
-    }
-
     private void OnConverterStateChanged(ConverterProgressEvent e)
     {
         _ = InvokeAsync(async () =>
@@ -412,4 +407,5 @@
         MediaConverter.QueueStateChanged -= OnQueueStateChanged;
         base.Dispose();
     }
+
 }

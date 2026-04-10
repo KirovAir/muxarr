@@ -23,7 +23,7 @@
     <h2 class="border-bottom pb-3 mb-4 text-break">
         <i class="bi bi-arrow-repeat me-2"></i>@Conversion.Name
     </h2>
-    
+
     <div class="row g-4">
         <!-- Progress -->
         @if (Conversion.State == ConversionState.Processing)
@@ -79,8 +79,8 @@
                             <div class="text-muted small mb-1">File</div>
                             @if (Conversion.MediaFile != null)
                             {
-                                <a href="" class="small text-break d-inline-block"
-                                   @onclick="@NavigateToFile">@(Path.GetFileName(Conversion.MediaFile?.Path))</a>
+                                <a href="/library/@Conversion.MediaFileId"
+                                   class="small text-break d-inline-block">@(Path.GetFileName(Conversion.MediaFile?.Path))</a>
                             }
                             else
                             {
@@ -121,13 +121,16 @@
                                     <TimeAgo DateTime="Conversion.CreatedDate"/>
                                 </div>
                             }
+
                             <div>
-                                <div class="text-muted small mb-1">@(Conversion.State == ConversionState.Failed ? "Failed" : "Completed")</div>
+                                <div
+                                    class="text-muted small mb-1">@(Conversion.State == ConversionState.Failed ? "Failed" : "Completed")</div>
                                 <div>
                                     <TimeAgo DateTime="Conversion.UpdatedDate"/>
                                     @if (Conversion.StartedDate.HasValue)
                                     {
-                                        <span class="text-muted ms-2">(took <Duration Value="Conversion.UpdatedDate - Conversion.StartedDate.Value"/>)</span>
+                                        <span class="text-muted ms-2">(took <Duration
+                                                Value="Conversion.UpdatedDate - Conversion.StartedDate.Value"/>)</span>
                                     }
                                 </div>
                             </div>
@@ -255,11 +258,6 @@
             await MediaConverter.CancelQueuedConversion(Conversion.Id);
             NavigationManager.NavigateTo("/conversions");
         }
-    }
-
-    private void NavigateToFile()
-    {
-        NavigationManager.NavigateTo($"/library/{Conversion!.MediaFileId}");
     }
 
     private void OnConverterStateChanged(ConverterProgressEvent e)

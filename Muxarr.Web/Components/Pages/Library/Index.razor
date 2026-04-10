@@ -178,7 +178,7 @@
                         <SelectionCheckbox Parent="this" Item="file"/>
                     </td>
                     <td>
-                        <a href="" @onclick="@(() => Navigate(file))" @onclick:preventDefault>
+                        <a href="/library/@file.Id">
                         <span class="small">
                             @file.GetName()
                         </span>
@@ -606,12 +606,7 @@
             ToastService.ShowWarning($"{skipped} file(s) skipped — not accessible (mount may be offline).");
         }
     }
-
-    private void Navigate(MediaFile file)
-    {
-        NavigationManager.NavigateTo($"/library/{file.Id}");
-    }
-
+    
     private void OnScanningStateChanged(bool isScanning)
     {
         if (_disposed)
