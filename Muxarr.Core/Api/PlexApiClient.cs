@@ -37,6 +37,11 @@ public class PlexApiClient : IMediaServerClient
             using var response = await client.SendAsync(request);
             return response.IsSuccessStatusCode;
         }
+        catch (UriFormatException ex)
+        {
+            _logger.LogWarning(ex, "Invalid Plex URL configured: {Url}", config.Url);
+            return false;
+        }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
             _logger.LogError(ex, "Failed to connect to Plex at {Url}", config.Url);
@@ -83,6 +88,10 @@ public class PlexApiClient : IMediaServerClient
                     return MediaServerUpdateResult.LibraryScan;
                 }
             }
+        }
+        catch (UriFormatException ex)
+        {
+            _logger.LogWarning(ex, "Invalid Plex URL configured: {Url}", config.Url);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
         {
@@ -135,12 +144,27 @@ public class PlexApiClient : IMediaServerClient
 
     private static HttpRequestMessage CreateRequest(IApiCredentials config, HttpMethod method, string relativeUrl)
     {
-        var baseUri = new Uri($"{config.Url.Trim().TrimEnd('/')}/");
-        var uri = new Uri(baseUri, relativeUrl.TrimStart('/'));
-        var request = new HttpRequestMessage(method, uri);
+        var request = new HttpRequestMessage(method, BuildUrl(config, relativeUrl));
         request.Headers.TryAddWithoutValidation("X-Plex-Token", config.ApiKey.Trim());
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
         return request;
+    }
+
+    private static Uri BuildUrl(IApiCredentials config, string relativeUrl)
+    {
+        var sanitizedBaseUrl = $"{config.Url.Trim().TrimEnd('/')}/";
+        if (!Uri.TryCreate(sanitizedBaseUrl, UriKind.Absolute, out var baseUri))
+        {
+            throw new UriFormatException($"Invalid media server URL: '{config.Url}'.");
+        }
+
+        if (!Uri.TryCreate(baseUri, relativeUrl.TrimStart('/'), out var requestUri))
+        {
+            throw new UriFormatException(
+                $"Invalid request URL. Base URL: '{config.Url}', relative URL: '{relativeUrl}'.");
+        }
+
+        return requestUri;
     }
 
     private static bool IsPathWithin(string path, string parent)
