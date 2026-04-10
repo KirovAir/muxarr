@@ -8,5 +8,5 @@
 @code {
     [Parameter] [EditorRequired] public required MediaConversion Conversion { get; set; }
 
-    private string TextColor => Conversion.Progress > 0 ? "text-white" : "text-body";
+    private string TextColor => Conversion.Progress > 50 ? "text-white" : "text-body";
 }
