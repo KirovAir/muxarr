@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
-using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
+using Muxarr.Core.Api.Models;
 using Muxarr.Core.Config;
 
 namespace Muxarr.Core.Api;
@@ -25,102 +25,45 @@ public class PlexApiClient : IMediaServerClient
 
     public async Task<bool> CanConnect(IApiCredentials config)
     {
-        if (string.IsNullOrWhiteSpace(config.Url) || string.IsNullOrWhiteSpace(config.ApiKey))
-        {
-            return false;
-        }
-
-        try
-        {
-            using var client = _httpClientFactory.CreateClient(HttpClientName);
-            using var request = CreateRequest(config, HttpMethod.Get, IdentityUrl);
-            using var response = await client.SendAsync(request);
-            return response.IsSuccessStatusCode;
-        }
-        catch (UriFormatException ex)
-        {
-            _logger.LogWarning(ex, "Invalid Plex URL configured: {Url}", config.Url);
-            return false;
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
-        {
-            _logger.LogError(ex, "Failed to connect to Plex at {Url}", config.Url);
-            return false;
-        }
+        return await Send(config, HttpMethod.Get, IdentityUrl);
     }
 
     public async Task<MediaServerUpdateResult> UpdateMedia(IApiCredentials config, string mediaPath)
     {
-        if (string.IsNullOrWhiteSpace(config.Url) || string.IsNullOrWhiteSpace(config.ApiKey))
-        {
-            _logger.LogWarning("No valid Plex url/apikey was found.");
-            return MediaServerUpdateResult.Failed;
-        }
-
         var normalizedMediaPath = NormalizePath(mediaPath);
         var mediaDirectory = GetParentDirectory(normalizedMediaPath);
 
-        try
-        {
-            using var client = _httpClientFactory.CreateClient(HttpClientName);
+        var container = await Get<PlexMediaContainer>(config, LibrarySectionsUrl);
+        var sections = container?.MediaContainer?.Directory ?? [];
 
-            var sections = await GetLibrarySections(client, config);
-            foreach (var section in sections)
+        foreach (var section in sections)
+        {
+            var matchingLocation = section.Locations
+                .FirstOrDefault(loc => IsPathWithin(normalizedMediaPath, NormalizePath(loc.Path)));
+
+            if (matchingLocation == null)
             {
-                var matchingLocation = section.Locations
-                    .FirstOrDefault(loc => IsPathWithin(normalizedMediaPath, NormalizePath(loc.Path)));
-
-                if (matchingLocation == null)
-                {
-                    continue;
-                }
-
-                // Targeted scan: refresh only the directory containing the file
-                if (!string.IsNullOrEmpty(mediaDirectory) &&
-                    await ScanLibrarySection(client, config, section.Key, mediaDirectory))
-                {
-                    return MediaServerUpdateResult.LibraryScan;
-                }
-
-                // Fallback: refresh the entire section
-                if (await ScanLibrarySection(client, config, section.Key, null))
-                {
-                    return MediaServerUpdateResult.LibraryScan;
-                }
+                continue;
             }
-        }
-        catch (UriFormatException ex)
-        {
-            _logger.LogWarning(ex, "Invalid Plex URL configured: {Url}", config.Url);
-        }
-        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
-        {
-            _logger.LogError(ex, "Failed to update Plex media for {Path}", mediaPath);
+
+            // Targeted scan: refresh only the directory containing the file
+            if (!string.IsNullOrEmpty(mediaDirectory) &&
+                await ScanLibrarySection(config, section.Key, mediaDirectory))
+            {
+                return MediaServerUpdateResult.LibraryScan;
+            }
+
+            // Fallback: refresh the entire section
+            if (await ScanLibrarySection(config, section.Key, null))
+            {
+                return MediaServerUpdateResult.LibraryScan;
+            }
         }
 
         return MediaServerUpdateResult.Failed;
     }
 
-    private async Task<List<PlexLibrarySection>> GetLibrarySections(HttpClient client, IApiCredentials config)
-    {
-        using var request = CreateRequest(config, HttpMethod.Get, LibrarySectionsUrl);
-        request.Headers.TryAddWithoutValidation("Accept", "application/json");
-        using var response = await client.SendAsync(request);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var responseBody = await response.Content.ReadAsStringAsync();
-            _logger.LogWarning("GET {Url} returned {StatusCode}: {Body}",
-                request.RequestUri, response.StatusCode, responseBody);
-            return [];
-        }
-
-        var container = await response.Content.ReadFromJsonAsync<PlexMediaContainer>();
-        return container?.MediaContainer?.Directory ?? [];
-    }
-
-    private async Task<bool> ScanLibrarySection(HttpClient client, IApiCredentials config,
-        string sectionKey, string? path)
+    private async Task<bool> ScanLibrarySection(IApiCredentials config, string sectionKey, string? path)
     {
         var url = $"{LibrarySectionsUrl}/{Uri.EscapeDataString(sectionKey)}/refresh";
         if (!string.IsNullOrEmpty(path))
@@ -128,18 +71,72 @@ public class PlexApiClient : IMediaServerClient
             url += $"?path={Uri.EscapeDataString(path)}";
         }
 
-        using var request = CreateRequest(config, HttpMethod.Get, url);
-        using var response = await client.SendAsync(request);
+        return await Send(config, HttpMethod.Get, url);
+    }
 
-        if (response.IsSuccessStatusCode)
+    private async Task<T?> Get<T>(IApiCredentials config, string relativeUrl) where T : class
+    {
+        if (string.IsNullOrWhiteSpace(config.Url) || string.IsNullOrWhiteSpace(config.ApiKey))
         {
-            return true;
+            _logger.LogWarning("No valid {ParentClass} url/apikey was found.", GetType().Name);
+            return null;
         }
 
-        var responseBody = await response.Content.ReadAsStringAsync();
-        _logger.LogWarning("GET {Url} returned {StatusCode}: {Body}",
-            request.RequestUri, response.StatusCode, responseBody);
-        return false;
+        try
+        {
+            using var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var request = CreateRequest(config, HttpMethod.Get, relativeUrl);
+            using var response = await client.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var responseBody = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("GET {Url} returned {StatusCode}: {Body}",
+                    request.RequestUri, response.StatusCode, responseBody);
+                return null;
+            }
+
+            return await response.Content.ReadFromJsonAsync<T>();
+        }
+        catch (HttpRequestException ex)
+        {
+            _logger.LogError(ex, "HTTP error requesting {Url}", relativeUrl);
+            return null;
+        }
+        catch (TaskCanceledException ex)
+        {
+            _logger.LogWarning(ex, "Request to {Url} timed out", relativeUrl);
+            return null;
+        }
+    }
+
+    private async Task<bool> Send(IApiCredentials config, HttpMethod method, string relativeUrl)
+    {
+        if (string.IsNullOrWhiteSpace(config.Url) || string.IsNullOrWhiteSpace(config.ApiKey))
+        {
+            _logger.LogWarning("No valid {ParentClass} url/apikey was found.", GetType().Name);
+            return false;
+        }
+
+        try
+        {
+            using var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var request = CreateRequest(config, method, relativeUrl);
+            using var response = await client.SendAsync(request);
+            if (response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("{Method} {Url} returned {StatusCode}: {Body}",
+                method, request.RequestUri, response.StatusCode, responseBody);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending {Method} to {Url}", method, relativeUrl);
+            return false;
+        }
     }
 
     private static HttpRequestMessage CreateRequest(IApiCredentials config, HttpMethod method, string relativeUrl)
@@ -193,26 +190,4 @@ public class PlexApiClient : IMediaServerClient
         return lastSlash > 0 ? normalizedPath[..lastSlash] : null;
     }
 
-    // Plex JSON response models
-    private sealed class PlexMediaContainer
-    {
-        [JsonPropertyName("MediaContainer")] public PlexMediaContainerContent? MediaContainer { get; init; }
-    }
-
-    private sealed class PlexMediaContainerContent
-    {
-        [JsonPropertyName("Directory")] public List<PlexLibrarySection> Directory { get; init; } = [];
-    }
-
-    private sealed class PlexLibrarySection
-    {
-        [JsonPropertyName("key")] public string Key { get; init; } = string.Empty;
-        [JsonPropertyName("title")] public string Title { get; init; } = string.Empty;
-        [JsonPropertyName("Location")] public List<PlexLocation> Locations { get; init; } = [];
-    }
-
-    private sealed class PlexLocation
-    {
-        [JsonPropertyName("path")] public string Path { get; init; } = string.Empty;
-    }
 }
