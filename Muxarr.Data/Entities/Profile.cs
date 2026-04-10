@@ -79,6 +79,7 @@ namespace Muxarr.Data.Entities
         public List<string> Directories { get; set; } = new();
         public bool ClearVideoTrackNames { get; set; }
         public bool SkipHardlinkedFiles { get; set; }
+        public bool TruncateToShortest { get; set; }
         public TrackSettings AudioSettings { get; set; } = new();
         public TrackSettings SubtitleSettings { get; set; } = new();
         public ICollection<MediaFile> MediaFiles { get; set; } = new List<MediaFile>();

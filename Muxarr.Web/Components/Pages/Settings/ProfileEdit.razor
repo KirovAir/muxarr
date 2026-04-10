@@ -71,6 +71,12 @@
                                 profile.</small>
                         </div>
                         <div class="mb-3 form-check form-switch">
+                            <InputCheckbox id="truncateShortest" class="form-check-input"
+                                           @bind-Value="_profile.TruncateToShortest"/>
+                            <label class="form-check-label" for="truncateShortest">Truncate to shortest track</label>
+                            <small class="form-text text-muted d-block">whatever</small>
+                        </div>
+                        <div class="mb-3 form-check form-switch">
                             <InputCheckbox id="skipHardlinked" class="form-check-input"
                                            @bind-Value="_profile.SkipHardlinkedFiles"/>
                             <label class="form-check-label" for="skipHardlinked">Skip hardlinked files</label>
@@ -183,6 +189,7 @@
                 existing.SkipHardlinkedFiles = _profile.SkipHardlinkedFiles;
                 existing.AudioSettings = _profile.AudioSettings;
                 existing.SubtitleSettings = _profile.SubtitleSettings;
+                existing.TruncateToShortest = _profile.TruncateToShortest;
                 context.Update(existing);
             }
 

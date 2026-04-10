@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Muxarr.Core.Json;
 
 namespace Muxarr.Core.FFmpeg;
 
@@ -40,7 +41,7 @@ public class FFprobeStream
     [JsonPropertyName("bits_per_raw_sample")]
     public string? BitsPerRawSample { get; set; }
     
-    [JsonPropertyName("duration")]
+    [JsonPropertyName("duration"), JsonConverter(typeof(JsonStringToDoubleConverter))]
     public double? Duration { get; set; }
 
     [JsonPropertyName("disposition")]
@@ -92,6 +93,6 @@ public class FFprobeFormat
     [JsonPropertyName("format_name")]
     public string? FormatName { get; set; }
 
-    [JsonPropertyName("duration")]
+    [JsonPropertyName("duration"), JsonConverter(typeof(JsonStringToDoubleConverter))]
     public double? Duration { get; set; }
 }

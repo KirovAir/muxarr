@@ -18,8 +18,4 @@
       <EmbeddedResource Include="Language\iso_custom.json" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="Json\" />
-    </ItemGroup>
-
 </Project>
