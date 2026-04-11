@@ -14,6 +14,8 @@ public class GotifySettings
 
 public class GotifyProvider : NotificationProvider<GotifySettings>
 {
+    public override string Icon => "bi-broadcast-pin";
+
     protected override async Task SendCoreAsync(HttpClient client, GotifySettings s, NotificationPayload payload)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, BuildUrl(s.Url, "message"));

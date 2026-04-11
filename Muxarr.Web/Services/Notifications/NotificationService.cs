@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Extensions.Caching.Memory;
 using Muxarr.Core.Config;
 using Muxarr.Core.Extensions;
 using Muxarr.Data;
@@ -25,28 +26,30 @@ public record NotificationTestResult(bool Success, string Message)
     public static NotificationTestResult Fail(string message) => new(false, message);
 }
 
-public class NotificationService
+public sealed class NotificationService
 {
+    private const string ConfigsCacheKey = nameof(ConfigsCacheKey);
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly HttpClient _httpClient;
-    private readonly Dictionary<string, NotificationProvider> _providers;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<NotificationService> _logger;
-    // Tracks conversions that already fired a "Started" notification, so converter retries
-    // don't spam. Terminal states clear the entry. Used as a concurrent set.
     private readonly ConcurrentDictionary<int, byte> _startedFired = new();
 
-    public IReadOnlyCollection<NotificationProvider> Providers => _providers.Values;
+    public IReadOnlyList<NotificationProvider> Providers { get; }
 
     public NotificationService(
         IServiceScopeFactory scopeFactory,
         IHttpClientFactory httpClientFactory,
+        IMemoryCache cache,
         IEnumerable<NotificationProvider> providers,
         MediaConverterService converter,
         ILogger<NotificationService> logger)
     {
         _scopeFactory = scopeFactory;
         _httpClient = httpClientFactory.CreateClient();
-        _providers = providers.ToDictionary(p => p.Type);
+        _cache = cache;
+        Providers = providers.ToArray();
         _logger = logger;
 
         converter.ConverterStateChanged += OnConverterStateChanged;
@@ -85,43 +88,93 @@ public class NotificationService
 
     public async Task SendAsync(NotificationEventType eventType, MediaConversion conversion)
     {
-        List<NotificationConfig> configs;
+        var configs = await LoadConfigsAsync();
+        if (configs is null)
+        {
+            return;
+        }
+
+        var matched = configs.Where(c => c.Enabled && c.HasTrigger(eventType)).ToList();
+        _logger.LogDebug(
+            "Notification event {EventType} for conversion {ConversionId}: {Matched}/{Total} configs matched",
+            eventType, conversion.Id, matched.Count, configs.Count);
+
+        if (matched.Count == 0)
+        {
+            return;
+        }
+
+        var payload = BuildPayload(eventType, conversion);
+        await Task.WhenAll(matched.Select(config => DispatchAsync(config, payload, eventType, conversion.Id)));
+    }
+
+    private async Task DispatchAsync(NotificationConfig config, NotificationPayload payload,
+        NotificationEventType eventType, int conversionId)
+    {
+        var provider = Providers.FirstOrDefault(p => p.Type == config.Provider);
+        if (provider is null)
+        {
+            _logger.LogWarning(
+                "Notification '{Name}' references unknown provider '{Provider}' (conversion {ConversionId})",
+                config.Name, config.Provider, conversionId);
+            return;
+        }
+
+        try
+        {
+            await provider.SendAsync(_httpClient, config, payload);
+            _logger.LogDebug(
+                "Sent {EventType} notification via {Provider} to '{Name}' for conversion {ConversionId}",
+                eventType, config.Provider, config.Name, conversionId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Notification '{Name}' ({Provider}) failed for conversion {ConversionId}",
+                config.Name, config.Provider, conversionId);
+        }
+    }
+
+    public async Task SaveConfigsAsync(List<NotificationConfig> configs)
+    {
+        using var scope = _scopeFactory.CreateScope();
+        await using var context = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>()
+            .CreateDbContextAsync();
+        context.Configs.Set(configs);
+        await context.SaveChangesAsync();
+
+        _cache.Remove(ConfigsCacheKey);
+    }
+
+    private async Task<List<NotificationConfig>?> LoadConfigsAsync()
+    {
+        if (_cache.TryGetValue(ConfigsCacheKey, out List<NotificationConfig>? cached) && cached is not null)
+        {
+            return cached;
+        }
+
+        List<NotificationConfig> loaded;
         try
         {
             using var scope = _scopeFactory.CreateScope();
             await using var context = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppDbContext>>()
                 .CreateDbContextAsync();
-            configs = context.Configs.GetOrDefault<List<NotificationConfig>>();
+            loaded = context.Configs.GetOrDefault<List<NotificationConfig>>();
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to load notification configs");
-            return;
+            return null;
         }
 
-        var payload = BuildPayload(eventType, conversion);
-
-        foreach (var config in configs.Where(c => c.Enabled && c.HasTrigger(eventType)))
-        {
-            if (!_providers.TryGetValue(config.Provider, out var provider))
-            {
-                continue;
-            }
-
-            try
-            {
-                await provider.SendAsync(_httpClient, config, payload);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Notification '{Name}' ({Provider}) failed", config.Name, config.Provider);
-            }
-        }
+        _cache.Set(ConfigsCacheKey, loaded, TimeSpan.FromHours(1));
+        return loaded;
     }
 
     public async Task<NotificationTestResult> SendTestAsync(NotificationConfig config)
     {
-        if (!_providers.TryGetValue(config.Provider, out var provider))
+        var provider = Providers.FirstOrDefault(p => p.Type == config.Provider);
+        if (provider is null)
         {
             return NotificationTestResult.Fail($"Unknown provider: {config.Provider}");
         }
@@ -145,15 +198,16 @@ public class NotificationService
 
     private static NotificationPayload BuildPayload(NotificationEventType type, MediaConversion conversion)
     {
+        var lastError = type == NotificationEventType.Failed ? GetLastError(conversion) : null;
+
         var (title, body) = type switch
         {
             NotificationEventType.Started =>
                 ("Conversion Started", $"{conversion.Name} - {conversion.SizeBefore.DisplayFileSize()}"),
             NotificationEventType.Completed =>
-                ("Conversion Completed",
-                    $"{conversion.Name} - saved {conversion.SizeDifference.DisplayFileSize()} ({conversion.GetSizeChangePercentage()})"),
+                ("Conversion Completed", $"{conversion.Name} - {BuildSizeChangeSummary(conversion)}"),
             NotificationEventType.Failed =>
-                ("Conversion Failed", $"{conversion.Name} - {GetLastError(conversion)}"),
+                ("Conversion Failed", $"{conversion.Name} - {lastError}"),
             _ => ("Muxarr", conversion.Name)
         };
 
@@ -166,8 +220,19 @@ public class NotificationService
             SizeBefore = conversion.SizeBefore,
             SizeAfter = type == NotificationEventType.Completed ? conversion.SizeAfter : null,
             SizeSaved = type == NotificationEventType.Completed ? conversion.SizeDifference : null,
-            Error = type == NotificationEventType.Failed ? GetLastError(conversion) : null
+            Error = lastError
         };
+    }
+
+    private static string BuildSizeChangeSummary(MediaConversion conversion)
+    {
+        if (conversion.SizeAfter == conversion.SizeBefore)
+        {
+            return "no size change";
+        }
+
+        var verb = conversion.SizeAfter < conversion.SizeBefore ? "saved" : "grew by";
+        return $"{verb} {conversion.SizeDifference.DisplayFileSize()} ({conversion.GetSizeChangePercentage()})";
     }
 
     private static string GetLastError(MediaConversion conversion)

@@ -70,7 +70,7 @@ else
     [Inject] public required NotificationService NotificationService { get; set; }
     [CascadingParameter] public required IModalService Modal { get; set; }
 
-    private List<NotificationConfig> _configs = new();
+    private List<NotificationConfig> _configs = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -139,9 +139,7 @@ else
     {
         try
         {
-            await using var context = await ContextFactory.CreateDbContextAsync();
-            context.Configs.Set(_configs);
-            await context.SaveChangesAsync();
+            await NotificationService.SaveConfigsAsync(_configs);
         }
         catch (Exception ex)
         {
