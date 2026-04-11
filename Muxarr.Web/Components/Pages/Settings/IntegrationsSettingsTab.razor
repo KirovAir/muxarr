@@ -1,7 +1,7 @@
 @using Muxarr.Core.Config
 @using Muxarr.Data.Entities
-<p class="text-muted">Connect Muxarr to Sonarr and Radarr for original language detection and automatic file
-    processing.</p>
+<p class="text-muted">Connect Muxarr to Sonarr and Radarr to pull original language metadata and trigger automatic
+    processing when new files are imported.</p>
 
 <EditForm Model="Services" OnValidSubmit="HandleSubmit">
     <DataAnnotationsValidator/>
@@ -142,7 +142,7 @@
         if (svc.Id != 0)
         {
             if (!await ModalService.ShowConfirm(
-                    $"Remove '{svc.Name}'? All synced media info from this connection will be deleted.",
+                    $"Remove '{svc.Name}'? All synced media info from this integration will be deleted.",
                     $"Remove {svc.Name}?"))
             {
                 return;
@@ -220,7 +220,7 @@
 
             if (showToast)
             {
-                ToastService.ShowSuccess("Connection settings saved.");
+                ToastService.ShowSuccess("Integration settings saved.");
             }
         }
         catch (Exception ex)

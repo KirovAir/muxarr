@@ -11,7 +11,7 @@
     @* Step indicator *@
     <div class="d-flex justify-content-center gap-2 mb-4">
         <span class="badge @(_step == 1 ? "text-bg-primary" : "text-bg-secondary")">1. Security</span>
-        <span class="badge @(_step == 2 ? "text-bg-primary" : "text-bg-secondary")">2. Connections</span>
+        <span class="badge @(_step == 2 ? "text-bg-primary" : "text-bg-secondary")">2. Integrations</span>
         <span class="badge @(_step == 3 ? "text-bg-primary" : "text-bg-secondary")">3. Profiles</span>
     </div>
 
@@ -73,12 +73,12 @@
                 <div class="col-md-6">
                     <ArrServiceCard Service="_sonarrService"
                                     GetWebhookUrl="@GetWebhookUrl"
-                                    AutoSave="@PersistConnections"/>
+                                    AutoSave="@PersistIntegrations"/>
                 </div>
                 <div class="col-md-6">
                     <ArrServiceCard Service="_radarrService"
                                     GetWebhookUrl="@GetWebhookUrl"
-                                    AutoSave="@PersistConnections"/>
+                                    AutoSave="@PersistIntegrations"/>
                 </div>
             </div>
 
@@ -235,11 +235,11 @@
 
     private async Task SaveAndContinue()
     {
-        await PersistConnections();
+        await PersistIntegrations();
         GoToStep(3);
     }
 
-    private async Task PersistConnections()
+    private async Task PersistIntegrations()
     {
         await using var context = await ContextFactory.CreateDbContextAsync();
 
