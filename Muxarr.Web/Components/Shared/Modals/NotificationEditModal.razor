@@ -1,0 +1,167 @@
+@using Muxarr.Core.Config
+@using Muxarr.Web.Services.Notifications
+<div class="modal-body">
+    <div class="mb-3">
+        <label class="form-label">Name</label>
+        <input type="text"
+               class="form-control @(string.IsNullOrWhiteSpace(Config.Name) ? "is-invalid" : "")"
+               @bind="Config.Name" @bind:event="oninput" placeholder="My Notification"/>
+        @if (string.IsNullOrWhiteSpace(Config.Name))
+        {
+            <div class="invalid-feedback d-block">Name is required.</div>
+        }
+    </div>
+
+    <div class="mb-3">
+        <label class="form-label">Provider</label>
+        <select class="form-select"
+                @bind:get="Config.Provider"
+                @bind:set="OnProviderChanged">
+            @foreach (var provider in NotificationService.Providers)
+            {
+                <option value="@provider.Type">@provider.Type</option>
+            }
+        </select>
+    </div>
+
+    @foreach (var (name, field) in CurrentProvider?.Fields ?? new Dictionary<string, FieldAttribute>())
+    {
+        <div class="mb-3">
+            <label class="form-label">@field.Label</label>
+            @if (field.Type == FieldType.Password)
+            {
+                <PasswordInput @bind-Value:get="Config.Settings.GetValueOrDefault(name, string.Empty)"
+                               @bind-Value:set="@(v => Config.Settings[name] = v)"
+                               Placeholder="@field.Placeholder"/>
+            }
+            else
+            {
+                <input type="@(field.Type == FieldType.Url ? "url" : "text")" class="form-control"
+                       @bind:get="Config.Settings.GetValueOrDefault(name, string.Empty)"
+                       @bind:set="@((string v) => Config.Settings[name] = v)"
+                       placeholder="@field.Placeholder"/>
+            }
+            @if (!string.IsNullOrEmpty(field.HelpText))
+            {
+                <small class="form-text text-muted">@field.HelpText</small>
+            }
+        </div>
+    }
+
+    <div class="mb-3">
+        <label class="form-label">Triggers</label>
+        <div class="d-flex gap-3">
+            @foreach (var trigger in TriggerOptions)
+            {
+                var id = $"notif-{trigger}";
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="@id"
+                           checked="@Config.Triggers.HasFlag(trigger)"
+                           @onchange="@((ChangeEventArgs e) => ToggleTrigger(trigger, (bool)e.Value!))"/>
+                    <label class="form-check-label" for="@id">@trigger</label>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-between mt-4">
+        <button class="btn btn-outline-secondary btn-sm" @onclick="Test" disabled="@_testing">
+            @if (_testing)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+            }
+            else
+            {
+                <i class="bi bi-send me-1"></i>
+            }
+            Test
+        </button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+            <button class="btn btn-primary" @onclick="Save"
+                    disabled="@string.IsNullOrWhiteSpace(Config.Name)">
+                <i class="bi bi-check-lg me-1"></i>Save
+            </button>
+        </div>
+    </div>
+
+    @if (_testResult != null)
+    {
+        <div class="alert @(_testSuccess ? "alert-success" : "alert-danger") mt-3 mb-0 py-2">
+            @_testResult
+        </div>
+    }
+</div>
+
+@code {
+    [CascadingParameter] public required BlazoredModalInstance BlazoredModal { get; set; }
+    [Parameter] public NotificationConfig Config { get; set; } = new();
+
+    [Inject] public required NotificationService NotificationService { get; set; }
+
+    private bool _testing;
+    private string? _testResult;
+    private bool _testSuccess;
+
+    private static readonly NotificationEventType[] TriggerOptions =
+        [NotificationEventType.Started, NotificationEventType.Completed, NotificationEventType.Failed];
+
+    private NotificationProvider? CurrentProvider =>
+        NotificationService.Providers.FirstOrDefault(p => p.Type == Config.Provider);
+
+    private void ToggleTrigger(NotificationEventType trigger, bool on)
+    {
+        if (on)
+        {
+            Config.Triggers |= trigger;
+        }
+        else
+        {
+            Config.Triggers &= ~trigger;
+        }
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (string.IsNullOrEmpty(Config.Provider))
+        {
+            Config.Provider = NotificationService.Providers.FirstOrDefault()?.Type ?? "";
+        }
+
+        if (string.IsNullOrWhiteSpace(Config.Name))
+        {
+            Config.Name = Config.Provider;
+        }
+    }
+
+    private void OnProviderChanged(string? provider)
+    {
+        var newProvider = provider ?? "";
+        var nameIsDefault = string.IsNullOrWhiteSpace(Config.Name)
+            || NotificationService.Providers.Any(p => p.Type == Config.Name);
+
+        Config.Provider = newProvider;
+        Config.Settings.Clear();
+
+        if (nameIsDefault)
+        {
+            Config.Name = newProvider;
+        }
+    }
+
+    private async Task Test()
+    {
+        _testing = true;
+        _testResult = null;
+        StateHasChanged();
+
+        var result = await NotificationService.SendTestAsync(Config);
+        _testSuccess = result.Success;
+        _testResult = result.Message;
+        _testing = false;
+    }
+
+    private async Task Cancel() => await BlazoredModal.CloseAsync(ModalResult.Cancel());
+
+    private async Task Save() => await BlazoredModal.CloseAsync(ModalResult.Ok(Config));
+}

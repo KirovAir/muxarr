@@ -1,0 +1,25 @@
+using Muxarr.Web.Components.Shared;
+
+namespace Muxarr.Web.Services.Notifications.Providers;
+
+public class TelegramSettings
+{
+    [Field("Bot Token", Type = FieldType.Password, HelpText = "Create a bot via @BotFather to get this token.")]
+    public string BotToken { get; set; } = "";
+
+    [Field("Chat ID", HelpText = "User, group, or channel ID to send messages to.")]
+    public string ChatId { get; set; } = "";
+}
+
+public class TelegramProvider : NotificationProvider<TelegramSettings>
+{
+    public override string Icon => "bi-telegram";
+
+    protected override Task SendCoreAsync(HttpClient client, TelegramSettings s, NotificationPayload payload)
+        => PostJsonAsync(client, $"https://api.telegram.org/bot{s.BotToken}/sendMessage", new
+        {
+            chat_id = s.ChatId,
+            text = $"<b>{payload.Title}</b>\n{payload.Body}",
+            parse_mode = "HTML"
+        });
+}
