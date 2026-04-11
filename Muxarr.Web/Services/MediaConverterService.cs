@@ -329,6 +329,7 @@ public class MediaConverterService(
             conversion.StartedDate ??= DateTime.UtcNow;
             conversion.Progress = 0;
             await context.SaveChangesAsync(token);
+            ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
 
             if (useFFmpeg)
             {
@@ -395,6 +396,7 @@ public class MediaConverterService(
         conversion.StartedDate ??= DateTime.UtcNow;
         conversion.Log("Tracks are optimal. Fixing metadata in-place with mkvpropedit..", logger);
         await context.SaveChangesAsync(token);
+        ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
 
         var propResult = await MkvPropEdit.EditTrackProperties(mediaFile.Path, trackOutputs);
         if (!propResult.Success)

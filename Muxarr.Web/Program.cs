@@ -9,6 +9,7 @@ using Muxarr.Web.Components;
 using Muxarr.Web.HealthChecks;
 using Muxarr.Web.Logging;
 using Muxarr.Web.Services;
+using Muxarr.Web.Services.Notifications;
 using Muxarr.Web.Services.Scheduler;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -45,6 +46,9 @@ await builder.RunWithLoggingAsync(async b =>
     b.Services.AddScheduledService<WebhookService>();
     b.Services.AddScheduledService<LogWriterService>();
     b.Services.AddHostedService<ScheduledServiceManager>();
+
+    // Notifications
+    b.Services.AddNotifications();
 
     // UI services
     b.Services.AddScoped<LibraryStatsService>();
