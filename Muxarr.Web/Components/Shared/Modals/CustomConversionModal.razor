@@ -129,7 +129,7 @@
                             <ToolTip Tip="Dub - Dubbed audio or subtitle track">
                                 <button type="button"
                                         class="btn btn-sm @(track.IsDub ? "btn-primary" : "btn-outline-secondary")"
-                                        @onclick="() => track.IsDub = !track.IsDub">
+                                        @onclick="() => ToggleDub(track)">
                                     <i class="bi bi-translate"></i>
                                 </button>
                             </ToolTip>
@@ -254,6 +254,18 @@
         }
 
         _validationError = false;
+    }
+
+    private void ToggleDub(TrackSnapshot track)
+    {
+        track.IsDub = !track.IsDub;
+
+        // Matroska has no FlagDub element - dub state lives in the track name.
+        // Sync the name so the user sees what will actually be written.
+        if (File.ContainerType.ToContainerFamily() == ContainerFamily.Matroska)
+        {
+            track.TrackName = TrackNameFlags.EncodeDubInName(track.TrackName, track.IsDub);
+        }
     }
 
     private void OnLanguageChanged(TrackSnapshot track, string? languageName)

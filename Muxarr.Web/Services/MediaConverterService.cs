@@ -281,8 +281,7 @@ public class MediaConverterService(
         }
 
         var strategy = ConversionPlanner.DetermineStrategy(
-            conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot,
-            conversion.IsCustomConversion);
+            conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot);
 
         if (strategy == ConversionPlanner.ConversionStrategy.Skip)
         {
@@ -297,8 +296,7 @@ public class MediaConverterService(
         {
             var family = conversion.MediaFile.ContainerType.ToContainerFamily();
             var trackOutputs = ConversionPlanner.BuildTrackOutputs(
-                conversion.SnapshotBefore, conversion.TargetSnapshot, family,
-                isCustomConversion: conversion.IsCustomConversion);
+                conversion.SnapshotBefore, conversion.TargetSnapshot, family);
             await RunMkvPropEditInPlaceAsync(conversion, trackOutputs, context, token);
         }
 
@@ -416,8 +414,7 @@ public class MediaConverterService(
         var freshSnapshot = mediaFile.ToMediaSnapshot();
         var family = mediaFile.ContainerType.ToContainerFamily();
         var remainingDiff = ConversionPlanner.BuildTrackOutputs(
-            freshSnapshot, conversion.TargetSnapshot, family,
-            isCustomConversion: conversion.IsCustomConversion);
+            freshSnapshot, conversion.TargetSnapshot, family);
         var stillDiffers = remainingDiff.Any(ConversionPlanner.HasChanges);
 
         if (stillDiffers)

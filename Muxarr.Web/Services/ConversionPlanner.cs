@@ -1,6 +1,5 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Models;
-using Muxarr.Core.MkvToolNix;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -11,7 +10,7 @@ public static class ConversionPlanner
     public enum ConversionStrategy { Skip, MetadataEdit, Remux }
 
     public static ConversionStrategy DetermineStrategy(
-        MediaFile file, MediaSnapshot before, MediaSnapshot target, bool isCustomConversion = false)
+        MediaFile file, MediaSnapshot before, MediaSnapshot target)
     {
         var family = file.ContainerType.ToContainerFamily();
         var hasTrackRemoval = target.Tracks.Count < file.TrackCount;
@@ -23,7 +22,7 @@ public static class ConversionPlanner
             return ConversionStrategy.Remux;
         }
 
-        var trackOutputs = BuildTrackOutputs(before, target, family, isCustomConversion: isCustomConversion);
+        var trackOutputs = BuildTrackOutputs(before, target, family);
         var hasMetadataChanges = trackOutputs.Any(o => HasChanges(o));
 
         if (!hasMetadataChanges)
@@ -40,13 +39,12 @@ public static class ConversionPlanner
     /// Builds tool instructions by diffing target tracks against current tracks.
     /// When diffOnly is true (metadata edits), only changed properties are set.
     /// When false (remux), all non-video track properties are set explicitly.
-    /// IsDub is dropped for Matroska since the spec has no FlagDub element.
-    /// For custom conversions on Matroska, IsDub toggles are encoded in the track
-    /// name (the only way to persist them) - profile-driven flows respect the
-    /// user's template instead, where {dub} can be included explicitly.
+    /// IsDub is dropped for Matroska since the spec has no FlagDub element -
+    /// callers that want to persist a dub state on Matroska must encode it in
+    /// the track name themselves (see TrackNameFlags.EncodeDubInName).
     /// </summary>
     public static List<TrackOutput> BuildTrackOutputs(MediaSnapshot before, MediaSnapshot target,
-        ContainerFamily family, bool diffOnly = true, bool isCustomConversion = false)
+        ContainerFamily family, bool diffOnly = true)
     {
         var beforeByNumber = before.Tracks.ToDictionary(t => t.TrackNumber);
         var supportsDubFlag = family != ContainerFamily.Matroska;
@@ -71,18 +69,9 @@ public static class ConversionPlanner
             }
             else if (diffOnly)
             {
-                var nameChanged = !string.Equals(track.TrackName ?? "", original?.TrackName ?? "", StringComparison.Ordinal);
-                if (nameChanged)
+                if (!string.Equals(track.TrackName ?? "", original?.TrackName ?? "", StringComparison.Ordinal))
                 {
                     output.Name = track.TrackName;
-                }
-                else if (isCustomConversion && !supportsDubFlag
-                         && original != null && track.IsDub != original.IsDub)
-                {
-                    // Matroska has no FlagDub element. For custom conversions where the
-                    // user explicitly toggled IsDub, encode it in the name so the change
-                    // persists. Profile-driven flows leave naming to the template.
-                    output.Name = TrackNameFlags.EncodeDubInName(track.TrackName, track.IsDub);
                 }
 
                 var resolvedLanguage = track.ResolveLanguageCode();

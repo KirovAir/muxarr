@@ -101,51 +101,12 @@ public class ConversionPlannerTests
     // --- DetermineStrategy: IsDub edge cases ---
 
     [TestMethod]
-    public void Strategy_CustomConversion_OnlyIsDubChanged_Matroska_EncodesInTrackName()
+    public void Strategy_OnlyIsDubChanged_Matroska_NameUnchanged_ReturnsSkip()
     {
-        // Matroska has no FlagDub element. For custom conversions, IsDub state is
-        // encoded in the track name (only way to persist it via mkvpropedit).
-        var file = MakeFileWithContainer("Matroska", null,
-            Video(0),
-            Audio(1, "English", dub: false, trackName: "English"));
-        var before = file.ToMediaSnapshot();
-
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        modifiedTracks.First(t => t.Type == MediaTrackType.Audio).IsDub = true;
-        var target = file.ToMediaSnapshot(modifiedTracks);
-
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target, isCustomConversion: true);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, isCustomConversion: true);
-        var audioOutput = outputs.First(o => o.Type == MkvMerge.AudioTrack);
-
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, strategy);
-        Assert.AreEqual("English Dub", audioOutput.Name, "IsDub=true should append Dub to name");
-        Assert.IsNull(audioOutput.IsDub, "IsDub flag itself should not be set for Matroska");
-    }
-
-    [TestMethod]
-    public void Strategy_CustomConversion_DisableIsDub_Matroska_StripsKeywordFromName()
-    {
-        var file = MakeFileWithContainer("Matroska", null,
-            Video(0),
-            Audio(1, "English", dub: true, trackName: "English Dub"));
-        var before = file.ToMediaSnapshot();
-
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        modifiedTracks.First(t => t.Type == MediaTrackType.Audio).IsDub = false;
-        var target = file.ToMediaSnapshot(modifiedTracks);
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, isCustomConversion: true);
-        var audioOutput = outputs.First(o => o.Type == MkvMerge.AudioTrack);
-
-        Assert.AreEqual("English", audioOutput.Name, "IsDub=false should strip Dub from name");
-    }
-
-    [TestMethod]
-    public void Strategy_ProfileConversion_OnlyIsDubChanged_Matroska_DoesNotEncode()
-    {
-        // Profile flow: user's template (or lack thereof) is authoritative.
-        // Don't auto-modify names - user can include {dub} in their template.
+        // Matroska has no FlagDub element. The planner can't apply IsDub - it's the
+        // caller's responsibility to encode it in the name (e.g. CustomConversionModal
+        // does this when the user toggles the dub button). If only IsDub changed
+        // without an accompanying name change, there's nothing to do.
         var file = MakeFileWithContainer("Matroska", null,
             Video(0),
             Audio(1, "English", dub: false, trackName: "English"));
@@ -156,12 +117,33 @@ public class ConversionPlannerTests
         var target = file.ToMediaSnapshot(modifiedTracks);
 
         var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
+
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, strategy);
+    }
+
+    [TestMethod]
+    public void Strategy_IsDubWithEncodedNameChange_Matroska_ReturnsMetadataEdit()
+    {
+        // Simulates what CustomConversionModal.ToggleDub does: toggles IsDub AND
+        // updates the name. The planner sees the name diff and routes to mkvpropedit.
+        var file = MakeFileWithContainer("Matroska", null,
+            Video(0),
+            Audio(1, "English", dub: false, trackName: "English"));
+        var before = file.ToMediaSnapshot();
+
+        var modifiedTracks = file.Tracks.ToSnapshots();
+        var audio = modifiedTracks.First(t => t.Type == MediaTrackType.Audio);
+        audio.IsDub = true;
+        audio.TrackName = TrackNameFlags.EncodeDubInName(audio.TrackName, audio.IsDub);
+        var target = file.ToMediaSnapshot(modifiedTracks);
+
+        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
         var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
         var audioOutput = outputs.First(o => o.Type == MkvMerge.AudioTrack);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, strategy,
-            "profile flow on Matroska doesn't auto-encode IsDub - skips when nothing else changed");
-        Assert.IsNull(audioOutput.Name);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, strategy);
+        Assert.AreEqual("English Dub", audioOutput.Name);
+        Assert.IsNull(audioOutput.IsDub, "IsDub flag itself should not be set for Matroska");
     }
 
     [TestMethod]
