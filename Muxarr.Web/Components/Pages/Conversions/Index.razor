@@ -205,6 +205,10 @@
                             @if (conversion.State == ConversionState.Completed)
                             {
                                 <span>@conversion.GetSizeChangePercentage()</span>
+                                @if (conversion.SizeDifference > 0)
+                                {
+                                    <span class="text-nowrap">(@conversion.SizeDifference.DisplayFileSize())</span>
+                                }
                             }
                         </td>
                         <td>
