@@ -256,9 +256,31 @@ public class MediaConverterService(
         }
         else
         {
-            // Custom conversions store user-selected tracks. Apply flag correction
-            // and language resolution (but not name standardization) at conversion
-            // time so "und" tracks and misdetected flags are still handled.
+            // Custom conversions store user-selected tracks from queue time. If the
+            // source file has been rescanned since and lost tracks the user picked,
+            // the conversion no longer makes sense - fail fast instead of silently
+            // producing a file that doesn't match intent.
+            var availableTrackNumbers = conversion.MediaFile.Tracks.Select(t => t.TrackNumber).ToHashSet();
+            var missingTracks = conversion.TargetSnapshot.Tracks
+                .Where(t => !availableTrackNumbers.Contains(t.TrackNumber))
+                .Select(t => t.TrackNumber)
+                .ToList();
+
+            if (missingTracks.Count > 0)
+            {
+                conversion.Log(
+                    $"Source file has changed since this custom conversion was queued. " +
+                    $"Missing tracks: {string.Join(", ", missingTracks)}. Requeue the conversion to pick fresh tracks.",
+                    logger, true);
+                conversion.State = ConversionState.Failed;
+                context.Update(conversion);
+                await context.SaveChangesAsync(token);
+                ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
+                return;
+            }
+
+            // Apply flag correction and language resolution (but not name standardization)
+            // at conversion time so "und" tracks and misdetected flags are still handled.
             var profile = conversion.MediaFile.Profile;
             foreach (var track in conversion.TargetSnapshot.Tracks.Where(t => t.Type != MediaTrackType.Video))
             {
@@ -280,10 +302,14 @@ public class MediaConverterService(
             return;
         }
 
-        var strategy = ConversionPlanner.DetermineStrategy(
+        // Run the planner exactly once per conversion. The ConversionPlan bundles
+        // the decision with both diff and remux output lists so we can't end up
+        // with disagreement between "what the planner decided" and "what the tool
+        // gets told to do" if the underlying snapshots drift.
+        var plan = ConversionPlanner.Plan(
             conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot);
 
-        if (strategy == ConversionPlanner.ConversionStrategy.Skip)
+        if (plan.Strategy == ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.StartedDate ??= DateTime.UtcNow;
             conversion.Log("File already optimized, skipping.", logger);
@@ -292,12 +318,9 @@ public class MediaConverterService(
             conversion.SizeDifference = 0;
             conversion.State = ConversionState.Completed;
         }
-        else if (strategy == ConversionPlanner.ConversionStrategy.MetadataEdit)
+        else if (plan.Strategy == ConversionPlanner.ConversionStrategy.MetadataEdit)
         {
-            var family = conversion.MediaFile.ContainerType.ToContainerFamily();
-            var trackOutputs = ConversionPlanner.BuildTrackOutputs(
-                conversion.SnapshotBefore, conversion.TargetSnapshot, family);
-            await RunMkvPropEditInPlaceAsync(conversion, trackOutputs, context, token);
+            await RunMkvPropEditInPlaceAsync(conversion, plan.DiffOutputs, context, token);
         }
 
         if (conversion.State is ConversionState.Completed or ConversionState.Failed)
@@ -313,10 +336,7 @@ public class MediaConverterService(
         // ffmpeg stream-copy so the container and every codec survive
         // byte-identical (metadata edits, track removal, and reorder all use
         // the same writer).
-        var remuxFamily = conversion.MediaFile.ContainerType.ToContainerFamily();
-        var remuxOutputs = ConversionPlanner.BuildTrackOutputs(
-            conversion.SnapshotBefore, conversion.TargetSnapshot, remuxFamily, diffOnly: false);
-        var useFFmpeg = remuxFamily != ContainerFamily.Matroska;
+        var useFFmpeg = conversion.MediaFile.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
         var conversionTimeout = Config.ConversionTimeoutMinutes > 0
             ? TimeSpan.FromMinutes(Config.ConversionTimeoutMinutes)
             : (TimeSpan?)null;
@@ -335,11 +355,11 @@ public class MediaConverterService(
 
             if (useFFmpeg)
             {
-                await RunFFmpegRemuxAsync(conversion, remuxOutputs, tmp, context, conversionTimeout, token);
+                await RunFFmpegRemuxAsync(conversion, plan.RemuxOutputs, tmp, context, conversionTimeout, token);
             }
             else
             {
-                await RunMkvMergeRemuxAsync(conversion, remuxOutputs, tmp, context, conversionTimeout, token);
+                await RunMkvMergeRemuxAsync(conversion, plan.RemuxOutputs, tmp, context, conversionTimeout, token);
             }
 
             await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, token);
@@ -348,7 +368,8 @@ public class MediaConverterService(
         {
             MkvMerge.KillExistingProcesses();
             FFmpeg.KillExistingProcesses();
-            conversion.LogError("Conversion was cancelled.", logger);
+            conversion.Log("Conversion was cancelled.", logger);
+            conversion.State = ConversionState.Cancelled;
             await context.SaveChangesAsync();
         }
         catch (Exception e)

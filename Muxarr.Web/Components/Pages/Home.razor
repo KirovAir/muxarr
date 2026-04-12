@@ -297,7 +297,7 @@
             {
                 ActiveConversions = Math.Max(1, ActiveConversions);
             }
-            else if (e.Conversion.State is ConversionState.Completed or ConversionState.Failed)
+            else if (e.Conversion.State is ConversionState.Completed or ConversionState.Failed or ConversionState.Cancelled)
             {
                 ActiveConversions = Math.Max(0, ActiveConversions - 1);
                 if (e.Conversion.State == ConversionState.Completed)

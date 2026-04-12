@@ -9,30 +9,54 @@ public static class ConversionPlanner
 {
     public enum ConversionStrategy { Skip, MetadataEdit, Remux }
 
-    public static ConversionStrategy DetermineStrategy(
-        MediaFile file, MediaSnapshot before, MediaSnapshot target)
+    /// <summary>
+    /// Bundles the planner decision with the outputs derived from it so the
+    /// converter can run the planner exactly once per conversion. Computing
+    /// strategy and outputs separately risks disagreement if the snapshots
+    /// shift between calls (e.g. a second rescan midway through).
+    /// </summary>
+    public sealed record ConversionPlan(
+        ConversionStrategy Strategy,
+        List<TrackOutput> DiffOutputs,
+        List<TrackOutput> RemuxOutputs);
+
+    public static ConversionPlan Plan(MediaFile file, MediaSnapshot before, MediaSnapshot target)
     {
         var family = file.ContainerType.ToContainerFamily();
         var hasTrackRemoval = target.Tracks.Count < file.TrackCount;
         var hasOrderChanges = !target.Tracks.Select(t => t.TrackNumber)
             .SequenceEqual(before.Tracks.Select(t => t.TrackNumber));
 
+        var diffOutputs = BuildTrackOutputs(before, target, family);
+        var hasMetadataChanges = diffOutputs.Any(HasChanges);
+
+        ConversionStrategy strategy;
         if (hasTrackRemoval || hasOrderChanges)
         {
-            return ConversionStrategy.Remux;
+            strategy = ConversionStrategy.Remux;
         }
-
-        var trackOutputs = BuildTrackOutputs(before, target, family);
-        var hasMetadataChanges = trackOutputs.Any(o => HasChanges(o));
-
-        if (!hasMetadataChanges)
+        else if (!hasMetadataChanges)
         {
-            return ConversionStrategy.Skip;
+            strategy = ConversionStrategy.Skip;
+        }
+        else
+        {
+            strategy = family == ContainerFamily.Matroska
+                ? ConversionStrategy.MetadataEdit
+                : ConversionStrategy.Remux;
         }
 
-        return family == ContainerFamily.Matroska
-            ? ConversionStrategy.MetadataEdit
-            : ConversionStrategy.Remux;
+        var remuxOutputs = strategy == ConversionStrategy.Remux
+            ? BuildTrackOutputs(before, target, family, diffOnly: false)
+            : [];
+
+        return new ConversionPlan(strategy, diffOutputs, remuxOutputs);
+    }
+
+    public static ConversionStrategy DetermineStrategy(
+        MediaFile file, MediaSnapshot before, MediaSnapshot target)
+    {
+        return Plan(file, before, target).Strategy;
     }
 
     /// <summary>

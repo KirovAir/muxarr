@@ -124,7 +124,7 @@
 
                             <div>
                                 <div
-                                    class="text-muted small mb-1">@(Conversion.State == ConversionState.Failed ? "Failed" : "Completed")</div>
+                                    class="text-muted small mb-1">@Conversion.State</div>
                                 <div>
                                     <TimeAgo DateTime="Conversion.UpdatedDate"/>
                                     @if (Conversion.StartedDate.HasValue)

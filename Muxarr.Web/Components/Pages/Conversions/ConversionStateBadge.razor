@@ -11,6 +11,8 @@
             ConversionState.Processing => "bg-primary",
             ConversionState.Completed => "bg-success",
             ConversionState.Failed => "bg-danger",
+            ConversionState.Cancelled => "bg-warning",
+            ConversionState.Paused => "bg-info",
             _ => "bg-secondary"
         };
     }
