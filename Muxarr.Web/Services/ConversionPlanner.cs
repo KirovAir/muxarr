@@ -1,5 +1,6 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Models;
+using Muxarr.Core.MkvToolNix;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -10,8 +11,9 @@ public static class ConversionPlanner
     public enum ConversionStrategy { Skip, MetadataEdit, Remux }
 
     public static ConversionStrategy DetermineStrategy(
-        MediaFile file, MediaSnapshot before, MediaSnapshot target)
+        MediaFile file, MediaSnapshot before, MediaSnapshot target, bool isCustomConversion = false)
     {
+        var family = file.ContainerType.ToContainerFamily();
         var hasTrackRemoval = target.Tracks.Count < file.TrackCount;
         var hasOrderChanges = !target.Tracks.Select(t => t.TrackNumber)
             .SequenceEqual(before.Tracks.Select(t => t.TrackNumber));
@@ -21,7 +23,7 @@ public static class ConversionPlanner
             return ConversionStrategy.Remux;
         }
 
-        var trackOutputs = BuildTrackOutputs(before, target);
+        var trackOutputs = BuildTrackOutputs(before, target, family, isCustomConversion: isCustomConversion);
         var hasMetadataChanges = trackOutputs.Any(o => HasChanges(o));
 
         if (!hasMetadataChanges)
@@ -29,7 +31,7 @@ public static class ConversionPlanner
             return ConversionStrategy.Skip;
         }
 
-        return file.ContainerType.ToContainerFamily() == ContainerFamily.Matroska
+        return family == ContainerFamily.Matroska
             ? ConversionStrategy.MetadataEdit
             : ConversionStrategy.Remux;
     }
@@ -37,12 +39,17 @@ public static class ConversionPlanner
     /// <summary>
     /// Builds tool instructions by diffing target tracks against current tracks.
     /// When diffOnly is true (metadata edits), only changed properties are set.
-    /// When false (remux), all non-video track properties are set explicitly
-    /// so the output file has correct metadata regardless of tool defaults.
+    /// When false (remux), all non-video track properties are set explicitly.
+    /// IsDub is dropped for Matroska since the spec has no FlagDub element.
+    /// For custom conversions on Matroska, IsDub toggles are encoded in the track
+    /// name (the only way to persist them) - profile-driven flows respect the
+    /// user's template instead, where {dub} can be included explicitly.
     /// </summary>
-    public static List<TrackOutput> BuildTrackOutputs(MediaSnapshot before, MediaSnapshot target, bool diffOnly = true)
+    public static List<TrackOutput> BuildTrackOutputs(MediaSnapshot before, MediaSnapshot target,
+        ContainerFamily family, bool diffOnly = true, bool isCustomConversion = false)
     {
         var beforeByNumber = before.Tracks.ToDictionary(t => t.TrackNumber);
+        var supportsDubFlag = family != ContainerFamily.Matroska;
         var trackOutputs = new List<TrackOutput>();
 
         foreach (var track in target.Tracks)
@@ -64,9 +71,18 @@ public static class ConversionPlanner
             }
             else if (diffOnly)
             {
-                if (!string.Equals(track.TrackName ?? "", original?.TrackName ?? "", StringComparison.Ordinal))
+                var nameChanged = !string.Equals(track.TrackName ?? "", original?.TrackName ?? "", StringComparison.Ordinal);
+                if (nameChanged)
                 {
                     output.Name = track.TrackName;
+                }
+                else if (isCustomConversion && !supportsDubFlag
+                         && original != null && track.IsDub != original.IsDub)
+                {
+                    // Matroska has no FlagDub element. For custom conversions where the
+                    // user explicitly toggled IsDub, encode it in the name so the change
+                    // persists. Profile-driven flows leave naming to the template.
+                    output.Name = TrackNameFlags.EncodeDubInName(track.TrackName, track.IsDub);
                 }
 
                 var resolvedLanguage = track.ResolveLanguageCode();
@@ -92,21 +108,23 @@ public static class ConversionPlanner
                 {
                     output.IsCommentary = track.IsCommentary;
                 }
-                if (original == null || track.IsDub != original.IsDub)
+                if (supportsDubFlag && (original == null || track.IsDub != original.IsDub))
                 {
                     output.IsDub = track.IsDub;
                 }
             }
             else
             {
-                // Remux: set all properties explicitly.
                 output.Name = track.TrackName;
                 output.LanguageCode = track.ResolveLanguageCode();
                 output.IsDefault = track.IsDefault;
                 output.IsForced = track.IsForced;
                 output.IsHearingImpaired = track.IsHearingImpaired;
                 output.IsCommentary = track.IsCommentary;
-                output.IsDub = track.IsDub;
+                if (supportsDubFlag)
+                {
+                    output.IsDub = track.IsDub;
+                }
             }
 
             trackOutputs.Add(output);

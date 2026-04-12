@@ -742,7 +742,7 @@ public class MkvToolNixComplexTests
 
         // Run pipeline
         var target = file.BuildTargetSnapshot(profile);
-        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         // Remux with the pipeline output
         var output = _workingCopy + ".pipeline.mkv";
@@ -809,7 +809,7 @@ public class MkvToolNixComplexTests
         };
 
         var target = file.ToMediaSnapshot(customAllowed);
-        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var output = _workingCopy + ".custom.mkv";
         try
@@ -873,7 +873,7 @@ public class MkvToolNixComplexTests
         };
 
         var target = file.BuildTargetSnapshot(profile);
-        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         // All 9 tracks should be kept (metadata-only path)
         Assert.AreEqual(file.TrackCount, target.Tracks.Count, "All tracks should be allowed");

@@ -258,12 +258,12 @@ public class ConversionPipelineTests
         var target = file.BuildTargetSnapshot(profile);
 
         // In diff mode (metadata edit), name should be null - no change needed.
-        var diffOutputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var diffOutputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
         var audioDiff = diffOutputs.First(o => o.Type == MkvMerge.AudioTrack);
         Assert.IsNull(audioDiff.Name, "Name should be null (don't touch) when standardization is off");
 
         // In remux mode, name is set explicitly but preserves the original value.
-        var remuxOutputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
+        var remuxOutputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
         var audioRemux = remuxOutputs.First(o => o.Type == MkvMerge.AudioTrack);
         Assert.AreEqual("Original Name", audioRemux.Name, "Remux should preserve original name");
     }
@@ -400,7 +400,7 @@ public class ConversionPipelineTests
 
         var before = file.ToMediaSnapshot();
         var target = file.ToMediaSnapshot(customAllowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
 
         var audio1 = outputs.First(o => o.TrackNumber == 1);
         var audio2 = outputs.First(o => o.TrackNumber == 2);
@@ -437,7 +437,7 @@ public class ConversionPipelineTests
 
         var before = file.ToMediaSnapshot();
         var target = file.ToMediaSnapshot(customAllowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
 
         Assert.AreEqual(2, outputs.Count, "Custom conversion should keep user-selected tracks regardless of profile");
         Assert.AreEqual("Keep This", outputs[1].Name);
@@ -468,7 +468,7 @@ public class ConversionPipelineTests
 
         var before = file.ToMediaSnapshot();
         var target = file.ToMediaSnapshot(customAllowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
 
         // Output order must match the input order, not the original track numbers
         Assert.AreEqual(0, outputs[0].TrackNumber, "Video first");
@@ -1073,7 +1073,7 @@ public class ConversionPipelineTests
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = false
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
         Assert.IsFalse(outputs.Any(ConversionPlanner.HasChanges));
     }
 
@@ -1091,7 +1091,7 @@ public class ConversionPipelineTests
             TrackName = "English 5.1", LanguageCode = "eng"
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
         Assert.IsTrue(outputs.Any(ConversionPlanner.HasChanges));
     }
 
@@ -1104,7 +1104,7 @@ public class ConversionPipelineTests
         var before = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = originalName }] };
         var target = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = targetName }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
         Assert.AreEqual(expected, outputs.Any(ConversionPlanner.HasChanges));
     }
 
@@ -1124,7 +1124,7 @@ public class ConversionPipelineTests
             IsDefault = false, IsForced = true, IsHearingImpaired = false, IsCommentary = false
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
         Assert.IsTrue(outputs.Any(ConversionPlanner.HasChanges));
     }
 
@@ -1146,7 +1146,7 @@ public class ConversionPipelineTests
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = true
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
         Assert.IsFalse(outputs.Any(ConversionPlanner.HasChanges));
     }
 
@@ -1179,7 +1179,7 @@ public class ConversionPipelineTests
 
         var before = file.ToMediaSnapshot();
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
 
         var hasMetadataChanges = outputs.Any(ConversionPlanner.HasChanges);
 
@@ -1544,7 +1544,7 @@ public class ConversionPipelineTests
         file.Profile = profile;
         var before = file.ToMediaSnapshot();
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
         return (target.Tracks, outputs);
     }
 }

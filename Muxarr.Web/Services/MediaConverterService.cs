@@ -281,7 +281,8 @@ public class MediaConverterService(
         }
 
         var strategy = ConversionPlanner.DetermineStrategy(
-            conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot);
+            conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot,
+            conversion.IsCustomConversion);
 
         if (strategy == ConversionPlanner.ConversionStrategy.Skip)
         {
@@ -294,7 +295,10 @@ public class MediaConverterService(
         }
         else if (strategy == ConversionPlanner.ConversionStrategy.MetadataEdit)
         {
-            var trackOutputs = ConversionPlanner.BuildTrackOutputs(conversion.SnapshotBefore, conversion.TargetSnapshot);
+            var family = conversion.MediaFile.ContainerType.ToContainerFamily();
+            var trackOutputs = ConversionPlanner.BuildTrackOutputs(
+                conversion.SnapshotBefore, conversion.TargetSnapshot, family,
+                isCustomConversion: conversion.IsCustomConversion);
             await RunMkvPropEditInPlaceAsync(conversion, trackOutputs, context, token);
         }
 
@@ -311,9 +315,10 @@ public class MediaConverterService(
         // ffmpeg stream-copy so the container and every codec survive
         // byte-identical (metadata edits, track removal, and reorder all use
         // the same writer).
+        var remuxFamily = conversion.MediaFile.ContainerType.ToContainerFamily();
         var remuxOutputs = ConversionPlanner.BuildTrackOutputs(
-            conversion.SnapshotBefore, conversion.TargetSnapshot, diffOnly: false);
-        var useFFmpeg = conversion.MediaFile.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
+            conversion.SnapshotBefore, conversion.TargetSnapshot, remuxFamily, diffOnly: false);
+        var useFFmpeg = remuxFamily != ContainerFamily.Matroska;
         var conversionTimeout = Config.ConversionTimeoutMinutes > 0
             ? TimeSpan.FromMinutes(Config.ConversionTimeoutMinutes)
             : (TimeSpan?)null;
@@ -409,7 +414,10 @@ public class MediaConverterService(
         await scanner.ScanMediaFile(mediaFile, true, context, mediaFile.Profile);
 
         var freshSnapshot = mediaFile.ToMediaSnapshot();
-        var remainingDiff = ConversionPlanner.BuildTrackOutputs(freshSnapshot, conversion.TargetSnapshot);
+        var family = mediaFile.ContainerType.ToContainerFamily();
+        var remainingDiff = ConversionPlanner.BuildTrackOutputs(
+            freshSnapshot, conversion.TargetSnapshot, family,
+            isCustomConversion: conversion.IsCustomConversion);
         var stillDiffers = remainingDiff.Any(ConversionPlanner.HasChanges);
 
         if (stillDiffers)

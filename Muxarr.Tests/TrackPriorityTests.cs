@@ -314,7 +314,7 @@ public class TrackPriorityTests
         );
 
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = normal, eligible
@@ -341,7 +341,7 @@ public class TrackPriorityTests
         );
 
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);    // Normal track = eligible
@@ -368,7 +368,7 @@ public class TrackPriorityTests
         );
 
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = first priority
@@ -394,7 +394,7 @@ public class TrackPriorityTests
         );
 
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == false);  // English preserved as non-default
@@ -421,7 +421,7 @@ public class TrackPriorityTests
 
         var allowed = file.BuildTargetSnapshot(profile).Tracks;
         var target = file.ToMediaSnapshot(allowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == false);  // Custom: flags not touched
@@ -495,7 +495,7 @@ public class TrackPriorityTests
         Assert.AreEqual("TrueHd", allowed[0].Codec);
         Assert.AreEqual("Spanish", allowed[1].LanguageName);
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
 
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = default
@@ -548,7 +548,7 @@ public class TrackPriorityTests
         );
 
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var audioOutput = outputs.First(o => o.Type == MkvMerge.AudioTrack);
         Assert.IsTrue(audioOutput.IsDefault == true,
@@ -663,7 +663,7 @@ public class TrackPriorityTests
         );
 
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs.First(o => o.TrackNumber == 2).IsDefault == true,

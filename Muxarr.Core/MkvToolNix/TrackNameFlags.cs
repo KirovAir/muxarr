@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Muxarr.Core.MkvToolNix;
 
 /// <summary>
@@ -91,16 +93,33 @@ public static class TrackNameFlags
                || name.Contains("Audio Descri", StringComparison.InvariantCultureIgnoreCase);
     }
 
+    private static readonly Regex DubKeywordRegex = new(
+        @"\b(Dubtitle|Dubbing|Dubbed|Dub)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
     public static bool ContainsDub(string? name)
     {
-        if (string.IsNullOrEmpty(name))
+        return !string.IsNullOrEmpty(name) && DubKeywordRegex.IsMatch(name);
+    }
+
+    /// <summary>
+    /// Ensures a track name reflects the dub state. For Matroska files (no FlagDub
+    /// element), this is the only way to persist the dub flag.
+    /// </summary>
+    public static string? EncodeDubInName(string? name, bool isDub)
+    {
+        if (isDub)
         {
-            return false;
+            return ContainsDub(name) ? name : (string.IsNullOrEmpty(name) ? "Dub" : $"{name} Dub");
         }
 
-        return ContainsWord(name, "Dub") || ContainsWord(name, "Dubbed")
-               || name.Contains("Dubtitle", StringComparison.InvariantCultureIgnoreCase)
-               || name.Contains("Dubbing", StringComparison.InvariantCultureIgnoreCase);
+        if (!ContainsDub(name))
+        {
+            return name;
+        }
+
+        var stripped = DubKeywordRegex.Replace(name!, "");
+        stripped = Regex.Replace(stripped, @"\s+", " ").Trim();
+        return string.IsNullOrEmpty(stripped) ? null : stripped;
     }
 
     private static bool ContainsWord(string text, string word)
