@@ -1,6 +1,7 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.FFmpeg;
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Models;
 using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -575,7 +576,7 @@ public class FFmpegTests
             var probed = new MediaFile { Path = output };
             await probed.SetFileDataFromFFprobe();
 
-            OutputValidator.ValidateOrThrow(probed, source, source.Tracks.ToSnapshots());
+            OutputValidator.ValidateOrThrow(probed, source, source.ToMediaSnapshot());
 
             // The audio title change actually landed.
             var audio = probed.Tracks.First(t => t.Type == MediaTrackType.Audio);
@@ -640,7 +641,7 @@ public class FFmpegTests
         await probed.SetFileDataFromFFprobe();
 
         // Must not throw.
-        OutputValidator.ValidateOrThrow(probed, source, source.Tracks.ToSnapshots());
+        OutputValidator.ValidateOrThrow(probed, source, source.ToMediaSnapshot());
     }
 
     [TestMethod]

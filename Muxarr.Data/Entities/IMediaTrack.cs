@@ -16,4 +16,5 @@ public interface IMediaTrack
     bool IsForced { get; }
     bool IsOriginal { get; }
     bool IsDub { get; }
+    long DurationMs { get; }
 }

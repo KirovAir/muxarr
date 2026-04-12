@@ -63,6 +63,8 @@ public static class MediaFileExtensions
         {
             file.Tracks.Clear();
             file.ContainerType = null;
+            file.ChapterCount = 0;
+            file.AttachmentCount = 0;
             return;
         }
 
@@ -103,6 +105,8 @@ public static class MediaFileExtensions
         }
 
         file.TrackCount = file.Tracks.Count;
+        file.ChapterCount = mkvInfo.Chapters.Sum(c => c.NumEntries);
+        file.AttachmentCount = mkvInfo.Attachments.Count;
 
         var firstVideoTrack = mkvInfo.Tracks.FirstOrDefault(t => t.Type == "video");
         file.Resolution = firstVideoTrack?.Properties.PixelDimensions;
@@ -128,6 +132,8 @@ public static class MediaFileExtensions
         {
             file.Tracks.Clear();
             file.ContainerType = null;
+            file.ChapterCount = 0;
+            file.AttachmentCount = 0;
             return probeResult;
         }
 
@@ -182,7 +188,8 @@ public static class MediaFileExtensions
                                    || TrackNameFlags.ContainsVisualImpaired(trackName),
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
                 IsOriginal = disposition.Original == 1,
-                IsDub = TrackNameFlags.ContainsDub(trackName)
+                IsDub = TrackNameFlags.ContainsDub(trackName),
+                DurationMs = ParseDurationMs(stream.Duration)
             };
 
             if (track.Type != MediaTrackType.Video
@@ -200,6 +207,8 @@ public static class MediaFileExtensions
         }
 
         file.TrackCount = file.Tracks.Count;
+        file.ChapterCount = probe.Chapters.Count;
+        file.AttachmentCount = probe.Streams.Count(s => s.CodecType == "attachment");
 
         var video = probe.Streams.FirstOrDefault(s => s.CodecType == "video");
         if (video is { Width: > 0, Height: > 0 })
@@ -275,9 +284,21 @@ public static class MediaFileExtensions
         return null;
     }
 
+    private static long ParseDurationMs(string? duration)
+    {
+        if (string.IsNullOrEmpty(duration))
+        {
+            return 0;
+        }
+
+        return double.TryParse(duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var seconds)
+            ? (long)(seconds * 1000)
+            : 0;
+    }
+
     // Allowed tracks filtering
 
-    public static List<MediaTrack> GetAllowedTracks(this MediaFile file, Profile? profile = null)
+    private static List<MediaTrack> GetAllowedTracks(MediaFile file, Profile? profile = null)
     {
         var p = profile ?? file.Profile;
         if (file.Tracks.Count == 0 || p == null)
@@ -503,33 +524,32 @@ public static class MediaFileExtensions
 
     // Metadata checking
 
-    public static bool CheckHasNonStandardMetadata(this MediaFile file, Profile? profile)
+    public static bool CheckHasNonStandardMetadata(this MediaFile file, Profile? profile,
+        MediaSnapshot? prebuiltTarget = null)
     {
         if (profile == null)
         {
             return false;
         }
 
-        // Compare the fully-mutated preview against the originals.
-        // This uses the same pipeline as actual conversion, so drift is impossible.
-        var previewTracks = file.GetPreviewTracks(profile);
+        var target = prebuiltTarget ?? file.BuildTargetSnapshot(profile);
         var originals = file.Tracks.ToDictionary(t => t.TrackNumber);
 
-        foreach (var preview in previewTracks)
+        foreach (var preview in target.Tracks)
         {
-            if (originals.TryGetValue(preview.TrackNumber, out var original) && HasMetadataChanges(original, preview))
+            if (originals.TryGetValue(preview.TrackNumber, out var original) &&
+                HasMetadataChanges(original, preview))
             {
                 return true;
             }
         }
 
-        // Check if tracks were reordered per type (reordering requires remux, not just metadata edit).
-        if (IsReordered(previewTracks.Where(t => t.Type == MediaTrackType.Audio).ToList()))
+        if (IsReordered(target.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList()))
         {
             return true;
         }
 
-        if (IsReordered(previewTracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList()))
+        if (IsReordered(target.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList()))
         {
             return true;
         }
@@ -537,20 +557,17 @@ public static class MediaFileExtensions
         return false;
     }
 
-    private static bool HasMetadataChanges(IMediaTrack original, IMediaTrack preview)
+    private static bool HasMetadataChanges(IMediaTrack original, IMediaTrack target)
     {
-        return !string.Equals(preview.TrackName ?? "", original.TrackName ?? "", StringComparison.Ordinal)
-               || !string.Equals(preview.LanguageName, original.LanguageName, StringComparison.Ordinal)
-               || preview.IsDefault != original.IsDefault
-               || preview.IsForced != original.IsForced
-               || preview.IsHearingImpaired != original.IsHearingImpaired
-               || preview.IsCommentary != original.IsCommentary
-               || preview.IsDub != original.IsDub;
+        return !string.Equals(target.TrackName ?? "", original.TrackName ?? "", StringComparison.Ordinal)
+               || !string.Equals(target.LanguageName, original.LanguageName, StringComparison.Ordinal)
+               || target.IsDefault != original.IsDefault
+               || target.IsForced != original.IsForced
+               || target.IsHearingImpaired != original.IsHearingImpaired
+               || target.IsCommentary != original.IsCommentary
+               || target.IsDub != original.IsDub;
     }
 
-    /// <summary>
-    /// Returns true if tracks are not in ascending track number order (i.e., reordered by priority).
-    /// </summary>
     private static bool IsReordered<T>(List<T> tracks) where T : IMediaTrack
     {
         for (var i = 1; i < tracks.Count; i++)
@@ -564,31 +581,27 @@ public static class MediaFileExtensions
     }
 
     /// <summary>
-    /// Creates snapshot copies of allowed tracks with all planned mutations applied
-    /// (undetermined resolution, track name standardization, flag correction).
-    /// Used by the UI to preview the future state of tracks after conversion.
+    /// Builds the fully resolved target state for a file given a profile.
+    /// Single entry point for determining desired output - used by both
+    /// the UI preview and the conversion pipeline.
     /// </summary>
-    public static List<TrackSnapshot> GetPreviewTracks(this MediaFile file, Profile? profile)
+    public static MediaSnapshot BuildTargetSnapshot(this MediaFile file, Profile? profile)
     {
         if (profile == null)
         {
-            return file.Tracks.Select(t => t.ToSnapshot()).ToList();
+            return file.ToMediaSnapshot();
         }
 
-        var previews = file.GetAllowedTracks(profile).ToSnapshots();
-        previews.ApplyProfileMutations(profile,
+        var allowedTracks = GetAllowedTracks(file, profile).ToSnapshots();
+        ApplyProfileMutations(allowedTracks, profile,
             file.Tracks.Count(t => t.Type == MediaTrackType.Audio),
             file.Tracks.Count(t => t.Type == MediaTrackType.Subtitles),
             file.OriginalLanguage);
-        return previews;
+
+        return file.ToMediaSnapshot(allowedTracks);
     }
 
-    /// <summary>
-    /// Applies all profile-driven mutations to track snapshots: video name clearing,
-    /// flag correction, undetermined language resolution, name standardization, and default flag reassignment.
-    /// Shared by preview generation, conversion output building, and the custom conversion modal.
-    /// </summary>
-    public static void ApplyProfileMutations(this List<TrackSnapshot> snapshots, Profile profile,
+    private static void ApplyProfileMutations(List<TrackSnapshot> snapshots, Profile profile,
         int totalAudioTracks, int totalSubtitleTracks, string? originalLanguage, bool standardizeNames = true)
     {
         foreach (var snapshot in snapshots)
@@ -733,6 +746,7 @@ public static class MediaFileExtensions
             LanguageName = track.LanguageName,
             TrackName = track.TrackName,
             TrackNumber = track.TrackNumber,
+            DurationMs = track.DurationMs,
             IsCommentary = track.IsCommentary,
             IsHearingImpaired = track.IsHearingImpaired,
             IsVisualImpaired = track.IsVisualImpaired,
@@ -748,77 +762,27 @@ public static class MediaFileExtensions
         return tracks.Select(t => t.ToSnapshot()).ToList();
     }
 
-    // Conversion output building
-
-    /// <summary>
-    /// Builds the desired output for a conversion: filters tracks, applies templates, resolves languages.
-    /// This is the core logic that determines what gets sent to mkvmerge/mkvpropedit.
-    /// </summary>
-    public static List<TrackOutput> BuildTrackOutputs(this MediaFile file, Profile? profile,
-        List<TrackSnapshot> allowedTracks, List<TrackSnapshot> tracksBefore, bool isCustomConversion)
+    public static MediaSnapshot ToMediaSnapshot(this MediaFile file)
     {
-        var totalAudio = tracksBefore.Count(t => t.Type == MediaTrackType.Audio);
-        var totalSubs = tracksBefore.Count(t => t.Type == MediaTrackType.Subtitles);
-
-        if (!isCustomConversion && profile != null)
+        return new MediaSnapshot
         {
-            allowedTracks.ApplyProfileMutations(profile, totalAudio, totalSubs, file.OriginalLanguage);
-        }
-        else
-        {
-            // Custom conversion: apply flag correction and language resolution only
-            // (no name standardization or default reassignment).
-            foreach (var track in allowedTracks.Where(t => t.Type != MediaTrackType.Video))
-            {
-                var settings = track.Type == MediaTrackType.Audio ? profile?.AudioSettings : profile?.SubtitleSettings;
-                var count = track.Type == MediaTrackType.Audio ? totalAudio : totalSubs;
-                track.ApplyTrackMutations(settings, count, file.OriginalLanguage, standardizeNames: false);
-            }
-        }
-
-        var trackOutputs = new List<TrackOutput>();
-        foreach (var track in allowedTracks)
-        {
-            var output = new TrackOutput
-            {
-                TrackNumber = track.TrackNumber,
-                Type = track.Type.ToMkvMergeType()
-            };
-
-            if (track.Type == MediaTrackType.Video)
-            {
-                if (isCustomConversion)
-                {
-                    output.Name = track.TrackName ?? "";
-                }
-                else if (profile is { ClearVideoTrackNames: true })
-                {
-                    output.Name = "";
-                }
-            }
-            else
-            {
-                var trackSettings = track.Type == MediaTrackType.Audio ? profile?.AudioSettings : profile?.SubtitleSettings;
-                if (isCustomConversion || trackSettings is { StandardizeTrackNames: true })
-                {
-                    output.Name = track.TrackName;
-                }
-
-                output.LanguageCode = track.ResolveLanguageCode();
-
-                // Set flags explicitly so they survive name standardization and remuxing.
-                output.IsDefault = track.IsDefault;
-                output.IsForced = track.IsForced;
-                output.IsHearingImpaired = track.IsHearingImpaired;
-                output.IsCommentary = track.IsCommentary;
-                output.IsDub = track.IsDub;
-            }
-
-            trackOutputs.Add(output);
-        }
-
-        return trackOutputs;
+            Tracks = file.Tracks.ToSnapshots(),
+            HasChapters = file.ChapterCount > 0,
+            HasAttachments = file.AttachmentCount > 0
+        };
     }
+
+    public static MediaSnapshot ToMediaSnapshot(this MediaFile file, List<TrackSnapshot> tracks)
+    {
+        return new MediaSnapshot
+        {
+            Tracks = tracks,
+            HasChapters = file.ChapterCount > 0,
+            HasAttachments = file.AttachmentCount > 0
+        };
+    }
+
+    // Conversion output building
 
     /// <summary>
     /// Assigns default track flags based on the configured strategy.
@@ -867,28 +831,6 @@ public static class MediaFileExtensions
                 track.IsDefault = !track.IsCommentary && !track.IsHearingImpaired && !track.IsVisualImpaired && !track.IsDub;
             }
         }
-    }
-
-    /// <summary>
-    /// Returns true when any set property on the output differs from the original track.
-    /// Properties left null (meaning "keep original") are not considered changes.
-    /// </summary>
-    public static bool DiffersFrom(this TrackOutput output, TrackSnapshot? original)
-    {
-        if (original == null)
-        {
-            return output.Name != null || output.LanguageCode != null || output.IsDefault != null
-                || output.IsForced != null || output.IsHearingImpaired != null || output.IsCommentary != null
-                || output.IsDub != null;
-        }
-
-        return (output.Name != null && !string.Equals(output.Name ?? "", original.TrackName ?? "", StringComparison.Ordinal))
-            || (output.LanguageCode != null && !string.Equals(output.LanguageCode, original.LanguageCode, StringComparison.Ordinal))
-            || (output.IsDefault != null && output.IsDefault != original.IsDefault)
-            || (output.IsForced != null && output.IsForced != original.IsForced)
-            || (output.IsHearingImpaired != null && output.IsHearingImpaired != original.IsHearingImpaired)
-            || (output.IsCommentary != null && output.IsCommentary != original.IsCommentary)
-            || (output.IsDub != null && output.IsDub != original.IsDub);
     }
 
     // Helpers

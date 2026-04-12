@@ -167,7 +167,7 @@
                     <h5 class="mb-0">Tracks Before</h5>
                 </div>
                 <div class="table-responsive">
-                    <MediaTrackDetailTable Tracks="Conversion.TracksBefore"
+                    <MediaTrackDetailTable Tracks="Conversion.SnapshotBefore.Tracks"
                                            OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
                 </div>
             </div>
@@ -179,10 +179,10 @@
                     <i class="bi bi-collection-fill text-primary me-2"></i>
                     <h5 class="mb-0">Tracks After</h5>
                 </div>
-                @if (Conversion.TracksAfter.Count > 0)
+                @if (Conversion.SnapshotAfter.Tracks.Count > 0)
                 {
                     <div class="table-responsive">
-                        <MediaTrackDetailTable Tracks="Conversion.TracksAfter"
+                        <MediaTrackDetailTable Tracks="Conversion.SnapshotAfter.Tracks"
                                                OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
                     </div>
                 }
@@ -272,7 +272,7 @@
             if (e.Conversion is { State: ConversionState.Completed, MediaFile: not null })
             {
                 Conversion.SizeAfter = e.Conversion.MediaFile.Size;
-                Conversion.TracksAfter = e.Conversion.MediaFile.Tracks.ToSnapshots();
+                Conversion.SnapshotAfter = e.Conversion.MediaFile.ToMediaSnapshot();
                 Conversion.SizeDifference = e.Conversion.SizeDifference;
                 ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
             }

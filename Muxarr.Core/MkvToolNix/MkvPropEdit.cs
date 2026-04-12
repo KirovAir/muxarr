@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Utilities;
 
 namespace Muxarr.Core.MkvToolNix;

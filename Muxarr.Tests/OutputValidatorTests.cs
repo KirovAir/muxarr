@@ -19,9 +19,12 @@ public class OutputValidatorTests
         };
     }
 
-    private static List<TrackSnapshot> Expected(params MediaTrackType[] types)
+    private static MediaSnapshot Expected(params MediaTrackType[] types)
     {
-        return types.Select(t => new TrackSnapshot { Type = t }).ToList();
+        return new MediaSnapshot
+        {
+            Tracks = types.Select(t => new TrackSnapshot { Type = t }).ToList()
+        };
     }
 
     [TestMethod]

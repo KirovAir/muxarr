@@ -1,8 +1,10 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
+using Muxarr.Web.Services;
 
 namespace Muxarr.Tests;
 
@@ -474,7 +476,7 @@ public class MkvToolNixComplexTests
             }
         };
 
-        var allowed = file.GetAllowedTracks(profile);
+        var allowed = file.BuildTargetSnapshot(profile).Tracks;
 
         // Video always kept
         Assert.AreEqual(1, allowed.Count(t => t.Type == MediaTrackType.Video));
@@ -517,7 +519,7 @@ public class MkvToolNixComplexTests
             }
         };
 
-        var allowed = file.GetAllowedTracks(profile);
+        var allowed = file.BuildTargetSnapshot(profile).Tracks;
         var subs = allowed.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
         // With RemoveImpaired=false, all 3 English subs should be kept
@@ -553,7 +555,7 @@ public class MkvToolNixComplexTests
             }
         };
 
-        var previews = file.GetPreviewTracks(profile);
+        var previews = file.BuildTargetSnapshot(profile).Tracks;
         var audioPreview = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
         var subPreview = previews.Where(p => p.Type == MediaTrackType.Subtitles).ToList();
 
@@ -739,9 +741,8 @@ public class MkvToolNixComplexTests
         };
 
         // Run pipeline
-        var allowed = file.GetAllowedTracks(profile);
-        var allowedSnapshots = allowed.ToSnapshots();
-        var trackOutputs = file.BuildTrackOutputs(profile, allowedSnapshots, file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         // Remux with the pipeline output
         var output = _workingCopy + ".pipeline.mkv";
@@ -807,7 +808,8 @@ public class MkvToolNixComplexTests
             }
         };
 
-        var trackOutputs = file.BuildTrackOutputs(null, customAllowed, file.Tracks.ToSnapshots(), true);
+        var target = file.ToMediaSnapshot(customAllowed);
+        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var output = _workingCopy + ".custom.mkv";
         try
@@ -870,11 +872,11 @@ public class MkvToolNixComplexTests
             }
         };
 
-        var allowed = file.GetAllowedTracks(profile);
-        var trackOutputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var trackOutputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         // All 9 tracks should be kept (metadata-only path)
-        Assert.AreEqual(file.TrackCount, allowed.Count, "All tracks should be allowed");
+        Assert.AreEqual(file.TrackCount, target.Tracks.Count, "All tracks should be allowed");
 
         // Apply via mkvpropedit (in-place, no remux)
         var result = await MkvPropEdit.EditTrackProperties(_workingCopy, trackOutputs);

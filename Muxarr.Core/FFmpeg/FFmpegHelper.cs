@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.MkvToolNix;
 
 namespace Muxarr.Core.FFmpeg;

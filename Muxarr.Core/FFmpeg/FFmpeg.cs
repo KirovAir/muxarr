@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using Muxarr.Core.Models;
 using Muxarr.Core.MkvToolNix;
 using Muxarr.Core.Utilities;
 
@@ -29,7 +30,7 @@ public static class FFmpeg
     {
         var result = await ProcessExecutor.ExecuteProcessAsync(
             FfprobeExecutable,
-            $"-v error -print_format json -show_streams -show_format \"{file}\"",
+            $"-v error -print_format json -show_streams -show_chapters -show_format \"{file}\"",
             TimeSpan.FromSeconds(30));
 
         var json = new ProcessJsonResult<FFprobeResult>(result);

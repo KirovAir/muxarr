@@ -155,7 +155,7 @@ public class FFprobeComplexTests
             }
         };
 
-        var allowed = file.GetAllowedTracks(profile);
+        var allowed = file.BuildTargetSnapshot(profile).Tracks;
 
         Assert.AreEqual(1, allowed.Count(t => t.Type == MediaTrackType.Video));
         Assert.AreEqual(1, allowed.Count(t => t.Type == MediaTrackType.Audio));
@@ -193,7 +193,7 @@ public class FFprobeComplexTests
             }
         };
 
-        var allowed = file.GetAllowedTracks(profile);
+        var allowed = file.BuildTargetSnapshot(profile).Tracks;
         var subs = allowed.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
         Assert.AreEqual(3, subs.Count);

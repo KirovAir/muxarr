@@ -7,6 +7,9 @@ public class FFprobeResult
     [JsonPropertyName("streams")]
     public List<FFprobeStream> Streams { get; set; } = [];
 
+    [JsonPropertyName("chapters")]
+    public List<FFprobeChapter> Chapters { get; set; } = [];
+
     [JsonPropertyName("format")]
     public FFprobeFormat? Format { get; set; }
 }
@@ -35,6 +38,9 @@ public class FFprobeStream
 
     [JsonPropertyName("channels")]
     public int Channels { get; set; }
+
+    [JsonPropertyName("duration")]
+    public string? Duration { get; set; }
 
     // String to tolerate ffprobe's "N/A" for non-video streams.
     [JsonPropertyName("bits_per_raw_sample")]
@@ -85,6 +91,24 @@ public class FFprobeDisposition
     // equivalents as attachments, not tracks) and the scanner skips them.
     [JsonPropertyName("attached_pic")]
     public int AttachedPic { get; set; }
+}
+
+public class FFprobeChapter
+{
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("time_base")]
+    public string? TimeBase { get; set; }
+
+    [JsonPropertyName("start_time")]
+    public string? StartTime { get; set; }
+
+    [JsonPropertyName("end_time")]
+    public string? EndTime { get; set; }
+
+    [JsonPropertyName("tags")]
+    public Dictionary<string, string>? Tags { get; set; }
 }
 
 public class FFprobeFormat

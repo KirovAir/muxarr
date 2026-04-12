@@ -1,4 +1,5 @@
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Models;
 
 namespace Muxarr.Tests;
 

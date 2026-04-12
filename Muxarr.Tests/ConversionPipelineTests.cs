@@ -1,8 +1,10 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
+using Muxarr.Web.Services;
 using static Muxarr.Tests.TestData;
 
 namespace Muxarr.Tests;
@@ -252,10 +254,18 @@ public class ConversionPipelineTests
                 StandardizeTrackNames = false
             });
 
-        var (_, outputs) = RunPipeline(file, profile);
+        var before = file.ToMediaSnapshot();
+        var target = file.BuildTargetSnapshot(profile);
 
-        var audio = outputs.First(o => o.Type == MkvMerge.AudioTrack);
-        Assert.IsNull(audio.Name, "Name should be null (don't touch) when standardization is off");
+        // In diff mode (metadata edit), name should be null - no change needed.
+        var diffOutputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        var audioDiff = diffOutputs.First(o => o.Type == MkvMerge.AudioTrack);
+        Assert.IsNull(audioDiff.Name, "Name should be null (don't touch) when standardization is off");
+
+        // In remux mode, name is set explicitly but preserves the original value.
+        var remuxOutputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
+        var audioRemux = remuxOutputs.First(o => o.Type == MkvMerge.AudioTrack);
+        Assert.AreEqual("Original Name", audioRemux.Name, "Remux should preserve original name");
     }
 
     [TestMethod]
@@ -388,7 +398,9 @@ public class ConversionPipelineTests
             new() { Type = MediaTrackType.Subtitles, TrackNumber = 3, LanguageName = "English", LanguageCode = "eng", Codec = nameof(SubtitleCodec.Srt), IsForced = true, TrackName = "Forced" }
         };
 
-        var outputs = file.BuildTrackOutputs(null, customAllowed, file.Tracks.ToSnapshots(), isCustomConversion: true);
+        var before = file.ToMediaSnapshot();
+        var target = file.ToMediaSnapshot(customAllowed);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
 
         var audio1 = outputs.First(o => o.TrackNumber == 1);
         var audio2 = outputs.First(o => o.TrackNumber == 2);
@@ -423,7 +435,9 @@ public class ConversionPipelineTests
             new() { Type = MediaTrackType.Audio, TrackNumber = 1, LanguageName = "French", LanguageCode = "fre", Codec = nameof(AudioCodec.Aac), AudioChannels = 6, TrackName = "Keep This" }
         };
 
-        var outputs = file.BuildTrackOutputs(file.Profile, customAllowed, file.Tracks.ToSnapshots(), isCustomConversion: true);
+        var before = file.ToMediaSnapshot();
+        var target = file.ToMediaSnapshot(customAllowed);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
 
         Assert.AreEqual(2, outputs.Count, "Custom conversion should keep user-selected tracks regardless of profile");
         Assert.AreEqual("Keep This", outputs[1].Name);
@@ -452,7 +466,9 @@ public class ConversionPipelineTests
             new() { Type = MediaTrackType.Subtitles, TrackNumber = 3, LanguageName = "English", LanguageCode = "eng", Codec = nameof(SubtitleCodec.Srt) },
         };
 
-        var outputs = file.BuildTrackOutputs(null, customAllowed, file.Tracks.ToSnapshots(), isCustomConversion: true);
+        var before = file.ToMediaSnapshot();
+        var target = file.ToMediaSnapshot(customAllowed);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
 
         // Output order must match the input order, not the original track numbers
         Assert.AreEqual(0, outputs[0].TrackNumber, "Video first");
@@ -1034,92 +1050,104 @@ public class ConversionPipelineTests
     [TestMethod]
     [DataRow(null, false, DisplayName = "No properties set")]
     [DataRow("test", true, DisplayName = "Name set")]
-    public void DiffersFrom_NullOriginal(string? name, bool expected)
+    public void HasChanges_BasicOutput(string? name, bool expected)
     {
         var output = new TrackOutput { TrackNumber = 0, Type = MkvMerge.VideoTrack, Name = name };
-        Assert.AreEqual(expected, output.DiffersFrom(null));
+        Assert.AreEqual(expected, ConversionPlanner.HasChanges(output));
     }
 
     [TestMethod]
-    public void DiffersFrom_IdenticalTrack_NoDiff()
+    public void BuildTrackOutputs_IdenticalTrack_NoDiff()
     {
-        var original = new TrackSnapshot
+        var track = new TrackSnapshot
         {
             TrackNumber = 1, Type = MediaTrackType.Audio,
             TrackName = "English 5.1", LanguageCode = "eng",
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = false
         };
-        var output = new TrackOutput
+        var before = new MediaSnapshot { Tracks = [track] };
+        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
         {
-            TrackNumber = 1, Type = MkvMerge.AudioTrack,
-            Name = "English 5.1", LanguageCode = "eng",
+            TrackNumber = 1, Type = MediaTrackType.Audio,
+            TrackName = "English 5.1", LanguageCode = "eng",
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = false
-        };
+        }] };
 
-        Assert.IsFalse(output.DiffersFrom(original));
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        Assert.IsFalse(outputs.Any(ConversionPlanner.HasChanges));
     }
 
     [TestMethod]
-    public void DiffersFrom_NameChanged_Differs()
+    public void BuildTrackOutputs_NameChanged_HasChanges()
     {
-        var original = new TrackSnapshot
+        var before = new MediaSnapshot { Tracks = [new TrackSnapshot
         {
             TrackNumber = 1, Type = MediaTrackType.Audio,
             TrackName = "English", LanguageCode = "eng"
-        };
-        var output = new TrackOutput
+        }] };
+        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
         {
-            TrackNumber = 1, Type = MkvMerge.AudioTrack,
-            Name = "English 5.1", LanguageCode = "eng"
-        };
+            TrackNumber = 1, Type = MediaTrackType.Audio,
+            TrackName = "English 5.1", LanguageCode = "eng"
+        }] };
 
-        Assert.IsTrue(output.DiffersFrom(original));
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        Assert.IsTrue(outputs.Any(ConversionPlanner.HasChanges));
     }
 
     [TestMethod]
     [DataRow(null,            "", false, DisplayName = "Null original name, cleared = no diff")]
     [DataRow("",              "", false, DisplayName = "Empty original name, cleared = no diff")]
     [DataRow("x264 - Scene",  "", true,  DisplayName = "Has existing name, cleared = diff")]
-    public void DiffersFrom_ClearVideoName(string? originalName, string outputName, bool expected)
+    public void BuildTrackOutputs_ClearVideoName(string? originalName, string targetName, bool expected)
     {
-        var original = new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = originalName };
-        var output = new TrackOutput { TrackNumber = 0, Type = MkvMerge.VideoTrack, Name = outputName };
+        var before = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = originalName }] };
+        var target = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = targetName }] };
 
-        Assert.AreEqual(expected, output.DiffersFrom(original));
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        Assert.AreEqual(expected, outputs.Any(ConversionPlanner.HasChanges));
     }
 
     [TestMethod]
-    public void DiffersFrom_FlagChanged_Differs()
+    public void BuildTrackOutputs_FlagChanged_HasChanges()
     {
-        var original = new TrackSnapshot
+        var before = new MediaSnapshot { Tracks = [new TrackSnapshot
         {
             TrackNumber = 2, Type = MediaTrackType.Subtitles,
             TrackName = "English", LanguageCode = "eng",
             IsDefault = false, IsForced = false, IsHearingImpaired = false, IsCommentary = false
-        };
-        var output = new TrackOutput
+        }] };
+        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
         {
-            TrackNumber = 2, Type = MkvMerge.SubtitlesTrack,
-            Name = "English", LanguageCode = "eng",
+            TrackNumber = 2, Type = MediaTrackType.Subtitles,
+            TrackName = "English", LanguageCode = "eng",
             IsDefault = false, IsForced = true, IsHearingImpaired = false, IsCommentary = false
-        };
+        }] };
 
-        Assert.IsTrue(output.DiffersFrom(original));
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        Assert.IsTrue(outputs.Any(ConversionPlanner.HasChanges));
     }
 
     [TestMethod]
-    public void DiffersFrom_OnlyUnsetProperties_NoDiff()
+    public void BuildTrackOutputs_IdenticalProperties_NoDiff()
     {
-        // When output leaves properties as null, they mean "keep original" — no diff.
-        var original = new TrackSnapshot
+        // When before and target are identical, BuildTrackOutputs should produce no changes.
+        var track = new TrackSnapshot
         {
             TrackNumber = 0, Type = MediaTrackType.Video,
             TrackName = "x264", LanguageCode = "eng",
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = true
         };
-        var output = new TrackOutput { TrackNumber = 0, Type = MkvMerge.VideoTrack };
+        var before = new MediaSnapshot { Tracks = [track] };
+        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
+        {
+            TrackNumber = 0, Type = MediaTrackType.Video,
+            TrackName = "x264", LanguageCode = "eng",
+            IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = true
+        }] };
 
-        Assert.IsFalse(output.DiffersFrom(original));
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
+        Assert.IsFalse(outputs.Any(ConversionPlanner.HasChanges));
     }
 
     [TestMethod]
@@ -1149,11 +1177,11 @@ public class ConversionPipelineTests
             },
             clearVideoNames: true);
 
-        var (_, outputs) = RunPipeline(file, profile);
-        var tracksBefore = file.Tracks.ToSnapshots();
+        var before = file.ToMediaSnapshot();
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target);
 
-        var hasMetadataChanges = outputs.Any(t =>
-            t.DiffersFrom(tracksBefore.FirstOrDefault(b => b.TrackNumber == t.TrackNumber)));
+        var hasMetadataChanges = outputs.Any(ConversionPlanner.HasChanges);
 
         Assert.IsFalse(hasMetadataChanges, "File with null video name and ClearVideoTrackNames should be considered optimal");
     }
@@ -1261,45 +1289,39 @@ public class ConversionPipelineTests
     // --- ApplyProfileMutations ---
 
     [TestMethod]
-    public void ApplyProfileMutations_ClearsVideoTrackName()
+    public void BuildTargetSnapshot_ClearsVideoTrackName()
     {
-        var snapshots = new List<TrackSnapshot>
-        {
-            Video(0, trackName: "x264 HDR").ToSnapshot(),
-            Audio(1, "English").ToSnapshot()
-        };
+        var file = MakeFile("English",
+            Video(0, trackName: "x264 HDR"),
+            Audio(1, "English"));
         var profile = MakeProfile(clearVideoNames: true);
 
-        snapshots.ApplyProfileMutations(profile, 1, 0, "English");
+        var result = file.BuildTargetSnapshot(profile).Tracks;
 
-        Assert.IsNull(snapshots[0].TrackName, "Video track name should be cleared");
+        Assert.IsNull(result[0].TrackName, "Video track name should be cleared");
     }
 
     [TestMethod]
-    public void ApplyProfileMutations_CorrectsFlagsFromTrackName()
+    public void BuildTargetSnapshot_CorrectsFlagsFromTrackName()
     {
-        var snapshots = new List<TrackSnapshot>
-        {
-            Sub(1, "English", trackName: "English SDH").ToSnapshot()
-        };
+        var file = MakeFile("English",
+            Sub(1, "English", trackName: "English SDH"));
         var profile = MakeProfile(subtitle: new TrackSettings
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")]
         });
 
-        snapshots.ApplyProfileMutations(profile, 0, 1, "English");
+        var result = file.BuildTargetSnapshot(profile).Tracks;
 
-        Assert.IsTrue(snapshots[0].IsHearingImpaired, "HI flag should be corrected from track name");
+        Assert.IsTrue(result[0].IsHearingImpaired, "HI flag should be corrected from track name");
     }
 
     [TestMethod]
-    public void ApplyProfileMutations_ResolvesUndeterminedLanguage()
+    public void BuildTargetSnapshot_ResolvesUndeterminedLanguage()
     {
-        var snapshots = new List<TrackSnapshot>
-        {
-            Audio(1, "Undetermined").ToSnapshot()
-        };
+        var file = MakeFile("English",
+            Audio(1, "Undetermined"));
         var profile = MakeProfile(audio: new TrackSettings
         {
             Enabled = true,
@@ -1307,19 +1329,17 @@ public class ConversionPipelineTests
             AssumeUndeterminedIsOriginal = true
         });
 
-        snapshots.ApplyProfileMutations(profile, 1, 0, "English");
+        var result = file.BuildTargetSnapshot(profile).Tracks;
 
-        Assert.AreEqual("English", snapshots[0].LanguageName);
-        Assert.AreEqual("eng", snapshots[0].LanguageCode);
+        Assert.AreEqual("English", result[0].LanguageName);
+        Assert.AreEqual("eng", result[0].LanguageCode);
     }
 
     [TestMethod]
-    public void ApplyProfileMutations_StandardizesTrackNames()
+    public void BuildTargetSnapshot_StandardizesTrackNames()
     {
-        var snapshots = new List<TrackSnapshot>
-        {
-            Audio(1, "English", trackName: "Surround 5.1").ToSnapshot()
-        };
+        var file = MakeFile("English",
+            Audio(1, "English", trackName: "Surround 5.1"));
         var profile = MakeProfile(audio: new TrackSettings
         {
             Enabled = true,
@@ -1328,39 +1348,35 @@ public class ConversionPipelineTests
             TrackNameTemplate = "{language} {channels}"
         });
 
-        snapshots.ApplyProfileMutations(profile, 1, 0, "English");
+        var result = file.BuildTargetSnapshot(profile).Tracks;
 
-        Assert.AreEqual("English 5.1", snapshots[0].TrackName);
+        Assert.AreEqual("English 5.1", result[0].TrackName);
     }
 
     [TestMethod]
-    public void ApplyProfileMutations_SkipsStandardization_WhenDisabled()
+    public void BuildTargetSnapshot_SkipsStandardization_WhenDisabled()
     {
-        var snapshots = new List<TrackSnapshot>
-        {
-            Audio(1, "English", trackName: "Custom Name").ToSnapshot()
-        };
+        var file = MakeFile("English",
+            Audio(1, "English", trackName: "Custom Name"));
         var profile = MakeProfile(audio: new TrackSettings
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            StandardizeTrackNames = true,
+            StandardizeTrackNames = false,
             TrackNameTemplate = "{language} {channels}"
         });
 
-        snapshots.ApplyProfileMutations(profile, 1, 0, "English", standardizeNames: false);
+        var result = file.BuildTargetSnapshot(profile).Tracks;
 
-        Assert.AreEqual("Custom Name", snapshots[0].TrackName, "Name should not change when standardizeNames=false");
+        Assert.AreEqual("Custom Name", result[0].TrackName, "Name should not change when StandardizeTrackNames=false");
     }
 
     [TestMethod]
-    public void ApplyProfileMutations_ReassignsDefaultFlags_WhenPriorityEnabled()
+    public void BuildTargetSnapshot_ReassignsDefaultFlags_WhenPriorityEnabled()
     {
-        var snapshots = new List<TrackSnapshot>
-        {
-            Audio(1, "English", isDefault: false).ToSnapshot(),
-            Audio(2, "Japanese", isDefault: true).ToSnapshot()
-        };
+        var file = MakeFile("English",
+            Audio(1, "English", isDefault: false),
+            Audio(2, "Japanese", isDefault: true));
         var profile = MakeProfile(audio: new TrackSettings
         {
             Enabled = true,
@@ -1368,10 +1384,10 @@ public class ConversionPipelineTests
             AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Japanese")]
         });
 
-        snapshots.ApplyProfileMutations(profile, 2, 0, "English");
+        var result = file.BuildTargetSnapshot(profile).Tracks;
 
-        Assert.IsTrue(snapshots[0].IsDefault, "First track should become default");
-        Assert.IsFalse(snapshots[1].IsDefault, "Second track should lose default");
+        Assert.IsTrue(result[0].IsDefault, "First track should become default");
+        Assert.IsFalse(result[1].IsDefault, "Second track should lose default");
     }
 
     // --- CheckHasNonStandardMetadata: flag correction detection ---
@@ -1483,7 +1499,7 @@ public class ConversionPipelineTests
                 TrackNameTemplate = "{language} {forced}"
             });
 
-        var previews = file.GetPreviewTracks(profile);
+        var previews = file.BuildTargetSnapshot(profile).Tracks;
         var (_, outputs) = RunPipeline(file, profile);
 
         // Same number of tracks
@@ -1526,10 +1542,9 @@ public class ConversionPipelineTests
     private static (List<TrackSnapshot> snapshots, List<TrackOutput> outputs) RunPipeline(MediaFile file, Profile profile)
     {
         file.Profile = profile;
-        var allowed = file.GetAllowedTracks(profile);
-        var allowedSnapshots = allowed.ToSnapshots();
-        var tracksBefore = file.Tracks.ToSnapshots();
-        var outputs = file.BuildTrackOutputs(profile, allowedSnapshots, tracksBefore, isCustomConversion: false);
-        return (allowedSnapshots, outputs);
+        var before = file.ToMediaSnapshot();
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, diffOnly: false);
+        return (target.Tracks, outputs);
     }
 }

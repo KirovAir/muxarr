@@ -10,8 +10,9 @@ namespace Muxarr.Web.Services;
 /// </summary>
 public static class OutputValidator
 {
-    public static void ValidateOrThrow(MediaFile actual, MediaFile source, List<TrackSnapshot> expectedTracks)
+    public static void ValidateOrThrow(MediaFile actual, MediaFile source, MediaSnapshot targetSnapshot)
     {
+        var expectedTracks = targetSnapshot.Tracks;
         var actualFamily = actual.ContainerType.ToContainerFamily();
         var sourceFamily = source.ContainerType.ToContainerFamily();
         if (actualFamily != sourceFamily)

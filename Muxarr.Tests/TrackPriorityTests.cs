@@ -3,6 +3,7 @@ using Muxarr.Core.Language;
 using Muxarr.Core.MkvToolNix;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
+using Muxarr.Web.Services;
 using static Muxarr.Tests.TestData;
 
 namespace Muxarr.Tests;
@@ -312,8 +313,8 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: false)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = normal, eligible
@@ -339,8 +340,8 @@ public class TrackPriorityTests
             Audio(2, "English", "Aac", 2, commentary: true)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);    // Normal track = eligible
@@ -366,8 +367,8 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: true)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = first priority
@@ -392,8 +393,8 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: true)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == false);  // English preserved as non-default
@@ -418,9 +419,9 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: true)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(),
-            isCustomConversion: true);
+        var allowed = file.BuildTargetSnapshot(profile).Tracks;
+        var target = file.ToMediaSnapshot(allowed);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == false);  // Custom: flags not touched
@@ -449,7 +450,7 @@ public class TrackPriorityTests
             Audio(2, "Japanese", "Aac", 2, isDefault: false)
         );
 
-        var previews = file.GetPreviewTracks(profile);
+        var previews = file.BuildTargetSnapshot(profile).Tracks;
         var audioPreviews = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
 
         Assert.AreEqual("Japanese", audioPreviews[0].LanguageName);
@@ -485,7 +486,8 @@ public class TrackPriorityTests
             Audio(3, "English", "Aac", 2)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
+        var target = file.BuildTargetSnapshot(profile);
+        var allowed = target.Tracks;
 
         // English deduped to 1 (TrueHD best), Spanish kept, reordered English first
         Assert.AreEqual(2, allowed.Count);
@@ -493,7 +495,7 @@ public class TrackPriorityTests
         Assert.AreEqual("TrueHd", allowed[0].Codec);
         Assert.AreEqual("Spanish", allowed[1].LanguageName);
 
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
 
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = default
@@ -545,8 +547,8 @@ public class TrackPriorityTests
             Audio(1, "French", "Aac", 6, isDefault: true)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var audioOutput = outputs.First(o => o.Type == MkvMerge.AudioTrack);
         Assert.IsTrue(audioOutput.IsDefault == true,
@@ -572,7 +574,7 @@ public class TrackPriorityTests
             Audio(2, "English", "Aac", 2, commentary: true, isDefault: true)
         );
 
-        var previews = file.GetPreviewTracks(profile);
+        var previews = file.BuildTargetSnapshot(profile).Tracks;
         var audioPreviews = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
 
         Assert.AreEqual(2, audioPreviews.Count, "No tracks should be removed when Enabled=false");
@@ -660,8 +662,8 @@ public class TrackPriorityTests
             Audio(2, "Japanese", "Aac", 6, isDefault: false)
         );
 
-        var allowed = file.GetAllowedTracks(profile);
-        var outputs = file.BuildTrackOutputs(profile, allowed.ToSnapshots(), file.Tracks.ToSnapshots(), false);
+        var target = file.BuildTargetSnapshot(profile);
+        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, diffOnly: false);
 
         var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
         Assert.IsTrue(audioOutputs.First(o => o.TrackNumber == 2).IsDefault == true,
@@ -690,7 +692,7 @@ public class TrackPriorityTests
             Audio(2, "Japanese", "Aac", 6, isDefault: false)
         );
 
-        var previews = file.GetPreviewTracks(profile);
+        var previews = file.BuildTargetSnapshot(profile).Tracks;
         var audioPreviews = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
 
         Assert.AreEqual(2, audioPreviews.Count, "No tracks should be removed when Enabled=false");
@@ -720,7 +722,7 @@ public class TrackPriorityTests
             Sub(2, "English", trackName: "English SDH")  // IsHearingImpaired=false but name says SDH
         );
 
-        var previews = file.GetPreviewTracks(profile);
+        var previews = file.BuildTargetSnapshot(profile).Tracks;
         var subPreviews = previews.Where(p => p.Type == MediaTrackType.Subtitles).ToList();
 
         Assert.IsTrue(subPreviews[0].IsDefault, "Regular sub should be default-eligible");

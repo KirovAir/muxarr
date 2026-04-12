@@ -22,6 +22,8 @@ public class MediaFile : AuditableEntity
     public string? Resolution { get; set; }
     public long DurationMs { get; set; }
     public int VideoBitDepth { get; set; }
+    public int ChapterCount { get; set; }
+    public int AttachmentCount { get; set; }
     public DateTime FileLastWriteTime { get; set; }
     public DateTime FileCreationTime { get; set; }
 
@@ -47,6 +49,7 @@ public class MediaTrack : IMediaTrack
     public string LanguageCode { get; set; } = string.Empty;
     public string LanguageName { get; set; } = string.Empty;
     public string? TrackName { get; set; } = string.Empty;
+    public long DurationMs { get; set; }
 
     public MediaFile? MediaFile { get; set; }
 }
@@ -105,6 +108,12 @@ public class MediaFileConfiguration : AuditEntityConfiguration<MediaFile>
 
         builder.Property(e => e.Resolution)
             .HasMaxLength(20);
+
+        builder.Property(e => e.ChapterCount)
+            .IsRequired();
+
+        builder.Property(e => e.AttachmentCount)
+            .IsRequired();
 
         builder.HasIndex(e => e.ContainerType);
         builder.HasIndex(e => e.Resolution);

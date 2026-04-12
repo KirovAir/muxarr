@@ -202,7 +202,7 @@ public class TrackFilterTests
             ]
         };
 
-        var result = file.GetAllowedTracks();
+        var result = file.BuildTargetSnapshot(file.Profile).Tracks;
 
         // Should keep: video + English audio. No French anything.
         Assert.AreEqual(2, result.Count, $"Expected video + English audio only, got: {string.Join(", ", result.Select(t => $"{t.Type}:{t.LanguageName}"))}");

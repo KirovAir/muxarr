@@ -230,7 +230,7 @@
         _profiles = await context.Profiles.OrderBy(p => p.Name).ToListAsync();
         _selectedProfileId = File.ProfileId;
         _selectedProfile = _profiles.FirstOrDefault(p => p.Id == _selectedProfileId);
-        PreviewTracks = File.GetPreviewTracks(_selectedProfile);
+        PreviewTracks = File.BuildTargetSnapshot(_selectedProfile).Tracks;
     }
 
     private void OnConverterStateChanged(ConverterProgressEvent e)
@@ -254,7 +254,7 @@
             if (e.Conversion is { State: ConversionState.Completed, MediaFile: not null })
             {
                 conversion.SizeAfter = e.Conversion.MediaFile.Size;
-                conversion.TracksAfter = e.Conversion.MediaFile.Tracks.ToSnapshots();
+                conversion.SnapshotAfter = e.Conversion.MediaFile.ToMediaSnapshot();
                 conversion.SizeDifference = e.Conversion.SizeDifference;
                 ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
 
@@ -319,7 +319,7 @@
         {
             _selectedProfileId = id;
             _selectedProfile = _profiles.FirstOrDefault(p => p.Id == id);
-            PreviewTracks = File!.GetPreviewTracks(_selectedProfile);
+            PreviewTracks = File!.BuildTargetSnapshot(_selectedProfile).Tracks;
         }
     }
 

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Config;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.FFmpeg;
+using Muxarr.Core.Models;
 using Muxarr.Core.MkvToolNix;
 using Muxarr.Core.Utilities;
 using Muxarr.Data;
@@ -168,8 +169,8 @@ public class MediaConverterService(
         {
             MediaFileId = media.Id,
             SizeBefore = media.Size,
-            AllowedTracks = media.GetAllowedTracks(profile).ToSnapshots(),
-            TracksBefore = media.Tracks.ToSnapshots(),
+            TargetSnapshot = media.BuildTargetSnapshot(profile),
+            SnapshotBefore = media.ToMediaSnapshot(),
             State = ConversionState.New,
             Name = media.GetName()
         };
@@ -202,8 +203,8 @@ public class MediaConverterService(
         {
             MediaFileId = media.Id,
             SizeBefore = media.Size,
-            AllowedTracks = customAllowedTracks,
-            TracksBefore = media.Tracks.ToSnapshots(),
+            TargetSnapshot = media.ToMediaSnapshot(customAllowedTracks),
+            SnapshotBefore = media.ToMediaSnapshot(),
             State = ConversionState.New,
             Name = media.GetName(),
             IsCustomConversion = true
@@ -241,7 +242,7 @@ public class MediaConverterService(
         }
 
         // Re-scan file to get fresh track data before converting.
-        // Prevents stale AllowedTracks from a previous conversion or outdated scan.
+        // Prevents stale snapshots from a previous conversion or outdated scan.
         await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
 
         if (conversion.MediaFile.HasScanWarning)
@@ -251,14 +252,26 @@ public class MediaConverterService(
 
         if (!conversion.IsCustomConversion)
         {
-            conversion.AllowedTracks =
-                conversion.MediaFile.GetAllowedTracks(conversion.MediaFile.Profile).ToSnapshots();
+            conversion.TargetSnapshot = conversion.MediaFile.BuildTargetSnapshot(conversion.MediaFile.Profile);
+        }
+        else
+        {
+            // Custom conversions store user-selected tracks. Apply flag correction
+            // and language resolution (but not name standardization) at conversion
+            // time so "und" tracks and misdetected flags are still handled.
+            var profile = conversion.MediaFile.Profile;
+            foreach (var track in conversion.TargetSnapshot.Tracks.Where(t => t.Type != MediaTrackType.Video))
+            {
+                var settings = track.Type == MediaTrackType.Audio ? profile?.AudioSettings : profile?.SubtitleSettings;
+                var count = conversion.TargetSnapshot.Tracks.Count(t => t.Type == track.Type);
+                track.ApplyTrackMutations(settings, count, conversion.MediaFile.OriginalLanguage, standardizeNames: false);
+            }
         }
 
-        conversion.TracksBefore = conversion.MediaFile.Tracks.ToSnapshots();
+        conversion.SnapshotBefore = conversion.MediaFile.ToMediaSnapshot();
         conversion.SizeBefore = conversion.MediaFile.Size;
 
-        if (conversion.AllowedTracks.Count == 0)
+        if (conversion.TargetSnapshot.Tracks.Count == 0)
         {
             conversion.Log($"No allowed tracks could be found for {conversion.MediaFileId}", logger);
             conversion.State = ConversionState.Failed;
@@ -267,32 +280,21 @@ public class MediaConverterService(
             return;
         }
 
-        // Build desired output: filter, rename, resolve languages.
-        var profile = conversion.MediaFile.Profile;
-        var trackOutputs = conversion.MediaFile.BuildTrackOutputs(
-            profile, conversion.AllowedTracks, conversion.TracksBefore, conversion.IsCustomConversion);
+        var strategy = ConversionPlanner.DetermineStrategy(
+            conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot);
 
-        // No tracks to remove - check if any output actually differs from the original.
-        var hasMetadataChanges = trackOutputs.Any(t =>
-            t.DiffersFrom(conversion.TracksBefore.FirstOrDefault(b => b.TrackNumber == t.TrackNumber)));
-        var hasOrderChanges = !trackOutputs.Select(t => t.TrackNumber)
-            .SequenceEqual(conversion.TracksBefore.Select(t => t.TrackNumber));
-        var canSkipRemux = conversion.AllowedTracks.Count >= conversion.MediaFile.TrackCount && !hasOrderChanges;
-        var family = conversion.MediaFile.ContainerType.ToContainerFamily();
-
-        // Short-circuit cases that don't need the temp file pipeline: nothing
-        // to change, or a Matroska file that mkvpropedit can patch in place.
-        if (canSkipRemux && !hasMetadataChanges)
+        if (strategy == ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.StartedDate ??= DateTime.UtcNow;
             conversion.Log("File already optimized, skipping.", logger);
             conversion.SizeAfter = conversion.SizeBefore;
-            conversion.TracksAfter = conversion.MediaFile.Tracks.ToSnapshots();
+            conversion.SnapshotAfter = conversion.MediaFile.ToMediaSnapshot();
             conversion.SizeDifference = 0;
             conversion.State = ConversionState.Completed;
         }
-        else if (canSkipRemux && family == ContainerFamily.Matroska)
+        else if (strategy == ConversionPlanner.ConversionStrategy.MetadataEdit)
         {
+            var trackOutputs = ConversionPlanner.BuildTrackOutputs(conversion.SnapshotBefore, conversion.TargetSnapshot);
             await RunMkvPropEditInPlaceAsync(conversion, trackOutputs, context, token);
         }
 
@@ -305,16 +307,13 @@ public class MediaConverterService(
             return;
         }
 
-        if (hasOrderChanges)
-        {
-            conversion.Log("Track order changed by language priority. Remuxing to apply new order..", logger);
-        }
-
         // Matroska writes go through mkvmerge. Everything else goes through
         // ffmpeg stream-copy so the container and every codec survive
         // byte-identical (metadata edits, track removal, and reorder all use
         // the same writer).
-        var useFFmpeg = family != ContainerFamily.Matroska;
+        var remuxOutputs = ConversionPlanner.BuildTrackOutputs(
+            conversion.SnapshotBefore, conversion.TargetSnapshot, diffOnly: false);
+        var useFFmpeg = conversion.MediaFile.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
         var conversionTimeout = Config.ConversionTimeoutMinutes > 0
             ? TimeSpan.FromMinutes(Config.ConversionTimeoutMinutes)
             : (TimeSpan?)null;
@@ -333,11 +332,11 @@ public class MediaConverterService(
 
             if (useFFmpeg)
             {
-                await RunFFmpegRemuxAsync(conversion, trackOutputs, tmp, context, conversionTimeout, token);
+                await RunFFmpegRemuxAsync(conversion, remuxOutputs, tmp, context, conversionTimeout, token);
             }
             else
             {
-                await RunMkvMergeRemuxAsync(conversion, trackOutputs, tmp, context, conversionTimeout, token);
+                await RunMkvMergeRemuxAsync(conversion, remuxOutputs, tmp, context, conversionTimeout, token);
             }
 
             await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, token);
@@ -409,9 +408,9 @@ public class MediaConverterService(
 
         await scanner.ScanMediaFile(mediaFile, true, context, mediaFile.Profile);
 
-        var freshTracks = mediaFile.Tracks.ToSnapshots();
-        var stillDiffers = trackOutputs.Any(t =>
-            t.DiffersFrom(freshTracks.FirstOrDefault(f => f.TrackNumber == t.TrackNumber)));
+        var freshSnapshot = mediaFile.ToMediaSnapshot();
+        var remainingDiff = ConversionPlanner.BuildTrackOutputs(freshSnapshot, conversion.TargetSnapshot);
+        var stillDiffers = remainingDiff.Any(ConversionPlanner.HasChanges);
 
         if (stillDiffers)
         {
@@ -422,7 +421,7 @@ public class MediaConverterService(
 
         conversion.Log("Metadata updated successfully.", logger);
         conversion.SizeAfter = mediaFile.Size;
-        conversion.TracksAfter = mediaFile.Tracks.ToSnapshots();
+        conversion.SnapshotAfter = mediaFile.ToMediaSnapshot();
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
         conversion.State = ConversionState.Completed;
     }
@@ -552,7 +551,7 @@ public class MediaConverterService(
                 $"Could not probe output file with ffprobe. Error: {probe.Error?.Trim()}");
         }
 
-        OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.AllowedTracks);
+        OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.TargetSnapshot);
 
         conversion.Log("Validation of new file is ok!", logger);
         ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
@@ -579,7 +578,7 @@ public class MediaConverterService(
 
         await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
         conversion.SizeAfter = conversion.MediaFile.Size;
-        conversion.TracksAfter = conversion.MediaFile.Tracks.ToSnapshots();
+        conversion.SnapshotAfter = conversion.MediaFile.ToMediaSnapshot();
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
 
         await RunPostProcessing(conversion);

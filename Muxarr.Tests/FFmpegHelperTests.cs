@@ -1,6 +1,7 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.FFmpeg;
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Models;
 
 namespace Muxarr.Tests;
 

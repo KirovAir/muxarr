@@ -236,9 +236,9 @@ public class MediaScannerService(
                     logger.LogInformation("ffprobe warning for '{Path}': {Warning}", dbFile.Path, probe.Error);
                 }
 
-                dbFile.HasRedundantTracks =
-                    profile != null && dbFile.GetAllowedTracks(profile).Count < dbFile.TrackCount;
-                dbFile.HasNonStandardMetadata = dbFile.CheckHasNonStandardMetadata(profile);
+                var target = dbFile.BuildTargetSnapshot(profile);
+                dbFile.HasRedundantTracks = profile != null && target.Tracks.Count < dbFile.TrackCount;
+                dbFile.HasNonStandardMetadata = dbFile.CheckHasNonStandardMetadata(profile, target);
             }
 
             dbFile.Size = fileInfo.Length;

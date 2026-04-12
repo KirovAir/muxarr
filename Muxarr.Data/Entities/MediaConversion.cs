@@ -15,9 +15,9 @@ public class MediaConversion : AuditableEntity
     public long SizeBefore { get; set; }
     public long SizeAfter { get; set; }
     public long SizeDifference { get; set; }
-    public List<TrackSnapshot> TracksBefore { get; set; } = new();
-    public List<TrackSnapshot> TracksAfter { get; set; } = new();
-    public List<TrackSnapshot> AllowedTracks { get; set; } = new();
+    public MediaSnapshot SnapshotBefore { get; set; } = new();
+    public MediaSnapshot SnapshotAfter { get; set; } = new();
+    public MediaSnapshot TargetSnapshot { get; set; } = new();
     public bool IsCustomConversion { get; set; }
     public DateTime? StartedDate { get; set; }
     public ConversionState State { get; set; } = ConversionState.New;
@@ -70,13 +70,13 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
         builder.Property(e => e.SizeDifference)
             .IsRequired();
         
-        builder.Property(e => e.TracksBefore)
+        builder.Property(e => e.SnapshotBefore)
             .HasJsonConversion();
-        
-        builder.Property(e => e.TracksAfter)
+
+        builder.Property(e => e.SnapshotAfter)
             .HasJsonConversion();
-        
-        builder.Property(e => e.AllowedTracks)
+
+        builder.Property(e => e.TargetSnapshot)
             .HasJsonConversion();
 
         builder.Property(e => e.IsCustomConversion)

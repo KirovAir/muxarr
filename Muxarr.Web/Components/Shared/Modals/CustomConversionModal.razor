@@ -223,17 +223,17 @@
             return;
         }
 
-        // Build a temporary MediaFile to run GetAllowedTracks against the selected profile.
+        // Build a temporary MediaFile and resolve the target snapshot via the profile.
         var tempFile = new MediaFile
         {
             OriginalLanguage = OriginalLanguage,
             Tracks = Tracks.ToList()
         };
         tempFile.TrackCount = tempFile.Tracks.Count;
-        var allowed = tempFile.GetAllowedTracks(profile);
-        var allowedIds = allowed.Select(t => t.TrackNumber).ToHashSet();
+        var target = tempFile.BuildTargetSnapshot(profile);
 
         // Apply track selection from profile.
+        var allowedIds = target.Tracks.Select(t => t.TrackNumber).ToHashSet();
         _selectedTrackIds.Clear();
         foreach (var track in _editableTracks)
         {
@@ -243,12 +243,23 @@
             }
         }
 
-        // Apply mutations to selected tracks using the shared pipeline.
-        var selectedTracks = _editableTracks.Where(t => _selectedTrackIds.Contains(t.TrackNumber)).ToList();
-        selectedTracks.ApplyProfileMutations(profile,
-            _editableTracks.Count(t => t.Type == MediaTrackType.Audio),
-            _editableTracks.Count(t => t.Type == MediaTrackType.Subtitles),
-            OriginalLanguage);
+        // Apply mutations from the resolved target to the editable tracks.
+        foreach (var resolved in target.Tracks)
+        {
+            var editable = _editableTracks.FirstOrDefault(t => t.TrackNumber == resolved.TrackNumber);
+            if (editable != null)
+            {
+                editable.TrackName = resolved.TrackName;
+                editable.LanguageName = resolved.LanguageName;
+                editable.LanguageCode = resolved.LanguageCode;
+                editable.IsDefault = resolved.IsDefault;
+                editable.IsForced = resolved.IsForced;
+                editable.IsCommentary = resolved.IsCommentary;
+                editable.IsHearingImpaired = resolved.IsHearingImpaired;
+                editable.IsVisualImpaired = resolved.IsVisualImpaired;
+                editable.IsDub = resolved.IsDub;
+            }
+        }
 
         _validationError = false;
     }
