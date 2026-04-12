@@ -1,10 +1,12 @@
-﻿<div class="progress mt-1" style="height: 1.2rem;">
-    <div class="progress-bar px-2 d-flex align-items-center justify-content-center" role="progressbar"
+﻿<div class="progress mt-1 position-relative d-flex align-items-center justify-content-center" style="height: 1.2rem;">
+    <div class="progress-bar start-0 position-absolute h-100" role="progressbar"
          style="width: @(Conversion.Progress)%">
-        @(Conversion.Progress)%
     </div>
+    <div class="px-2 z-3 @TextColor">@(Conversion.Progress)%</div>
 </div>
 
 @code {
     [Parameter] [EditorRequired] public required MediaConversion Conversion { get; set; }
+
+    private string TextColor => Conversion.Progress > 50 ? "text-white" : "text-body";
 }
