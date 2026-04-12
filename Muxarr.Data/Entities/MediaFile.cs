@@ -14,6 +14,8 @@ public class MediaFile : AuditableEntity
     public string? ProbeOutput { get; set; }
     public bool HasScanWarning { get; set; }
     public bool HasFaststart { get; set; }
+    
+    public bool HasInvalidDuration { get; set; }
     public ICollection<MediaTrack> Tracks { get; set; } = new List<MediaTrack>();
     public int TrackCount { get; set; }
     public bool HasRedundantTracks { get; set; }
@@ -46,7 +48,8 @@ public class MediaTrack : IMediaTrack
     public string LanguageCode { get; set; } = string.Empty;
     public string LanguageName { get; set; } = string.Empty;
     public string? TrackName { get; set; } = string.Empty;
-
+    
+    public double? Duration { get; set; }
     public MediaFile? MediaFile { get; set; }
 }
 

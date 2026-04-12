@@ -84,11 +84,13 @@ public static class MediaFileExtensions
                 AudioChannels = x.Properties.AudioChannels,
                 Codec = CodecExtensions.ParseCodec(x.Codec),
                 TrackName = x.Properties.TrackName,
-                TrackNumber = x.Id
+                TrackNumber = x.Id,
+                Duration = 0
             };
 
             if (track.Type != MediaTrackType.Video
-                && (track.LanguageName == IsoLanguage.UnknownName || track.LanguageName == IsoLanguage.UndeterminedName))
+                && (track.LanguageName == IsoLanguage.UnknownName ||
+                    track.LanguageName == IsoLanguage.UndeterminedName))
             {
                 var parsed = IsoLanguage.Find(x.Properties.TrackName, true);
                 if (parsed != IsoLanguage.Unknown)
@@ -172,7 +174,8 @@ public static class MediaFileExtensions
                 AudioChannels = stream.Channels,
                 IsDefault = disposition.Default == 1,
                 IsForced = disposition.Forced == 1 || TrackNameFlags.ContainsForced(trackName),
-                IsHearingImpaired = disposition.HearingImpaired == 1 || TrackNameFlags.ContainsHearingImpaired(trackName),
+                IsHearingImpaired =
+                    disposition.HearingImpaired == 1 || TrackNameFlags.ContainsHearingImpaired(trackName),
                 // flag_text_descriptions in Matroska is exposed by ffprobe
                 // as disposition.descriptions; merge it in so the parity
                 // against mkvmerge's IsVisualImpaired stays tight.
@@ -180,11 +183,21 @@ public static class MediaFileExtensions
                                    || disposition.Descriptions == 1
                                    || TrackNameFlags.ContainsVisualImpaired(trackName),
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
-                IsOriginal = disposition.Original == 1
+                IsOriginal = disposition.Original == 1,
+                Duration = stream.Duration ?? ParseTagDuration(stream.Tags) ?? stream.Duration ?? probe.Format?.Duration
             };
 
+            static double? ParseTagDuration(Dictionary<string, string>? tags)
+            {
+                if (tags is null || !tags.TryGetValue("DURATION", out var duration))
+                    return null;
+
+                return TimeSpan.Parse(duration).TotalSeconds;
+            }
+
             if (track.Type != MediaTrackType.Video
-                && (track.LanguageName == IsoLanguage.UnknownName || track.LanguageName == IsoLanguage.UndeterminedName))
+                && (track.LanguageName == IsoLanguage.UnknownName ||
+                    track.LanguageName == IsoLanguage.UndeterminedName))
             {
                 var parsed = IsoLanguage.Find(trackName, true);
                 if (parsed != IsoLanguage.Unknown)
@@ -204,12 +217,14 @@ public static class MediaFileExtensions
         {
             file.Resolution = $"{video.Width}x{video.Height}";
         }
+
         file.VideoBitDepth = int.TryParse(video?.BitsPerRawSample, out var depth) ? depth : 0;
 
-        if (double.TryParse(probe.Format?.Duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var durationSec))
-        {
-            file.DurationMs = (long)(durationSec * 1000);
-        }
+        // TODO: stewie - use json converter for all duration fields and convert to ms
+        // if (double.TryParse(probe.Format?.Duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var durationSec))
+        // {
+        file.DurationMs = (long)((probe.Format?.Duration ?? 0) * 1000);
+        // }
 
         return probeResult;
     }
@@ -231,6 +246,7 @@ public static class MediaFileExtensions
         {
             return "Matroska";
         }
+
         if (lower.Contains("mp4") || lower.Contains("mov") || lower.Contains("m4a") || lower.Contains("3gp"))
         {
             return "MP4/QuickTime";
@@ -262,14 +278,17 @@ public static class MediaFileExtensions
         {
             return null;
         }
+
         if (tags.TryGetValue("name", out var name) && !string.IsNullOrEmpty(name))
         {
             return name;
         }
+
         if (tags.TryGetValue("title", out var title) && !string.IsNullOrEmpty(title))
         {
             return title;
         }
+
         return null;
     }
 
@@ -291,7 +310,8 @@ public static class MediaFileExtensions
         return result;
     }
 
-    public static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage) where T : IMediaTrack
+    public static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage)
+        where T : IMediaTrack
     {
         if (tracks.Count == 0)
         {
@@ -307,8 +327,8 @@ public static class MediaFileExtensions
             // Their explicit allow should take precedence over the original-language assumption.
             var undeterminedExplicitlyAllowed = s.AllowedLanguages.Any(x => x.Name == IsoLanguage.UndeterminedName);
             var assumeUndetermined = !undeterminedExplicitlyAllowed
-                                      && tracks.Count == 1
-                                      && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
+                                     && tracks.Count == 1
+                                     && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
             var tracksByLanguage = tracks.GroupBy(t =>
                 t.LanguageName == IsoLanguage.UnknownName ? (originalLanguage ?? IsoLanguage.UnknownName)
@@ -448,6 +468,7 @@ public static class MediaFileExtensions
                 best = Math.Min(best, i);
             }
         }
+
         return best;
     }
 
@@ -557,6 +578,7 @@ public static class MediaFileExtensions
                 return true;
             }
         }
+
         return false;
     }
 
@@ -588,6 +610,16 @@ public static class MediaFileExtensions
     public static void ApplyProfileMutations(this List<TrackSnapshot> snapshots, Profile profile,
         int totalAudioTracks, int totalSubtitleTracks, string? originalLanguage, bool standardizeNames = true)
     {
+        double? truncateTarget = null;
+        if (profile.TruncateToShortest)
+        {
+            // Ensure video track is first when video/audio tracks are the same length
+            if (snapshots.OrderBy(t => t.Duration).ThenBy(t => t.Type is MediaTrackType.Video ? 0 : 1).First() is { Type: MediaTrackType.Video } shortest)
+            {
+                truncateTarget = shortest.Duration;
+            }
+        }
+
         foreach (var snapshot in snapshots)
         {
             if (snapshot.Type == MediaTrackType.Video)
@@ -605,7 +637,8 @@ public static class MediaFileExtensions
                 : profile.SubtitleSettings;
 
             var totalTracksOfType = snapshot.Type == MediaTrackType.Audio ? totalAudioTracks : totalSubtitleTracks;
-            snapshot.ApplyTrackMutations(settings, totalTracksOfType, originalLanguage, standardizeNames);
+            snapshot.ApplyTrackMutations(settings, totalTracksOfType, originalLanguage, standardizeNames,
+                truncateTarget);
         }
 
         ReassignPreviewDefaultFlags(snapshots, profile.AudioSettings, MediaTrackType.Audio, originalLanguage);
@@ -619,7 +652,7 @@ public static class MediaFileExtensions
     /// undetermined language resolution, and optionally track name standardization.
     /// </summary>
     public static void ApplyTrackMutations(this TrackSnapshot track, TrackSettings? settings,
-        int totalTracksOfType, string? originalLanguage, bool standardizeNames = true)
+        int totalTracksOfType, string? originalLanguage, bool standardizeNames = true, double? truncateTarget = null)
     {
         track.CorrectFlagsFromTrackName();
 
@@ -634,6 +667,11 @@ public static class MediaFileExtensions
         {
             var template = settings.ResolveTemplate(track);
             track.TrackName = track.ApplyTrackNameTemplate(template);
+        }
+
+        if (truncateTarget.HasValue)
+        {
+            track.Duration = truncateTarget;
         }
     }
 
@@ -690,11 +728,31 @@ public static class MediaFileExtensions
     private static string GetFlagLabels(this IMediaTrack track)
     {
         var labels = new List<string>();
-        if (track.IsHearingImpaired) { labels.Add("SDH"); }
-        if (track.IsForced) { labels.Add("Forced"); }
-        if (track.IsCommentary) { labels.Add("Commentary"); }
-        if (track.IsVisualImpaired) { labels.Add("AD"); }
-        if (track.IsOriginal) { labels.Add("Original"); }
+        if (track.IsHearingImpaired)
+        {
+            labels.Add("SDH");
+        }
+
+        if (track.IsForced)
+        {
+            labels.Add("Forced");
+        }
+
+        if (track.IsCommentary)
+        {
+            labels.Add("Commentary");
+        }
+
+        if (track.IsVisualImpaired)
+        {
+            labels.Add("AD");
+        }
+
+        if (track.IsOriginal)
+        {
+            labels.Add("Original");
+        }
+
         return string.Join(", ", labels);
     }
 
@@ -727,7 +785,8 @@ public static class MediaFileExtensions
             IsVisualImpaired = track.IsVisualImpaired,
             IsDefault = track.IsDefault,
             IsForced = track.IsForced,
-            IsOriginal = track.IsOriginal
+            IsOriginal = track.IsOriginal,
+            Duration = track.Duration
         };
     }
 
@@ -786,7 +845,9 @@ public static class MediaFileExtensions
             }
             else
             {
-                var trackSettings = track.Type == MediaTrackType.Audio ? profile?.AudioSettings : profile?.SubtitleSettings;
+                var trackSettings = track.Type == MediaTrackType.Audio
+                    ? profile?.AudioSettings
+                    : profile?.SubtitleSettings;
                 if (isCustomConversion || trackSettings is { StandardizeTrackNames: true })
                 {
                     output.Name = track.TrackName;
@@ -865,15 +926,17 @@ public static class MediaFileExtensions
         if (original == null)
         {
             return output.Name != null || output.LanguageCode != null || output.IsDefault != null
-                || output.IsForced != null || output.IsHearingImpaired != null || output.IsCommentary != null;
+                   || output.IsForced != null || output.IsHearingImpaired != null || output.IsCommentary != null;
         }
 
-        return (output.Name != null && !string.Equals(output.Name ?? "", original.TrackName ?? "", StringComparison.Ordinal))
-            || (output.LanguageCode != null && !string.Equals(output.LanguageCode, original.LanguageCode, StringComparison.Ordinal))
-            || (output.IsDefault != null && output.IsDefault != original.IsDefault)
-            || (output.IsForced != null && output.IsForced != original.IsForced)
-            || (output.IsHearingImpaired != null && output.IsHearingImpaired != original.IsHearingImpaired)
-            || (output.IsCommentary != null && output.IsCommentary != original.IsCommentary);
+        return (output.Name != null &&
+                !string.Equals(output.Name ?? "", original.TrackName ?? "", StringComparison.Ordinal))
+               || (output.LanguageCode != null &&
+                   !string.Equals(output.LanguageCode, original.LanguageCode, StringComparison.Ordinal))
+               || (output.IsDefault != null && output.IsDefault != original.IsDefault)
+               || (output.IsForced != null && output.IsForced != original.IsForced)
+               || (output.IsHearingImpaired != null && output.IsHearingImpaired != original.IsHearingImpaired)
+               || (output.IsCommentary != null && output.IsCommentary != original.IsCommentary);
     }
 
     // Helpers

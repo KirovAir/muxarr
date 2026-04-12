@@ -347,13 +347,13 @@ public class MediaConverterService(
             MkvMerge.KillExistingProcesses();
             FFmpeg.KillExistingProcesses();
             conversion.LogError("Conversion was cancelled.", logger);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(token);
         }
         catch (Exception e)
         {
             conversion.LogError(
                 $"Something bad happened while processing {conversion.MediaFile.Path}. Error: {e.Message}", logger);
-            await context.SaveChangesAsync();
+            await context.SaveChangesAsync(token);
         }
         finally
         {
@@ -372,7 +372,7 @@ public class MediaConverterService(
 
             try
             {
-                await context.SaveChangesAsync();
+                await context.SaveChangesAsync(token);
             }
             catch
             {
