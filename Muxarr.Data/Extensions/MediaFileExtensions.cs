@@ -437,18 +437,24 @@ public static class MediaFileExtensions
         // --- Track reordering (independent of removal) ---
         if (s.ReorderStrategy != TrackReorderStrategy.DontReorder && allowedTracks.Count > 1)
         {
+            // Within a language group, preserve source order rather than
+            // re-sorting by quality. The scorer's "regular > forced > SDH"
+            // ranking is right for deduplication (which single track to keep)
+            // but wrong for ordering (where in the file to place them) - it
+            // forces Blu-ray-style "forced then regular" layouts to flip, and
+            // pushes SDH tracks around in ways the source file never asked for.
             if (s.ReorderStrategy == TrackReorderStrategy.MatchLanguagePriority && s.AllowedLanguages.Count > 0)
             {
                 allowedTracks = allowedTracks
                     .OrderBy(t => GetLanguagePriority(t.LanguageName, s, originalLanguage))
-                    .ThenByDescending(t => TrackQualityScorer.ScoreTrack(t))
+                    .ThenBy(t => t.Index)
                     .ToList();
             }
             else if (s.ReorderStrategy == TrackReorderStrategy.Alphabetical)
             {
                 allowedTracks = allowedTracks
                     .OrderBy(t => t.LanguageName, StringComparer.OrdinalIgnoreCase)
-                    .ThenByDescending(t => TrackQualityScorer.ScoreTrack(t))
+                    .ThenBy(t => t.Index)
                     .ToList();
             }
         }
@@ -996,11 +1002,18 @@ public static class MediaFileExtensions
         if (settings.DefaultStrategy == DefaultTrackStrategy.ForceFirstLanguage && settings.AllowedLanguages.Count > 0)
         {
             // Find the first track of the highest-priority language. Works regardless of track order.
-            // If no tracks match any priority language, preserve original flags (don't remove all defaults).
+            // Supplementary tracks (commentary/forced/HI/AD/dub) are skipped - they shouldn't win
+            // the default flag even when they happen to be the first track at the top priority.
+            // If no eligible tracks remain, preserve original flags (don't remove all defaults).
             TrackSnapshot? bestTrack = null;
             var bestPriority = int.MaxValue;
             foreach (var track in tracksOfType)
             {
+                if (IsSupplementary(track))
+                {
+                    continue;
+                }
+
                 var priority = GetLanguagePriority(track.LanguageName, settings, originalLanguage);
                 if (priority < bestPriority)
                 {
@@ -1021,10 +1034,20 @@ public static class MediaFileExtensions
         {
             foreach (var track in tracksOfType)
             {
-                track.IsDefault = !track.IsCommentary && !track.IsHearingImpaired && !track.IsVisualImpaired &&
-                                  !track.IsDub;
+                track.IsDefault = !IsSupplementary(track);
             }
         }
+    }
+
+    // A track is "supplementary" when it shouldn't win the default flag even
+    // if it matches the user's language preferences: commentary, accessibility
+    // (HI / AD), forced overlays, and dub alternatives. Forced subs in
+    // particular auto-show for untranslated dialogue and pair with a full sub
+    // that should be the actual default.
+    private static bool IsSupplementary(IMediaTrack track)
+    {
+        return track.IsCommentary || track.IsHearingImpaired || track.IsVisualImpaired ||
+               track.IsDub || track.IsForced;
     }
 
     // Helpers

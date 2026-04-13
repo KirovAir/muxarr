@@ -578,8 +578,13 @@ public class TrackPriorityTests
     }
 
     [TestMethod]
-    public void Alphabetical_QualityTiebreakWithinSameLanguage()
+    public void Alphabetical_PreservesSourceOrderWithinSameLanguage()
     {
+        // Reorder is a language-grouping operation. Within a language the
+        // source's original layout is preserved - quality-based re-sorting
+        // (e.g. TrueHD before AAC) is for deduplication, not ordering.
+        // Otherwise Blu-ray-style "forced then regular" subtitle layouts
+        // get flipped and the source author's intent is lost.
         var settings = new TrackSettings
         {
             Enabled = false,
@@ -588,9 +593,9 @@ public class TrackPriorityTests
 
         var tracks = new List<MediaTrack>
         {
-            Audio(1, "English", "Aac", 2), // score: 22
-            Audio(2, "English", "TrueHd", 8), // score: 1082
-            Audio(3, "Dutch", "Aac", 6) // score: 62
+            Audio(1, "English", "Aac", 2),
+            Audio(2, "English", "TrueHd", 8),
+            Audio(3, "Dutch", "Aac", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -598,9 +603,9 @@ public class TrackPriorityTests
         Assert.AreEqual(3, result.Count);
         Assert.AreEqual("Dutch", result[0].LanguageName);
         Assert.AreEqual("English", result[1].LanguageName);
-        Assert.AreEqual("TrueHd", result[1].Codec, "TrueHD should come before AAC within English");
+        Assert.AreEqual("Aac", result[1].Codec, "English AAC (source index 1) should come before TrueHD (source index 2)");
         Assert.AreEqual("English", result[2].LanguageName);
-        Assert.AreEqual("Aac", result[2].Codec);
+        Assert.AreEqual("TrueHd", result[2].Codec);
     }
 
     [TestMethod]
