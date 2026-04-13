@@ -21,27 +21,14 @@ namespace Muxarr.Tests;
 ///   8: sub     spa  "Spanish"           default=no
 /// </summary>
 [TestClass]
-public class MkvToolNixComplexTests
+public class MkvToolNixComplexTests : FixtureTestBase
 {
-    private static readonly string FixturePath = Path.Combine(AppContext.BaseDirectory, "Fixtures", "test_complex.mkv");
-
     private string _workingCopy = null!;
 
-    [TestInitialize]
-    public void Setup()
+    protected override Task OnSetup()
     {
-        Assert.IsTrue(File.Exists(FixturePath), $"Test fixture not found at {FixturePath}");
-        _workingCopy = Path.Combine(Path.GetTempPath(), $"muxarr_complex_{Guid.NewGuid():N}.mkv");
-        File.Copy(FixturePath, _workingCopy);
-    }
-
-    [TestCleanup]
-    public void Cleanup()
-    {
-        if (File.Exists(_workingCopy))
-        {
-            File.Delete(_workingCopy);
-        }
+        _workingCopy = CopyFixture("test_complex.mkv");
+        return Task.CompletedTask;
     }
 
     // --- Parsing flags from complex file ---

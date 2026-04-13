@@ -6,10 +6,9 @@ using Muxarr.Data.Extensions;
 namespace Muxarr.Tests.Integration;
 
 /// <summary>
-/// Probe-based assertion helpers. Always goes through real ffprobe so asserts
-/// stay honest across ffmpeg builds - no byte-level comparison except
-/// <see cref="AssertSha256Equals"/>, which is reserved for the Skip scenario
-/// where the file must not be touched at all.
+/// Probe-based assertion helpers. Byte comparison is reserved for Skip
+/// (via <see cref="AssertSha256Equals"/>) - everything else reprobes so
+/// asserts stay honest across ffmpeg builds.
 /// </summary>
 public static class FileAssertions
 {
@@ -34,28 +33,12 @@ public static class FileAssertions
         Assert.AreEqual(expectedHash, actual, $"SHA256 mismatch for {path}. {message}");
     }
 
-    public static async Task AssertTrackCount(string path, int expected)
-    {
-        var file = await ProbeAsync(path);
-        Assert.AreEqual(expected, file.Tracks.Count,
-            $"Track count mismatch for {path}. Got: {string.Join(",", file.Tracks.Select(t => $"#{t.TrackNumber}:{t.Type}"))}");
-    }
-
     public static async Task AssertContainerFamily(string path, ContainerFamily expected)
     {
         var file = await ProbeAsync(path);
         var actual = file.ContainerType.ToContainerFamily();
         Assert.AreEqual(expected, actual,
             $"Container family mismatch for {path}. ContainerType was: {file.ContainerType}");
-    }
-
-    public static async Task AssertTrackFlag(string path, int trackNumber, Func<MediaTrack, bool> predicate,
-        string description)
-    {
-        var file = await ProbeAsync(path);
-        var track = file.Tracks.FirstOrDefault(t => t.TrackNumber == trackNumber);
-        Assert.IsNotNull(track, $"Track #{trackNumber} not found in {path}");
-        Assert.IsTrue(predicate(track), $"Track #{trackNumber} in {path} did not satisfy: {description}");
     }
 
     public static void AssertNoStrayArtifacts(string directory, string originalFileName)

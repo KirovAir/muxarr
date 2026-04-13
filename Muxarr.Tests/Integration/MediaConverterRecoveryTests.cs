@@ -4,12 +4,8 @@ using Muxarr.Data.Extensions;
 namespace Muxarr.Tests.Integration;
 
 /// <summary>
-/// Recovery and startup-cleanup tests. These exercise the two sweepers that
-/// run on the first converter tick (CleanupLeftoverConversions +
-/// CleanupMuxbakFiles) without needing the file to survive a real remux.
-///
-/// All scenarios: seed files on disk + DB state -> RunAsync -> assert side
-/// effects on the filesystem and DB.
+/// Exercises CleanupLeftoverConversions + CleanupMuxbakFiles, which run on
+/// the first converter tick. Seeds disk + DB state, then asserts side effects.
 /// </summary>
 [TestClass]
 public class MediaConverterRecoveryTests : IntegrationTestBase
@@ -66,7 +62,7 @@ public class MediaConverterRecoveryTests : IntegrationTestBase
     [TestMethod]
     public async Task Startup_TransitionsStuckProcessingConversion_ToFailed()
     {
-        var path = Fixture.MaterializeFixture("test.mkv");
+        var path = CopyFixture("test.mkv");
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
@@ -93,9 +89,7 @@ public class MediaConverterRecoveryTests : IntegrationTestBase
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
-        var result = await Fixture.ReloadConversion(conversion.Id);
-        Assert.AreEqual(ConversionState.Failed, result.State,
-            "stuck Processing row must be marked Failed on startup");
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
         Assert.IsFalse(File.Exists(tempPath), "orphaned temp file must be cleaned up");
         StringAssert.Contains(result.Log, "in progress on startup",
             "log should explain why the conversion was marked failed");

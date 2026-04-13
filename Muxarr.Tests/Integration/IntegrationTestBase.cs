@@ -1,12 +1,9 @@
 namespace Muxarr.Tests.Integration;
 
 /// <summary>
-/// Common lifecycle for integration tests: binary preflight, shared fixture
-/// pool generation, per-test temp dir, per-test DI fixture.
-///
-/// Integration tests assume ffmpeg, ffprobe, mkvmerge and mkvpropedit are on
-/// PATH. If any is missing the assembly init marks the whole suite
-/// inconclusive rather than failing with a raw Win32Exception stack.
+/// Binary preflight + fixture pool init. Assumes ffmpeg, ffprobe, mkvmerge
+/// and mkvpropedit are on PATH; marks the suite inconclusive otherwise so
+/// the failure mode is readable instead of a raw Win32Exception.
 /// </summary>
 [TestClass]
 public static class IntegrationAssemblyInit
@@ -22,49 +19,24 @@ public static class IntegrationAssemblyInit
             }
         }
 
-        await FixtureFactory.EnsurePoolAsync();
+        await Fixtures.EnsurePoolAsync();
     }
 }
 
 [TestCategory("Integration")]
-public abstract class IntegrationTestBase
+public abstract class IntegrationTestBase : FixtureTestBase
 {
-    public TestContext TestContext { get; set; } = null!;
-
-    protected string TempDir { get; private set; } = null!;
     protected ConverterIntegrationFixture Fixture { get; private set; } = null!;
 
-    [TestInitialize]
-    public async Task BaseSetup()
+    protected override async Task OnSetup()
     {
-        TempDir = Path.Combine(Path.GetTempPath(), "muxarr-it", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(TempDir);
         Fixture = await ConverterIntegrationFixture.CreateAsync(TempDir);
     }
 
-    [TestCleanup]
-    public void BaseTeardown()
+    protected override Task OnTeardown()
     {
-        try
-        {
-            Fixture?.Dispose();
-        }
-        catch
-        {
-            // best effort
-        }
-
-        try
-        {
-            if (Directory.Exists(TempDir))
-            {
-                Directory.Delete(TempDir, recursive: true);
-            }
-        }
-        catch
-        {
-            // best effort
-        }
+        try { Fixture?.Dispose(); } catch { /* best effort */ }
+        return Task.CompletedTask;
     }
 
     internal static bool BinaryOnPath(string name)

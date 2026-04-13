@@ -9,12 +9,7 @@ public static class ConversionPlanner
 {
     public enum ConversionStrategy { Skip, MetadataEdit, Remux }
 
-    /// <summary>
-    /// Bundles the planner decision with the outputs derived from it so the
-    /// converter can run the planner exactly once per conversion. Computing
-    /// strategy and outputs separately risks disagreement if the snapshots
-    /// shift between calls (e.g. a second rescan midway through).
-    /// </summary>
+    /// <summary>Strategy + cached outputs, produced in one pass to avoid drift between calls.</summary>
     public sealed record ConversionPlan(
         ConversionStrategy Strategy,
         List<TrackOutput> DiffOutputs,

@@ -256,10 +256,9 @@ public class MediaConverterService(
         }
         else
         {
-            // Custom conversions store user-selected tracks from queue time. If the
-            // source file has been rescanned since and lost tracks the user picked,
-            // the conversion no longer makes sense - fail fast instead of silently
-            // producing a file that doesn't match intent.
+            // Reject custom conversions whose target references tracks the
+            // rescanned source no longer has - avoids silently producing a
+            // file that does not match what the user picked.
             var availableTrackNumbers = conversion.MediaFile.Tracks.Select(t => t.TrackNumber).ToHashSet();
             var missingTracks = conversion.TargetSnapshot.Tracks
                 .Where(t => !availableTrackNumbers.Contains(t.TrackNumber))
@@ -279,8 +278,8 @@ public class MediaConverterService(
                 return;
             }
 
-            // Apply flag correction and language resolution (but not name standardization)
-            // at conversion time so "und" tracks and misdetected flags are still handled.
+            // Fix flags and resolve "und" languages, but don't rename tracks -
+            // user-picked names are authoritative for custom conversions.
             var profile = conversion.MediaFile.Profile;
             foreach (var track in conversion.TargetSnapshot.Tracks.Where(t => t.Type != MediaTrackType.Video))
             {
@@ -302,10 +301,8 @@ public class MediaConverterService(
             return;
         }
 
-        // Run the planner exactly once per conversion. The ConversionPlan bundles
-        // the decision with both diff and remux output lists so we can't end up
-        // with disagreement between "what the planner decided" and "what the tool
-        // gets told to do" if the underlying snapshots drift.
+        // Plan once, reuse its cached outputs - running the planner twice
+        // against shifting snapshots risks strategy/output disagreement.
         var plan = ConversionPlanner.Plan(
             conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot);
 
@@ -737,7 +734,7 @@ public class MediaConverterService(
 
                 if (File.Exists(originalPath))
                 {
-                    // New file exists alongside backup — safe to remove the backup.
+                    // New file exists alongside backup - safe to remove the backup.
                     logger.LogInformation("Removing leftover backup {MuxbakFile} (original exists)", muxbakFile);
                     try
                     {
@@ -750,7 +747,7 @@ public class MediaConverterService(
                 }
                 else
                 {
-                    // Original is gone — restore from backup.
+                    // Original is gone - restore from backup.
                     logger.LogWarning("Restoring {MuxbakFile} to {OriginalPath} (original missing)", muxbakFile,
                         originalPath);
                     try

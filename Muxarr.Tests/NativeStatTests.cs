@@ -4,26 +4,8 @@ using Muxarr.Core.Utilities;
 namespace Muxarr.Tests;
 
 [TestClass]
-public class NativeStatTests
+public class NativeStatTests : FixtureTestBase
 {
-    private string _tempDir = null!;
-
-    [TestInitialize]
-    public void Setup()
-    {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"muxarr_stattest_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempDir);
-    }
-
-    [TestCleanup]
-    public void Cleanup()
-    {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
-    }
-
     [TestMethod]
     public void GetDeviceId_ExistingDirectory_ReturnsNonNull()
     {
@@ -32,7 +14,7 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        var deviceId = NativeStat.GetDeviceId(_tempDir);
+        var deviceId = NativeStat.GetDeviceId(TempDir);
         Assert.IsNotNull(deviceId);
         Assert.AreNotEqual(0UL, deviceId.Value);
     }
@@ -45,7 +27,7 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        var file = Path.Combine(_tempDir, "test.txt");
+        var file = Path.Combine(TempDir, "test.txt");
         File.WriteAllText(file, "test");
 
         var deviceId = NativeStat.GetDeviceId(file);
@@ -61,7 +43,7 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        var deviceId = NativeStat.GetDeviceId(Path.Combine(_tempDir, "does_not_exist"));
+        var deviceId = NativeStat.GetDeviceId(Path.Combine(TempDir, "does_not_exist"));
         Assert.IsNull(deviceId);
     }
 
@@ -73,10 +55,10 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        var subDir = Path.Combine(_tempDir, "subdir");
+        var subDir = Path.Combine(TempDir, "subdir");
         Directory.CreateDirectory(subDir);
 
-        var dev1 = NativeStat.GetDeviceId(_tempDir);
+        var dev1 = NativeStat.GetDeviceId(TempDir);
         var dev2 = NativeStat.GetDeviceId(subDir);
 
         Assert.IsNotNull(dev1);
@@ -105,7 +87,7 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        var file = Path.Combine(_tempDir, "regular.txt");
+        var file = Path.Combine(TempDir, "regular.txt");
         File.WriteAllText(file, "test");
 
         Assert.AreEqual(1u, NativeStat.GetLinkCount(file));
@@ -119,8 +101,8 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        var original = Path.Combine(_tempDir, "original.txt");
-        var link = Path.Combine(_tempDir, "link.txt");
+        var original = Path.Combine(TempDir, "original.txt");
+        var link = Path.Combine(TempDir, "link.txt");
         File.WriteAllText(original, "test");
         HardLinkHelper.TryCreateHardLink(original, link);
 
@@ -136,7 +118,7 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        Assert.AreEqual(0u, NativeStat.GetLinkCount(Path.Combine(_tempDir, "nope.txt")));
+        Assert.AreEqual(0u, NativeStat.GetLinkCount(Path.Combine(TempDir, "nope.txt")));
     }
 
     [TestMethod]
@@ -148,7 +130,7 @@ public class NativeStatTests
         }
 
         // A directory always has at least 2 hard links: itself and its "." entry.
-        var count = NativeStat.GetLinkCount(_tempDir);
+        var count = NativeStat.GetLinkCount(TempDir);
         Assert.IsTrue(count >= 2, $"Expected >= 2 links for directory, got {count}");
     }
 
@@ -164,7 +146,7 @@ public class NativeStatTests
             Assert.Inconclusive("Unix-only test");
         }
 
-        var file = Path.Combine(_tempDir, "crosscheck.txt");
+        var file = Path.Combine(TempDir, "crosscheck.txt");
         File.WriteAllText(file, "data");
 
         // Link count of 1 proves st_nlink is at the right offset.
@@ -172,12 +154,12 @@ public class NativeStatTests
 
         // Device ID of file should match its parent directory.
         var fileDev = NativeStat.GetDeviceId(file);
-        var dirDev = NativeStat.GetDeviceId(_tempDir);
+        var dirDev = NativeStat.GetDeviceId(TempDir);
         Assert.IsNotNull(fileDev);
         Assert.AreEqual(dirDev, fileDev);
 
         // After creating a hard link, count goes to 2 - proves offset is still correct.
-        var link = Path.Combine(_tempDir, "crosscheck_link.txt");
+        var link = Path.Combine(TempDir, "crosscheck_link.txt");
         HardLinkHelper.TryCreateHardLink(file, link);
         Assert.AreEqual(2u, NativeStat.GetLinkCount(file));
 

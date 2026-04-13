@@ -3,31 +3,13 @@ using Muxarr.Core.Utilities;
 namespace Muxarr.Tests;
 
 [TestClass]
-public class HardLinkHelperTests
+public class HardLinkHelperTests : FixtureTestBase
 {
-    private string _tempDir = null!;
-
-    [TestInitialize]
-    public void Setup()
-    {
-        _tempDir = Path.Combine(Path.GetTempPath(), $"muxarr_hltest_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(_tempDir);
-    }
-
-    [TestCleanup]
-    public void Cleanup()
-    {
-        if (Directory.Exists(_tempDir))
-        {
-            Directory.Delete(_tempDir, true);
-        }
-    }
-
     [TestMethod]
     public void TryCreateHardLink_CreatesLink()
     {
-        var source = Path.Combine(_tempDir, "source.txt");
-        var link = Path.Combine(_tempDir, "link.txt");
+        var source = Path.Combine(TempDir, "source.txt");
+        var link = Path.Combine(TempDir, "link.txt");
         File.WriteAllText(source, "test");
 
         Assert.IsTrue(HardLinkHelper.TryCreateHardLink(source, link));
@@ -38,15 +20,15 @@ public class HardLinkHelperTests
     [TestMethod]
     public void TryCreateHardLink_NonExistentSource_ReturnsFalse()
     {
-        var link = Path.Combine(_tempDir, "link.txt");
+        var link = Path.Combine(TempDir, "link.txt");
 
-        Assert.IsFalse(HardLinkHelper.TryCreateHardLink(Path.Combine(_tempDir, "nope.txt"), link));
+        Assert.IsFalse(HardLinkHelper.TryCreateHardLink(Path.Combine(TempDir, "nope.txt"), link));
     }
 
     [TestMethod]
     public void IsHardlinked_RegularFile_ReturnsFalse()
     {
-        var file = Path.Combine(_tempDir, "regular.txt");
+        var file = Path.Combine(TempDir, "regular.txt");
         File.WriteAllText(file, "test");
 
         Assert.IsFalse(HardLinkHelper.IsHardlinked(file));
@@ -55,8 +37,8 @@ public class HardLinkHelperTests
     [TestMethod]
     public void IsHardlinked_HardlinkedFile_ReturnsTrue()
     {
-        var original = Path.Combine(_tempDir, "original.txt");
-        var link = Path.Combine(_tempDir, "link.txt");
+        var original = Path.Combine(TempDir, "original.txt");
+        var link = Path.Combine(TempDir, "link.txt");
         File.WriteAllText(original, "test");
         HardLinkHelper.TryCreateHardLink(original, link);
 
@@ -67,8 +49,8 @@ public class HardLinkHelperTests
     [TestMethod]
     public void IsHardlinked_AfterLinkRemoved_ReturnsFalse()
     {
-        var original = Path.Combine(_tempDir, "original.txt");
-        var link = Path.Combine(_tempDir, "link.txt");
+        var original = Path.Combine(TempDir, "original.txt");
+        var link = Path.Combine(TempDir, "link.txt");
         File.WriteAllText(original, "test");
         HardLinkHelper.TryCreateHardLink(original, link);
 
@@ -82,13 +64,13 @@ public class HardLinkHelperTests
     [TestMethod]
     public void IsHardlinked_NonExistentFile_ReturnsFalse()
     {
-        Assert.IsFalse(HardLinkHelper.IsHardlinked(Path.Combine(_tempDir, "nope.txt")));
+        Assert.IsFalse(HardLinkHelper.IsHardlinked(Path.Combine(TempDir, "nope.txt")));
     }
 
     [TestMethod]
     public void GetLinkCount_RegularFile_Returns1()
     {
-        var file = Path.Combine(_tempDir, "regular.txt");
+        var file = Path.Combine(TempDir, "regular.txt");
         File.WriteAllText(file, "test");
 
         Assert.AreEqual(1u, HardLinkHelper.GetLinkCount(file));
@@ -97,8 +79,8 @@ public class HardLinkHelperTests
     [TestMethod]
     public void GetLinkCount_TwoLinks_Returns2()
     {
-        var original = Path.Combine(_tempDir, "original.txt");
-        var link = Path.Combine(_tempDir, "link.txt");
+        var original = Path.Combine(TempDir, "original.txt");
+        var link = Path.Combine(TempDir, "link.txt");
         File.WriteAllText(original, "test");
         HardLinkHelper.TryCreateHardLink(original, link);
 
@@ -109,9 +91,9 @@ public class HardLinkHelperTests
     [TestMethod]
     public void GetLinkCount_ThreeLinks_Returns3()
     {
-        var original = Path.Combine(_tempDir, "original.txt");
-        var link1 = Path.Combine(_tempDir, "link1.txt");
-        var link2 = Path.Combine(_tempDir, "link2.txt");
+        var original = Path.Combine(TempDir, "original.txt");
+        var link1 = Path.Combine(TempDir, "link1.txt");
+        var link2 = Path.Combine(TempDir, "link2.txt");
         File.WriteAllText(original, "test");
         HardLinkHelper.TryCreateHardLink(original, link1);
         HardLinkHelper.TryCreateHardLink(original, link2);

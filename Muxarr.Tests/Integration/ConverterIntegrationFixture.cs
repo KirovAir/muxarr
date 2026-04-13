@@ -13,20 +13,15 @@ using Muxarr.Web.Services;
 namespace Muxarr.Tests.Integration;
 
 /// <summary>
-/// Integration-test harness for the conversion pipeline.
-/// Builds a minimal DI container backed by a per-test SQLite file, applies
-/// migrations, and exposes helpers to seed profiles, media files and
-/// conversions without reaching into the Web project's hosting setup.
-///
-/// Does NOT register notification providers, the scheduled-service manager,
-/// webhook services or anything else that would reach out to the network.
+/// DI container + per-test SQLite DB + seed helpers for integration tests.
+/// Deliberately skips registering notifications, webhook services and the
+/// scheduled-service manager so nothing reaches the network during a run.
 /// </summary>
 public sealed class ConverterIntegrationFixture : IDisposable
 {
     private readonly ServiceProvider _root;
     private readonly string _dbPath;
 
-    public IServiceProvider Services => _root;
     public IServiceScopeFactory ScopeFactory { get; }
     public MediaConverterService Converter { get; }
     public MediaScannerService Scanner { get; }
@@ -71,9 +66,8 @@ public sealed class ConverterIntegrationFixture : IDisposable
         services.AddSingleton<MediaConverterService>();
         services.AddScoped<LibraryStatsService>();
 
-        // Apply migrations + seed defaults BEFORE resolving services whose
-        // constructors call ReloadConfig (ConfigurableServiceBase does this
-        // eagerly) and would otherwise hit an unmigrated DB.
+        // Migrations + config seed must run before resolving any
+        // ConfigurableServiceBase - its ctor eagerly reads config from the DB.
         var bootstrap = services.BuildServiceProvider();
         using (var scope = bootstrap.CreateScope())
         {
@@ -94,34 +88,11 @@ public sealed class ConverterIntegrationFixture : IDisposable
         return new ConverterIntegrationFixture(root, tempDir, dbPath);
     }
 
-    // --- DB access helpers ---
-
     public async Task<T> WithDbContext<T>(Func<AppDbContext, Task<T>> fn)
     {
         using var scope = ScopeFactory.CreateScope();
         var ctx = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         return await fn(ctx);
-    }
-
-    public async Task WithDbContext(Func<AppDbContext, Task> fn)
-    {
-        using var scope = ScopeFactory.CreateScope();
-        var ctx = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await fn(ctx);
-    }
-
-    // --- Seeding helpers ---
-
-    /// <summary>
-    /// Materializes a committed or derived fixture into the per-test temp dir
-    /// and returns its new path. Tests mutate this copy freely.
-    /// </summary>
-    public string MaterializeFixture(string name, string? newName = null)
-    {
-        var source = FixtureFactory.Resolve(name);
-        var dest = Path.Combine(TempDir, newName ?? name);
-        File.Copy(source, dest, overwrite: true);
-        return dest;
     }
 
     public async Task<Profile> SeedProfile(string name = "test-profile",
@@ -144,10 +115,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
         });
     }
 
-    /// <summary>
-    /// Scans a file with the real ffprobe-backed scanner and persists it.
-    /// Returns a detached copy with tracks eagerly loaded.
-    /// </summary>
+    /// <summary>Scans a file with the real scanner and returns the persisted row with tracks.</summary>
     public async Task<MediaFile> ScanAndPersist(string filePath, Profile profile)
     {
         await Scanner.ScanFile(filePath, forceRescan: true, profile);
@@ -192,14 +160,13 @@ public sealed class ConverterIntegrationFixture : IDisposable
         });
     }
 
-    public async Task<MediaFile> ReloadFile(int id)
+    /// <summary>Reloads the conversion and asserts its state. Failure message includes the conversion log.</summary>
+    public async Task<MediaConversion> AssertStateAsync(int id, ConversionState expected)
     {
-        return await WithDbContext(async ctx =>
-        {
-            var file = await ctx.MediaFiles.WithTracks().FirstOrDefaultAsync(f => f.Id == id);
-            Assert.IsNotNull(file, $"MediaFile #{id} not found");
-            return file;
-        });
+        var conv = await ReloadConversion(id);
+        Assert.AreEqual(expected, conv.State,
+            $"expected {expected}, got {conv.State}. Log:\n{conv.Log}");
+        return conv;
     }
 
     public void Dispose()
@@ -208,10 +175,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
         {
             _root.Dispose();
         }
-        catch
-        {
-            // best effort
-        }
+        catch { /* best effort */ }
 
         try
         {
@@ -220,9 +184,6 @@ public sealed class ConverterIntegrationFixture : IDisposable
                 File.Delete(_dbPath);
             }
         }
-        catch
-        {
-            // best effort - SQLite may still hold the file on some platforms
-        }
+        catch { /* SQLite may still hold the file briefly */ }
     }
 }
