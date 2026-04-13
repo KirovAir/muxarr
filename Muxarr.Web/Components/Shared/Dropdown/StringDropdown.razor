@@ -1,26 +1,26 @@
 ﻿<div class="form-group">
-	<select class="form-select" @onchange="OnSelectionChanged" value="@Value">
-		<option value="">@(EmptyValue ?? "Select")</option>
-		@foreach (var item in Items)
-		{
-			<option value="@item">@item</option>
-		}
-	</select>
+    <select class="form-select" @onchange="OnSelectionChanged" value="@Value">
+        <option value="">@(EmptyValue ?? "Select")</option>
+        @foreach (var item in Items)
+        {
+            <option value="@item">@item</option>
+        }
+    </select>
 </div>
 
 @code {
-	[Parameter] public string? Value { get; set; }
+    [Parameter] public string? Value { get; set; }
 
-	[Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
 
-	[Parameter] public string? EmptyValue { get; set; }
+    [Parameter] public string? EmptyValue { get; set; }
 
-	[Parameter] [EditorRequired] public IEnumerable<string> Items { get; set; } = [];
+    [Parameter] [EditorRequired] public IEnumerable<string> Items { get; set; } = [];
 
-	private async Task OnSelectionChanged(ChangeEventArgs e)
-	{
-		var value = e.Value?.ToString();
-		await ValueChanged.InvokeAsync(string.IsNullOrEmpty(value) ? null : value);
-	}
+    private async Task OnSelectionChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        await ValueChanged.InvokeAsync(string.IsNullOrEmpty(value) ? null : value);
+    }
 
 }

@@ -7,11 +7,15 @@ public class NotificationConfig
     public string Provider { get; set; } = "";
     public bool Enabled { get; set; } = true;
 
-    public NotificationEventType Triggers { get; set; } = NotificationEventType.Completed | NotificationEventType.Failed;
+    public NotificationEventType Triggers { get; set; } =
+        NotificationEventType.Completed | NotificationEventType.Failed;
 
     public Dictionary<string, string> Settings { get; set; } = new();
 
-    public bool HasTrigger(NotificationEventType type) => (Triggers & type) != 0;
+    public bool HasTrigger(NotificationEventType type)
+    {
+        return (Triggers & type) != 0;
+    }
 }
 
 [Flags]

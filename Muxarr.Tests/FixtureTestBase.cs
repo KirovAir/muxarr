@@ -34,7 +34,7 @@ public abstract class FixtureTestBase
         {
             if (Directory.Exists(TempDir))
             {
-                Directory.Delete(TempDir, recursive: true);
+                Directory.Delete(TempDir, true);
             }
         }
         catch
@@ -43,17 +43,27 @@ public abstract class FixtureTestBase
         }
     }
 
-    protected virtual Task OnSetup() => Task.CompletedTask;
-    protected virtual Task OnTeardown() => Task.CompletedTask;
+    protected virtual Task OnSetup()
+    {
+        return Task.CompletedTask;
+    }
+
+    protected virtual Task OnTeardown()
+    {
+        return Task.CompletedTask;
+    }
 
     /// <summary>Copies a fixture into the per-test temp dir and returns its path.</summary>
     protected string CopyFixture(string name, string? newName = null)
     {
         var source = Fixtures.Resolve(name);
         var dest = Path.Combine(TempDir, newName ?? name);
-        File.Copy(source, dest, overwrite: true);
+        File.Copy(source, dest, true);
         return dest;
     }
 
-    protected string TempPath(string name) => Path.Combine(TempDir, name);
+    protected string TempPath(string name)
+    {
+        return Path.Combine(TempDir, name);
+    }
 }

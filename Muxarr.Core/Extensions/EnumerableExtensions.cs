@@ -2,7 +2,8 @@ namespace Muxarr.Core.Extensions;
 
 public static class EnumerableExtensions
 {
-    public static bool ContainsInList(this IEnumerable<string> source, ReadOnlySpan<char> value, StringComparison stringComparison)
+    public static bool ContainsInList(this IEnumerable<string> source, ReadOnlySpan<char> value,
+        StringComparison stringComparison)
     {
         ArgumentNullException.ThrowIfNull(source);
 

@@ -15,13 +15,13 @@ public static class TrackNameFlags
     private static readonly string[] HearingImpairedKeywords =
     [
         "Closed Caption", "Hearing Impaired", "for Deaf",
-        "doven", "slechthorend",                        // Dutch
-        "Hörgeschädigte", "Gehörlose", "Schwerhörige",  // German
-        "sourds", "malentendant",                        // French
-        "sordos", "sordi",                               // Spanish, Italian
-        "surdos",                                        // Portuguese
-        "döva", "hörselskad",                            // Swedish
-        "døve", "hørselshemm", "hørehæmm",               // Norwegian, Danish
+        "doven", "slechthorend", // Dutch
+        "Hörgeschädigte", "Gehörlose", "Schwerhörige", // German
+        "sourds", "malentendant", // French
+        "sordos", "sordi", // Spanish, Italian
+        "surdos", // Portuguese
+        "döva", "hörselskad", // Swedish
+        "døve", "hørselshemm", "hørehæmm" // Norwegian, Danish
     ];
 
     // Word-boundary matched to avoid "Design" matching "Signs".
@@ -109,7 +109,7 @@ public static class TrackNameFlags
     {
         if (isDub)
         {
-            return ContainsDub(name) ? name : (string.IsNullOrEmpty(name) ? "Dub" : $"{name} Dub");
+            return ContainsDub(name) ? name : string.IsNullOrEmpty(name) ? "Dub" : $"{name} Dub";
         }
 
         if (!ContainsDub(name))

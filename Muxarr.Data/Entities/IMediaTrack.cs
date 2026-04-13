@@ -1,3 +1,5 @@
+using Muxarr.Core.Models;
+
 namespace Muxarr.Data.Entities;
 
 public interface IMediaTrack

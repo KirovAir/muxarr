@@ -1,219 +1,219 @@
 name: Build and Deploy
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
-  release:
-    types: [published]
+    push:
+        branches:
+            - master
+    pull_request:
+        branches:
+            - master
+    release:
+        types: [ published ]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-  FFMPEG_VERSION: '8.1'
-  DOTNET_VERSION: '10.0.x'
+    REGISTRY: ghcr.io
+    IMAGE_NAME: ${{ github.repository }}
+    FFMPEG_VERSION: '8.1'
+    DOTNET_VERSION: '10.0.x'
 
 jobs:
-  test:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, ubuntu-24.04-arm, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v5
+    test:
+        strategy:
+            fail-fast: false
+            matrix:
+                os: [ ubuntu-24.04, ubuntu-24.04-arm, windows-latest, macos-latest ]
+        runs-on: ${{ matrix.os }}
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v5
 
-      - name: Install mkvtoolnix (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mkvtoolnix
+            -   name: Install mkvtoolnix (Linux)
+                if: runner.os == 'Linux'
+                run: sudo apt-get update && sudo apt-get install -y --no-install-recommends mkvtoolnix
 
-      - name: Install ffmpeg ${{ env.FFMPEG_VERSION }} (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          set -euo pipefail
-          case "$(uname -m)" in
-            x86_64)  btbn_arch=linux64 ;;
-            aarch64) btbn_arch=linuxarm64 ;;
-            *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
-          esac
-          url="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n${FFMPEG_VERSION}-latest-${btbn_arch}-gpl-${FFMPEG_VERSION}.tar.xz"
-          curl -fsSL "$url" -o /tmp/ffmpeg.tar.xz
-          sudo tar -xJf /tmp/ffmpeg.tar.xz -C /usr/local/bin --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
-          ffmpeg -version | head -1
+            -   name: Install ffmpeg ${{ env.FFMPEG_VERSION }} (Linux)
+                if: runner.os == 'Linux'
+                run: |
+                    set -euo pipefail
+                    case "$(uname -m)" in
+                      x86_64)  btbn_arch=linux64 ;;
+                      aarch64) btbn_arch=linuxarm64 ;;
+                      *) echo "Unsupported arch: $(uname -m)" >&2; exit 1 ;;
+                    esac
+                    url="https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n${FFMPEG_VERSION}-latest-${btbn_arch}-gpl-${FFMPEG_VERSION}.tar.xz"
+                    curl -fsSL "$url" -o /tmp/ffmpeg.tar.xz
+                    sudo tar -xJf /tmp/ffmpeg.tar.xz -C /usr/local/bin --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+                    ffmpeg -version | head -1
 
-      - name: Install mkvtoolnix + ffmpeg (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          set -euo pipefail
-          brew install mkvtoolnix ffmpeg
-          # Production and the other runners are on ffmpeg 8.1; fail fast if
-          # brew is behind (the MP4 udta.name round-trip is broken pre-8.0).
-          major=$(ffmpeg -version | awk 'NR==1 {split($3,v,"."); print v[1]}')
-          if [ "$major" -lt 8 ]; then
-            echo "ffmpeg $major is too old; need >= 8.x for MP4 title round-trip" >&2
-            exit 1
-          fi
-          ffmpeg -version | head -1
+            -   name: Install mkvtoolnix + ffmpeg (macOS)
+                if: runner.os == 'macOS'
+                run: |
+                    set -euo pipefail
+                    brew install mkvtoolnix ffmpeg
+                    # Production and the other runners are on ffmpeg 8.1; fail fast if
+                    # brew is behind (the MP4 udta.name round-trip is broken pre-8.0).
+                    major=$(ffmpeg -version | awk 'NR==1 {split($3,v,"."); print v[1]}')
+                    if [ "$major" -lt 8 ]; then
+                      echo "ffmpeg $major is too old; need >= 8.x for MP4 title round-trip" >&2
+                      exit 1
+                    fi
+                    ffmpeg -version | head -1
 
-      - name: Install mkvtoolnix + ffmpeg (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          function Install-WithRetry([string]$Package, [scriptblock]$Verify) {
-            for ($i = 1; $i -le 3; $i++) {
-              choco install $Package -y --no-progress
-              if (& $Verify) { return }
-              Write-Warning "$Package attempt $i failed, retrying in 10s..."
-              Start-Sleep -Seconds 10
-            }
-            throw "Failed to install $Package after 3 attempts"
-          }
+            -   name: Install mkvtoolnix + ffmpeg (Windows)
+                if: runner.os == 'Windows'
+                run: |
+                    function Install-WithRetry([string]$Package, [scriptblock]$Verify) {
+                      for ($i = 1; $i -le 3; $i++) {
+                        choco install $Package -y --no-progress
+                        if (& $Verify) { return }
+                        Write-Warning "$Package attempt $i failed, retrying in 10s..."
+                        Start-Sleep -Seconds 10
+                      }
+                      throw "Failed to install $Package after 3 attempts"
+                    }
 
-          Install-WithRetry 'mkvtoolnix' { Test-Path "C:\Program Files\MKVToolNix\mkvmerge.exe" }
-          echo "C:\Program Files\MKVToolNix" >> $env:GITHUB_PATH
+                    Install-WithRetry 'mkvtoolnix' { Test-Path "C:\Program Files\MKVToolNix\mkvmerge.exe" }
+                    echo "C:\Program Files\MKVToolNix" >> $env:GITHUB_PATH
 
-          Install-WithRetry 'ffmpeg' { Get-Command ffmpeg -ErrorAction SilentlyContinue }
-          $major = (ffmpeg -version | Select-Object -First 1) -replace '.*ffmpeg version (\d+)\..*','$1'
-          if ([int]$major -lt 8) { throw "ffmpeg $major is too old; need >= 8.x for MP4 title round-trip" }
-          ffmpeg -version | Select-Object -First 1
+                    Install-WithRetry 'ffmpeg' { Get-Command ffmpeg -ErrorAction SilentlyContinue }
+                    $major = (ffmpeg -version | Select-Object -First 1) -replace '.*ffmpeg version (\d+)\..*','$1'
+                    if ([int]$major -lt 8) { throw "ffmpeg $major is too old; need >= 8.x for MP4 title round-trip" }
+                    ffmpeg -version | Select-Object -First 1
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+            -   name: Setup .NET 10
+                uses: actions/setup-dotnet@v5
+                with:
+                    dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Run Tests
-        run: dotnet test --configuration Release
+            -   name: Run Tests
+                run: dotnet test --configuration Release
 
-  build:
-    name: build (${{ matrix.arch }})
-    needs: test
-    if: github.event_name == 'push' || github.event_name == 'release'
-    strategy:
-      matrix:
-        include:
-          - platform: linux/amd64
-            arch: amd64
-            runner: ubuntu-24.04
-          - platform: linux/arm64
-            arch: arm64
-            runner: ubuntu-24.04-arm
-    runs-on: ${{ matrix.runner }}
-    permissions:
-      contents: read
-      packages: write
+    build:
+        name: build (${{ matrix.arch }})
+        needs: test
+        if: github.event_name == 'push' || github.event_name == 'release'
+        strategy:
+            matrix:
+                include:
+                    -   platform: linux/amd64
+                        arch: amd64
+                        runner: ubuntu-24.04
+                    -   platform: linux/arm64
+                        arch: arm64
+                        runner: ubuntu-24.04-arm
+        runs-on: ${{ matrix.runner }}
+        permissions:
+            contents: read
+            packages: write
 
-    steps:
-      - name: Lowercase image name
-        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+        steps:
+            -   name: Lowercase image name
+                run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
 
-      - name: Checkout code
-        uses: actions/checkout@v5
+            -   name: Checkout code
+                uses: actions/checkout@v5
 
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+            -   name: Setup .NET 10
+                uses: actions/setup-dotnet@v5
+                with:
+                    dotnet-version: ${{ env.DOTNET_VERSION }}
 
-      - name: Publish .NET app
-        run: dotnet publish Muxarr.Web/Muxarr.Web.csproj -c Release -o Muxarr.Web/publish
+            -   name: Publish .NET app
+                run: dotnet publish Muxarr.Web/Muxarr.Web.csproj -c Release -o Muxarr.Web/publish
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+            -   name: Set up Docker Buildx
+                uses: docker/setup-buildx-action@v4
 
-      - name: Log in to Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+            -   name: Log in to Container Registry
+                uses: docker/login-action@v4
+                with:
+                    registry: ${{ env.REGISTRY }}
+                    username: ${{ github.actor }}
+                    password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+            -   name: Extract metadata
+                id: meta
+                uses: docker/metadata-action@v6
+                with:
+                    images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      - name: Build and push by digest
-        id: build
-        uses: docker/build-push-action@v7
-        with:
-          context: Muxarr.Web
-          platforms: ${{ matrix.platform }}
-          build-args: FFMPEG_VERSION=${{ env.FFMPEG_VERSION }}
-          labels: ${{ steps.meta.outputs.labels }}
-          outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
-          cache-from: type=gha,scope=${{ matrix.platform }}
-          cache-to: type=gha,scope=${{ matrix.platform }},mode=max
+            -   name: Build and push by digest
+                id: build
+                uses: docker/build-push-action@v7
+                with:
+                    context: Muxarr.Web
+                    platforms: ${{ matrix.platform }}
+                    build-args: FFMPEG_VERSION=${{ env.FFMPEG_VERSION }}
+                    labels: ${{ steps.meta.outputs.labels }}
+                    outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+                    cache-from: type=gha,scope=${{ matrix.platform }}
+                    cache-to: type=gha,scope=${{ matrix.platform }},mode=max
 
-      - name: Export digest
-        run: |
-          mkdir -p /tmp/digests
-          digest="${{ steps.build.outputs.digest }}"
-          touch "/tmp/digests/${digest#sha256:}"
+            -   name: Export digest
+                run: |
+                    mkdir -p /tmp/digests
+                    digest="${{ steps.build.outputs.digest }}"
+                    touch "/tmp/digests/${digest#sha256:}"
 
-      - name: Upload digest
-        uses: actions/upload-artifact@v5
-        with:
-          name: digests-${{ matrix.arch }}
-          path: /tmp/digests/*
-          if-no-files-found: error
-          retention-days: 1
+            -   name: Upload digest
+                uses: actions/upload-artifact@v5
+                with:
+                    name: digests-${{ matrix.arch }}
+                    path: /tmp/digests/*
+                    if-no-files-found: error
+                    retention-days: 1
 
-  manifest:
-    needs: build
-    if: github.event_name == 'push' || github.event_name == 'release'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-      packages: write
+    manifest:
+        needs: build
+        if: github.event_name == 'push' || github.event_name == 'release'
+        runs-on: ubuntu-24.04
+        permissions:
+            contents: read
+            packages: write
 
-    steps:
-      - name: Lowercase image name
-        run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
+        steps:
+            -   name: Lowercase image name
+                run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
 
-      - name: Download digests
-        uses: actions/download-artifact@v5
-        with:
-          path: /tmp/digests
-          pattern: digests-*
-          merge-multiple: true
+            -   name: Download digests
+                uses: actions/download-artifact@v5
+                with:
+                    path: /tmp/digests
+                    pattern: digests-*
+                    merge-multiple: true
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+            -   name: Set up Docker Buildx
+                uses: docker/setup-buildx-action@v4
 
-      - name: Log in to Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+            -   name: Log in to Container Registry
+                uses: docker/login-action@v4
+                with:
+                    registry: ${{ env.REGISTRY }}
+                    username: ${{ github.actor }}
+                    password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=dev,enable=${{ github.event_name == 'push' }}
-            type=raw,value=latest,enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}},enable=${{ github.event_name == 'release' && !startsWith(github.ref, 'refs/tags/v0.') }}
-            type=sha
+            -   name: Extract metadata
+                id: meta
+                uses: docker/metadata-action@v6
+                with:
+                    images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+                    tags: |
+                        type=raw,value=dev,enable=${{ github.event_name == 'push' }}
+                        type=raw,value=latest,enable=${{ github.event_name == 'release' }}
+                        type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
+                        type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
+                        type=semver,pattern={{major}},enable=${{ github.event_name == 'release' && !startsWith(github.ref, 'refs/tags/v0.') }}
+                        type=sha
 
-      - name: Create manifest list and push
-        working-directory: /tmp/digests
-        run: |
-          docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
-            $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+            -   name: Create manifest list and push
+                working-directory: /tmp/digests
+                run: |
+                    docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+                      $(printf '${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
 
-      - name: Inspect image
-        run: docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+            -   name: Inspect image
+                run: docker buildx imagetools inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}

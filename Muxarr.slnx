@@ -1,9 +1,9 @@
 <Solution>
-  <Folder Name="/Deployment/">
-    <File Path=".github/workflows/build-and-deploy.yml" />
-  </Folder>
-  <Project Path="Muxarr.Core/Muxarr.Core.csproj" />
-  <Project Path="Muxarr.Data/Muxarr.Data.csproj" />
-  <Project Path="Muxarr.Tests/Muxarr.Tests.csproj" />
-  <Project Path="Muxarr.Web/Muxarr.Web.csproj" />
+    <Folder Name="/Deployment/">
+        <File Path=".github/workflows/build-and-deploy.yml"/>
+    </Folder>
+    <Project Path="Muxarr.Core/Muxarr.Core.csproj"/>
+    <Project Path="Muxarr.Data/Muxarr.Data.csproj"/>
+    <Project Path="Muxarr.Tests/Muxarr.Tests.csproj"/>
+    <Project Path="Muxarr.Web/Muxarr.Web.csproj"/>
 </Solution>

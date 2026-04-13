@@ -5,7 +5,12 @@ using Muxarr.Core.Extensions;
 
 namespace Muxarr.Core.Language;
 
-public class IsoLanguage(string name, string displayName, string twoLetterCode, IReadOnlyList<string> threeLetterCodes, string? nativeName = null)
+public class IsoLanguage(
+    string name,
+    string displayName,
+    string twoLetterCode,
+    IReadOnlyList<string> threeLetterCodes,
+    string? nativeName = null)
 {
     public string TwoLetterCode { get; } = twoLetterCode;
     public string Name { get; } = name;
@@ -15,13 +20,14 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
     public string? ThreeLetterCode => ThreeLetterCodes.Count > 0 ? ThreeLetterCodes[0] : null;
 
     private static List<IsoLanguage>? _isoLanguages;
-    private static readonly ConcurrentDictionary<string, IsoLanguage> LookupCache = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly ConcurrentDictionary<string, IsoLanguage> FuzzyCache = new(StringComparer.OrdinalIgnoreCase);
 
-    public static List<IsoLanguage> Languages
-    {
-        get { return _isoLanguages ??= LoadIsoList(); }
-    }
+    private static readonly ConcurrentDictionary<string, IsoLanguage> LookupCache =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly ConcurrentDictionary<string, IsoLanguage>
+        FuzzyCache = new(StringComparer.OrdinalIgnoreCase);
+
+    public static List<IsoLanguage> Languages => _isoLanguages ??= LoadIsoList();
 
     /// <summary>
     /// Loads from iso_639-2.json (all ISO 639-2 codes, ~486 entries) supplemented by
@@ -111,7 +117,6 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
     }
 
 
-
     public static IEnumerable<IsoLanguage> Search(string input)
     {
         if (string.IsNullOrWhiteSpace(input))
@@ -138,19 +143,52 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
         int score;
 
         // Exact matches
-        if (lang.Name.Equals(input, ic)) score = 1000;
-        else if (lang.NativeName.Equals(input, ic)) score = 950;
-        else if (lang.TwoLetterCode.Equals(input, ic)) score = 900;
-        else if (lang.ThreeLetterCodes.Any(c => c.Equals(input, ic))) score = 850;
+        if (lang.Name.Equals(input, ic))
+        {
+            score = 1000;
+        }
+        else if (lang.NativeName.Equals(input, ic))
+        {
+            score = 950;
+        }
+        else if (lang.TwoLetterCode.Equals(input, ic))
+        {
+            score = 900;
+        }
+        else if (lang.ThreeLetterCodes.Any(c => c.Equals(input, ic)))
+        {
+            score = 850;
+        }
         // Prefix matches
-        else if (lang.Name.StartsWith(input, ic)) score = 500;
-        else if (lang.NativeName.StartsWith(input, ic)) score = 450;
+        else if (lang.Name.StartsWith(input, ic))
+        {
+            score = 500;
+        }
+        else if (lang.NativeName.StartsWith(input, ic))
+        {
+            score = 450;
+        }
         // Substring matches
-        else if (lang.Name.Contains(input, ic)) score = 200;
-        else if (lang.NativeName.Contains(input, ic)) score = 150;
-        else if (lang.ThreeLetterCodes.Any(c => c.Contains(input, ic))) score = 100;
-        else if (lang.TwoLetterCode.Contains(input, ic)) score = 50;
-        else return 0;
+        else if (lang.Name.Contains(input, ic))
+        {
+            score = 200;
+        }
+        else if (lang.NativeName.Contains(input, ic))
+        {
+            score = 150;
+        }
+        else if (lang.ThreeLetterCodes.Any(c => c.Contains(input, ic)))
+        {
+            score = 100;
+        }
+        else if (lang.TwoLetterCode.Contains(input, ic))
+        {
+            score = 50;
+        }
+        else
+        {
+            return 0;
+        }
 
         // Mainstream bonus: languages with an ISO 639-1 two-letter code are more common
         if (!string.IsNullOrEmpty(lang.TwoLetterCode) && lang.TwoLetterCode.Length == 2)
@@ -228,13 +266,21 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
     /// Sentinel value representing the file's original language (resolved dynamically from Sonarr/Radarr).
     /// Used in AllowedLanguages to indicate that the original language should always be kept.
     /// </summary>
-    public static IsoLanguage OriginalLanguage => new(OriginalLanguageName, OriginalLanguageName, "orig", ["orig"], "Original");
+    public static IsoLanguage OriginalLanguage =>
+        new(OriginalLanguageName, OriginalLanguageName, "orig", ["orig"], "Original");
 
     // Equality members
     public bool Equals(IsoLanguage? other)
     {
-        if (ReferenceEquals(null, other)) return false;
-        if (ReferenceEquals(this, other)) return true;
+        if (ReferenceEquals(null, other))
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, other))
+        {
+            return true;
+        }
 
         return string.Equals(TwoLetterCode, other.TwoLetterCode, StringComparison.OrdinalIgnoreCase) &&
                string.Equals(Name, other.Name, StringComparison.OrdinalIgnoreCase) &&
@@ -243,9 +289,21 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
 
     public override bool Equals(object? obj)
     {
-        if (ReferenceEquals(null, obj)) return false;
-        if (ReferenceEquals(this, obj)) return true;
-        if (obj.GetType() != GetType()) return false;
+        if (ReferenceEquals(null, obj))
+        {
+            return false;
+        }
+
+        if (ReferenceEquals(this, obj))
+        {
+            return true;
+        }
+
+        if (obj.GetType() != GetType())
+        {
+            return false;
+        }
+
         return Equals((IsoLanguage)obj);
     }
 
@@ -258,13 +316,22 @@ public class IsoLanguage(string name, string displayName, string twoLetterCode, 
         {
             hashCode.Add(code.ToUpperInvariant());
         }
+
         return hashCode.ToHashCode();
     }
 
     public static bool operator ==(IsoLanguage? left, IsoLanguage? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (ReferenceEquals(left, null)) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (ReferenceEquals(left, null))
+        {
+            return false;
+        }
+
         return left.Equals(right);
     }
 

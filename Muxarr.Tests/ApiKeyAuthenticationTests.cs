@@ -168,14 +168,25 @@ public class ApiKeyAuthenticationTests
 
     private class TestDbContextFactory(DbContextOptions<AppDbContext> options) : IDbContextFactory<AppDbContext>
     {
-        public AppDbContext CreateDbContext() => new(options);
+        public AppDbContext CreateDbContext()
+        {
+            return new AppDbContext(options);
+        }
     }
 
     private class TestOptionsMonitor(ApiKeyAuthenticationOptions options)
         : IOptionsMonitor<ApiKeyAuthenticationOptions>
     {
         public ApiKeyAuthenticationOptions CurrentValue => options;
-        public ApiKeyAuthenticationOptions Get(string? name) => options;
-        public IDisposable? OnChange(Action<ApiKeyAuthenticationOptions, string?> listener) => null;
+
+        public ApiKeyAuthenticationOptions Get(string? name)
+        {
+            return options;
+        }
+
+        public IDisposable? OnChange(Action<ApiKeyAuthenticationOptions, string?> listener)
+        {
+            return null;
+        }
     }
 }

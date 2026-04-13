@@ -6,19 +6,19 @@ public class MovieResponse
 {
     [JsonPropertyName("id")]
     public int Id { get; set; }
-    
+
     [JsonPropertyName("title")]
     public required string Title { get; set; }
 
-    [JsonPropertyName("originalLanguage")] 
+    [JsonPropertyName("originalLanguage")]
     public Language OriginalLanguage { get; set; } = new();
 
-    [JsonPropertyName("movieFile")] 
+    [JsonPropertyName("movieFile")]
     public MovieFile MovieFile { get; set; } = new();
 }
 
 public class MovieFile
 {
-    [JsonPropertyName("path")] 
+    [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 }

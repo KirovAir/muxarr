@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Data.Entities;
@@ -10,15 +11,18 @@ namespace Muxarr.Tests;
 /// </summary>
 public static class TestData
 {
-    public static MediaTrack Video(int trackNumber = 0, string? trackName = null) => new()
+    public static MediaTrack Video(int trackNumber = 0, string? trackName = null)
     {
-        Type = MediaTrackType.Video,
-        TrackNumber = trackNumber,
-        TrackName = trackName,
-        LanguageCode = "und",
-        LanguageName = "Undetermined",
-        Codec = nameof(VideoCodec.Hevc)
-    };
+        return new MediaTrack
+        {
+            Type = MediaTrackType.Video,
+            TrackNumber = trackNumber,
+            TrackName = trackName,
+            LanguageCode = "und",
+            LanguageName = "Undetermined",
+            Codec = nameof(VideoCodec.Hevc)
+        };
+    }
 
     public static MediaTrack Audio(int trackNumber = 0, string language = "English",
         string codec = nameof(AudioCodec.Aac), int channels = 6,

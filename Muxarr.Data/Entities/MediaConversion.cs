@@ -40,7 +40,7 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
     public override void Configure(EntityTypeBuilder<MediaConversion> builder)
     {
         base.Configure(builder);
-        
+
         builder.ToTable(nameof(MediaConversion));
 
         builder.HasKey(e => e.Id);
@@ -49,14 +49,14 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
             .IsRequired();
 
         builder.Property(e => e.Name)
-            .HasMaxLength(4096); 
-        
+            .HasMaxLength(4096);
+
         builder.Property(e => e.TempFilePath)
-            .HasMaxLength(4096); 
-        
+            .HasMaxLength(4096);
+
         builder.Property(e => e.Log)
             .IsRequired()
-            .HasMaxLength(int.MaxValue);  // or specific size limit if needed
+            .HasMaxLength(int.MaxValue); // or specific size limit if needed
 
         builder.Property(e => e.State)
             .HasConversion<string>()
@@ -65,14 +65,14 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
 
         builder.Property(e => e.Progress)
             .IsRequired();
-        
+
         builder.Property(e => e.SizeBefore)
             .IsRequired();
         builder.Property(e => e.SizeAfter)
-            .IsRequired();        
+            .IsRequired();
         builder.Property(e => e.SizeDifference)
             .IsRequired();
-        
+
         builder.Property(e => e.SnapshotBefore)
             .HasJsonConversion();
 
@@ -85,12 +85,12 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
         builder.Property(e => e.IsCustomConversion)
             .IsRequired()
             .HasDefaultValue(false);
-        
+
         builder.HasIndex(e => new { e.State, e.CreatedDate });
 
         builder.HasOne(m => m.MediaFile)
             .WithMany(f => f.Conversions)
             .HasForeignKey(m => m.MediaFileId)
-            .OnDelete(DeleteBehavior.SetNull);  // Keeps conversion record when media file is deleted
+            .OnDelete(DeleteBehavior.SetNull); // Keeps conversion record when media file is deleted
     }
 }

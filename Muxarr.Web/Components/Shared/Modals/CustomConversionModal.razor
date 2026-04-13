@@ -2,7 +2,8 @@
 @using Muxarr.Core.MkvToolNix
 <div class="modal-body">
     <p class="mb-3 text-body-secondary">Select which tracks to keep, reorder them, and edit their metadata. Use
-        <strong>Apply Profile</strong> below to start from a profile's settings. At least one audio track is required.</p>
+        <strong>Apply Profile</strong> below to start from a profile's settings. At least one audio track is required.
+    </p>
 
     @if (_validationError)
     {
@@ -127,7 +128,8 @@
                                     <i class="bi bi-chat-quote"></i>
                                 </button>
                             </ToolTip>
-                            <ToolTip Tip="Dub - Translated audio (e.g. English dub of a Japanese show). Matroska has no FlagDub; the state is stored in the track title and will be appended/stripped automatically when you toggle this. On MP4 it maps to a native disposition flag.">
+                            <ToolTip
+                                Tip="Dub - Translated audio (e.g. English dub of a Japanese show). Matroska has no FlagDub; the state is stored in the track title and will be appended/stripped automatically when you toggle this. On MP4 it maps to a native disposition flag.">
                                 <button type="button"
                                         class="btn btn-sm @(track.IsDub ? "btn-primary" : "btn-outline-secondary")"
                                         @onclick="() => ToggleDub(track)">
@@ -172,7 +174,7 @@
 
 @code {
     [CascadingParameter] public required BlazoredModalInstance BlazoredModal { get; set; }
-    [Parameter, EditorRequired] public MediaFile File { get; set; } = default!;
+    [Parameter] [EditorRequired] public MediaFile File { get; set; } = default!;
     [Parameter] public Profile? Profile { get; set; }
     [Parameter] public List<Profile> Profiles { get; set; } = new();
 

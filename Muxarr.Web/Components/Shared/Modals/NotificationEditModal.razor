@@ -184,7 +184,7 @@
     {
         var newProvider = provider ?? "";
         var nameIsDefault = string.IsNullOrWhiteSpace(Config.Name)
-            || NotificationService.Providers.Any(p => p.Type == Config.Name);
+                            || NotificationService.Providers.Any(p => p.Type == Config.Name);
 
         Config.Provider = newProvider;
         Config.Settings.Clear();
@@ -209,7 +209,14 @@
         _testing = false;
     }
 
-    private async Task Cancel() => await BlazoredModal.CloseAsync(ModalResult.Cancel());
+    private async Task Cancel()
+    {
+        await BlazoredModal.CloseAsync(ModalResult.Cancel());
+    }
 
-    private async Task Save() => await BlazoredModal.CloseAsync(ModalResult.Ok(Config));
+    private async Task Save()
+    {
+        await BlazoredModal.CloseAsync(ModalResult.Ok(Config));
+    }
+
 }

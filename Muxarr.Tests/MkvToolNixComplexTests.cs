@@ -240,7 +240,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
                 // Track 2 (commentary) removed
                 // Track 3 (French) removed
                 new() { TrackNumber = 4, Type = MediaTrackType.Subtitles },
-                new() { TrackNumber = 5, Type = MediaTrackType.Subtitles },
+                new() { TrackNumber = 5, Type = MediaTrackType.Subtitles }
                 // Track 6 (SDH) removed
                 // Track 7 (French) removed
                 // Track 8 (Spanish) removed
@@ -278,7 +278,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
                 new() { TrackNumber = 3, Type = MediaTrackType.Audio, Name = "French First" },
                 new() { TrackNumber = 1, Type = MediaTrackType.Audio, Name = "English Second" },
                 new() { TrackNumber = 5, Type = MediaTrackType.Subtitles, Name = "Forced First" },
-                new() { TrackNumber = 4, Type = MediaTrackType.Subtitles, Name = "Regular Second" },
+                new() { TrackNumber = 4, Type = MediaTrackType.Subtitles, Name = "Regular Second" }
             };
 
             var result = await MkvMerge.Remux(_workingCopy, output, TestPlan.Of(tracks));
@@ -474,7 +474,8 @@ public class MkvToolNixComplexTests : FixtureTestBase
         // Subtitles: English regular + English Forced kept, SDH removed (RemoveImpaired),
         // French + Spanish removed
         var subs = allowed.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
-        Assert.AreEqual(2, subs.Count, $"Expected 2 subs, got: {string.Join(", ", subs.Select(s => $"{s.TrackName}"))}");
+        Assert.AreEqual(2, subs.Count,
+            $"Expected 2 subs, got: {string.Join(", ", subs.Select(s => $"{s.TrackName}"))}");
         Assert.IsTrue(subs.Any(s => !s.IsHearingImpaired && !s.IsForced), "Regular English sub should be kept");
         Assert.IsTrue(subs.Any(s => s.IsForced), "Forced English sub should be kept");
         Assert.IsFalse(subs.Any(s => s.IsHearingImpaired), "SDH should be removed");
@@ -495,14 +496,14 @@ public class MkvToolNixComplexTests : FixtureTestBase
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
-                RemoveImpaired = false  // The user's preference: keep HI
+                RemoveImpaired = false // The user's preference: keep HI
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true,
-                RemoveImpaired = false  // Keep HI subs
+                RemoveImpaired = false // Keep HI subs
             }
         };
 
@@ -657,8 +658,16 @@ public class MkvToolNixComplexTests : FixtureTestBase
                 new() { TrackNumber = 0, Type = MediaTrackType.Video, Name = "" },
                 new() { TrackNumber = 1, Type = MediaTrackType.Audio, Name = "English 2.0", IsDefault = true },
                 new() { TrackNumber = 3, Type = MediaTrackType.Audio, Name = "French 2.0", IsDefault = false },
-                new() { TrackNumber = 4, Type = MediaTrackType.Subtitles, Name = "English", IsDefault = true, IsForced = false },
-                new() { TrackNumber = 5, Type = MediaTrackType.Subtitles, Name = "English Forced", IsDefault = false, IsForced = true }
+                new()
+                {
+                    TrackNumber = 4, Type = MediaTrackType.Subtitles, Name = "English", IsDefault = true,
+                    IsForced = false
+                },
+                new()
+                {
+                    TrackNumber = 5, Type = MediaTrackType.Subtitles, Name = "English Forced", IsDefault = false,
+                    IsForced = true
+                }
             };
 
             var result = await MkvMerge.Remux(_workingCopy, output, TestPlan.Of(tracks));
@@ -846,14 +855,19 @@ public class MkvToolNixComplexTests : FixtureTestBase
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French"), IsoLanguage.OriginalLanguage],
+                AllowedLanguages =
+                    [IsoLanguage.Find("English"), IsoLanguage.Find("French"), IsoLanguage.OriginalLanguage],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {codec} {channels}"
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French"), IsoLanguage.Find("Spanish"), IsoLanguage.OriginalLanguage],
+                AllowedLanguages =
+                [
+                    IsoLanguage.Find("English"), IsoLanguage.Find("French"), IsoLanguage.Find("Spanish"),
+                    IsoLanguage.OriginalLanguage
+                ],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {hi}"
             }
@@ -883,7 +897,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
 
         // Subtitle tracks: {language} {hi} - only SDH track gets the suffix
         Assert.AreEqual("English", outTracks[4].Properties.TrackName);
-        Assert.AreEqual("English", outTracks[5].Properties.TrackName);  // forced, not HI
+        Assert.AreEqual("English", outTracks[5].Properties.TrackName); // forced, not HI
         Assert.AreEqual("English SDH", outTracks[6].Properties.TrackName);
         Assert.AreEqual("French", outTracks[7].Properties.TrackName);
         Assert.AreEqual("Spanish", outTracks[8].Properties.TrackName);

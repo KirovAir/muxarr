@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Muxarr.Core.Models;
 
 namespace Muxarr.Data.Entities;
 

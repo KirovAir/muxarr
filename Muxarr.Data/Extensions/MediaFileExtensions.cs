@@ -92,7 +92,8 @@ public static class MediaFileExtensions
             };
 
             if (track.Type != MediaTrackType.Video
-                && (track.LanguageName == IsoLanguage.UnknownName || track.LanguageName == IsoLanguage.UndeterminedName))
+                && (track.LanguageName == IsoLanguage.UnknownName ||
+                    track.LanguageName == IsoLanguage.UndeterminedName))
             {
                 var parsed = IsoLanguage.Find(x.Properties.TrackName, true);
                 if (parsed != IsoLanguage.Unknown)
@@ -186,7 +187,8 @@ public static class MediaFileExtensions
                 AudioChannels = stream.Channels,
                 IsDefault = disposition.Default == 1,
                 IsForced = disposition.Forced == 1 || TrackNameFlags.ContainsForced(trackName),
-                IsHearingImpaired = disposition.HearingImpaired == 1 || TrackNameFlags.ContainsHearingImpaired(trackName),
+                IsHearingImpaired =
+                    disposition.HearingImpaired == 1 || TrackNameFlags.ContainsHearingImpaired(trackName),
                 // flag_text_descriptions in Matroska is exposed by ffprobe
                 // as disposition.descriptions; merge it in so the parity
                 // against mkvmerge's IsVisualImpaired stays tight.
@@ -200,7 +202,8 @@ public static class MediaFileExtensions
             };
 
             if (track.Type != MediaTrackType.Video
-                && (track.LanguageName == IsoLanguage.UnknownName || track.LanguageName == IsoLanguage.UndeterminedName))
+                && (track.LanguageName == IsoLanguage.UnknownName ||
+                    track.LanguageName == IsoLanguage.UndeterminedName))
             {
                 var parsed = IsoLanguage.Find(trackName, true);
                 if (parsed != IsoLanguage.Unknown)
@@ -222,9 +225,11 @@ public static class MediaFileExtensions
         {
             file.Resolution = $"{video.Width}x{video.Height}";
         }
+
         file.VideoBitDepth = int.TryParse(video?.BitsPerRawSample, out var depth) ? depth : 0;
 
-        if (double.TryParse(probe.Format?.Duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var durationSec))
+        if (double.TryParse(probe.Format?.Duration, NumberStyles.Any, CultureInfo.InvariantCulture,
+                out var durationSec))
         {
             file.DurationMs = (long)(durationSec * 1000);
         }
@@ -249,6 +254,7 @@ public static class MediaFileExtensions
         {
             return "Matroska";
         }
+
         if (lower.Contains("mp4") || lower.Contains("mov") || lower.Contains("m4a") || lower.Contains("3gp"))
         {
             return "MP4/QuickTime";
@@ -280,14 +286,17 @@ public static class MediaFileExtensions
         {
             return null;
         }
+
         if (tags.TryGetValue("name", out var name) && !string.IsNullOrEmpty(name))
         {
             return name;
         }
+
         if (tags.TryGetValue("title", out var title) && !string.IsNullOrEmpty(title))
         {
             return title;
         }
+
         return null;
     }
 
@@ -321,7 +330,8 @@ public static class MediaFileExtensions
         return result;
     }
 
-    public static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage) where T : IMediaTrack
+    public static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage)
+        where T : IMediaTrack
     {
         if (tracks.Count == 0)
         {
@@ -337,12 +347,12 @@ public static class MediaFileExtensions
             // Their explicit allow should take precedence over the original-language assumption.
             var undeterminedExplicitlyAllowed = s.AllowedLanguages.Any(x => x.Name == IsoLanguage.UndeterminedName);
             var assumeUndetermined = !undeterminedExplicitlyAllowed
-                                      && tracks.Count == 1
-                                      && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
+                                     && tracks.Count == 1
+                                     && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
             var tracksByLanguage = tracks.GroupBy(t =>
-                t.LanguageName == IsoLanguage.UnknownName ? (originalLanguage ?? IsoLanguage.UnknownName)
-                : (assumeUndetermined && t.LanguageName == IsoLanguage.UndeterminedName) ? originalLanguage!
+                t.LanguageName == IsoLanguage.UnknownName ? originalLanguage ?? IsoLanguage.UnknownName
+                : assumeUndetermined && t.LanguageName == IsoLanguage.UndeterminedName ? originalLanguage!
                 : t.LanguageName);
 
             allowedTracks = new List<T>();
@@ -478,6 +488,7 @@ public static class MediaFileExtensions
                 best = Math.Min(best, i);
             }
         }
+
         return best;
     }
 
@@ -584,6 +595,7 @@ public static class MediaFileExtensions
                 return true;
             }
         }
+
         return false;
     }
 
@@ -608,7 +620,7 @@ public static class MediaFileExtensions
         {
             Tracks = target.Tracks.Select(t => t.ToDisplay(src.GetValueOrDefault(t.TrackNumber))).ToList(),
             HasChapters = target.HasChapters ?? file.ChapterCount > 0,
-            HasAttachments = target.HasAttachments ?? file.AttachmentCount > 0,
+            HasAttachments = target.HasAttachments ?? file.AttachmentCount > 0
         };
     }
 
@@ -619,18 +631,47 @@ public static class MediaFileExtensions
     {
         var snap = src?.ToSnapshot() ?? new TrackSnapshot { TrackNumber = t.TrackNumber, Type = t.Type };
 
-        if (t.Name != null) { snap.TrackName = string.IsNullOrEmpty(t.Name) ? null : t.Name; }
+        if (t.Name != null)
+        {
+            snap.TrackName = string.IsNullOrEmpty(t.Name) ? null : t.Name;
+        }
+
         if (t.LanguageCode != null)
         {
             snap.LanguageCode = t.LanguageCode;
             snap.LanguageName = IsoLanguage.Find(t.LanguageCode).Name;
         }
-        if (t.IsDefault != null) { snap.IsDefault = t.IsDefault.Value; }
-        if (t.IsForced != null) { snap.IsForced = t.IsForced.Value; }
-        if (t.IsHearingImpaired != null) { snap.IsHearingImpaired = t.IsHearingImpaired.Value; }
-        if (t.IsVisualImpaired != null) { snap.IsVisualImpaired = t.IsVisualImpaired.Value; }
-        if (t.IsCommentary != null) { snap.IsCommentary = t.IsCommentary.Value; }
-        if (t.IsOriginal != null) { snap.IsOriginal = t.IsOriginal.Value; }
+
+        if (t.IsDefault != null)
+        {
+            snap.IsDefault = t.IsDefault.Value;
+        }
+
+        if (t.IsForced != null)
+        {
+            snap.IsForced = t.IsForced.Value;
+        }
+
+        if (t.IsHearingImpaired != null)
+        {
+            snap.IsHearingImpaired = t.IsHearingImpaired.Value;
+        }
+
+        if (t.IsVisualImpaired != null)
+        {
+            snap.IsVisualImpaired = t.IsVisualImpaired.Value;
+        }
+
+        if (t.IsCommentary != null)
+        {
+            snap.IsCommentary = t.IsCommentary.Value;
+        }
+
+        if (t.IsOriginal != null)
+        {
+            snap.IsOriginal = t.IsOriginal.Value;
+        }
+
         // Matroska's IsDub is nulled during resolution and encoded in the
         // title; read it back from whichever title now applies.
         snap.IsDub = t.IsDub ?? TrackNameFlags.ContainsDub(snap.TrackName);
@@ -758,12 +799,36 @@ public static class MediaFileExtensions
     private static string GetFlagLabels(this IMediaTrack track)
     {
         var labels = new List<string>();
-        if (track.IsHearingImpaired) { labels.Add("SDH"); }
-        if (track.IsForced) { labels.Add("Forced"); }
-        if (track.IsCommentary) { labels.Add("Commentary"); }
-        if (track.IsVisualImpaired) { labels.Add("AD"); }
-        if (track.IsOriginal) { labels.Add("Original"); }
-        if (track.IsDub) { labels.Add("Dub"); }
+        if (track.IsHearingImpaired)
+        {
+            labels.Add("SDH");
+        }
+
+        if (track.IsForced)
+        {
+            labels.Add("Forced");
+        }
+
+        if (track.IsCommentary)
+        {
+            labels.Add("Commentary");
+        }
+
+        if (track.IsVisualImpaired)
+        {
+            labels.Add("AD");
+        }
+
+        if (track.IsOriginal)
+        {
+            labels.Add("Original");
+        }
+
+        if (track.IsDub)
+        {
+            labels.Add("Dub");
+        }
+
         return string.Join(", ", labels);
     }
 
@@ -856,8 +921,9 @@ public static class MediaFileExtensions
                 {
                     tt.Name = "";
                 }
+
                 return tt;
-            }).ToList(),
+            }).ToList()
         };
 
         TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
@@ -890,7 +956,7 @@ public static class MediaFileExtensions
                 IsCommentary = t.IsCommentary,
                 IsOriginal = t.IsOriginal,
                 IsDub = t.IsDub,
-                NameLocked = true,
+                NameLocked = true
             });
         }
 
@@ -919,8 +985,8 @@ public static class MediaFileExtensions
                 IsCommentary = t.IsCommentary,
                 IsOriginal = t.IsOriginal,
                 IsDub = t.IsDub,
-                NameLocked = true,
-            }).ToList(),
+                NameLocked = true
+            }).ToList()
         };
 
         TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
@@ -943,7 +1009,7 @@ public static class MediaFileExtensions
             IsCommentary = t.IsCommentary,
             IsOriginal = t.IsOriginal,
             IsDub = t.IsDub,
-            NameLocked = nameLocked,
+            NameLocked = nameLocked
         };
     }
 
@@ -953,7 +1019,7 @@ public static class MediaFileExtensions
         {
             MediaTrackType.Audio => profile.AudioSettings,
             MediaTrackType.Subtitles => profile.SubtitleSettings,
-            _ => null,
+            _ => null
         };
     }
 
@@ -963,6 +1029,7 @@ public static class MediaFileExtensions
         {
             return false;
         }
+
         foreach (var flag in TrackFlagExtensions.All)
         {
             if (flag.Matches(track)
@@ -972,6 +1039,7 @@ public static class MediaFileExtensions
                 return true;
             }
         }
+
         return false;
     }
 
@@ -1021,7 +1089,8 @@ public static class MediaFileExtensions
         {
             foreach (var track in tracksOfType)
             {
-                track.IsDefault = !track.IsCommentary && !track.IsHearingImpaired && !track.IsVisualImpaired && !track.IsDub;
+                track.IsDefault = !track.IsCommentary && !track.IsHearingImpaired && !track.IsVisualImpaired &&
+                                  !track.IsDub;
             }
         }
     }

@@ -35,11 +35,18 @@ public class LanguagePreference
     public bool IsOriginalLanguagePlaceholder => Language.Name == IsoLanguage.OriginalLanguageName;
 
     // Convenience accessors to minimize changes in filtering code.
-    [JsonIgnore] public string Name => Language.Name;
-    [JsonIgnore] public string DisplayName => Language.DisplayName;
-    [JsonIgnore] public string? ThreeLetterCode => Language.ThreeLetterCode;
+    [JsonIgnore]
+    public string Name => Language.Name;
 
-    public LanguagePreference() { }
+    [JsonIgnore]
+    public string DisplayName => Language.DisplayName;
+
+    [JsonIgnore]
+    public string? ThreeLetterCode => Language.ThreeLetterCode;
+
+    public LanguagePreference()
+    {
+    }
 
     public LanguagePreference(IsoLanguage language)
     {
@@ -49,7 +56,10 @@ public class LanguagePreference
     /// <summary>
     /// Implicit conversion from IsoLanguage for ergonomic list initialization.
     /// </summary>
-    public static implicit operator LanguagePreference(IsoLanguage language) => new(language);
+    public static implicit operator LanguagePreference(IsoLanguage language)
+    {
+        return new LanguagePreference(language);
+    }
 }
 
 public enum AudioQualityStrategy

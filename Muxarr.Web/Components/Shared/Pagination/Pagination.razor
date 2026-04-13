@@ -1,59 +1,59 @@
 <div class="row">
-	<div class="col">
-		<nav aria-label="Page navigation">
-			<ul class="pagination">
-				<li class="page-item @(Parent.Page == 1 ? "disabled" : "")">
-					<button class="page-link" @onclick="() => ChangePage(1)" disabled="@(Parent.Page == 1)"
-					        aria-label="First">
-						<i class="bi bi-chevron-double-left"></i>
-					</button>
-				</li>
-				<li class="page-item @(Parent.Page == 1 ? "disabled" : "")">
-					<button class="page-link" @onclick="() => ChangePage(Parent.Page - 1)"
-					        disabled="@(Parent.Page == 1)" aria-label="Previous">
-						<i class="bi bi-chevron-left"></i>
-					</button>
-				</li>
-				@for (var i = StartPage; i <= EndPage; i++)
-				{
-					var pageNumber = i;
-					<li class="page-item @(pageNumber == Parent.Page ? "active" : "")">
-						<button class="page-link" @onclick="() => ChangePage(pageNumber)">@pageNumber</button>
-					</li>
-				}
-				<li class="page-item @(Parent.Page == Parent.TotalPages ? "disabled" : "")">
-					<button class="page-link" @onclick="() => ChangePage(Parent.Page + 1)"
-					        disabled="@(Parent.Page == Parent.TotalPages)" aria-label="Next">
-						<i class="bi bi-chevron-right"></i>
-					</button>
-				</li>
-				<li class="page-item @(Parent.Page == Parent.TotalPages ? "disabled" : "")">
-					<button class="page-link" @onclick="() => ChangePage(Parent.TotalPages)"
-					        disabled="@(Parent.Page == Parent.TotalPages)" aria-label="Last">
-						<i class="bi bi-chevron-double-right"></i>
-					</button>
-				</li>
-			</ul>
-		</nav>
-	</div>
-	<div class="col-auto d-flex align-items-center">
-		<Counter Parent="Parent"/>
-	</div>
+    <div class="col">
+        <nav aria-label="Page navigation">
+            <ul class="pagination">
+                <li class="page-item @(Parent.Page == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(1)" disabled="@(Parent.Page == 1)"
+                            aria-label="First">
+                        <i class="bi bi-chevron-double-left"></i>
+                    </button>
+                </li>
+                <li class="page-item @(Parent.Page == 1 ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(Parent.Page - 1)"
+                            disabled="@(Parent.Page == 1)" aria-label="Previous">
+                        <i class="bi bi-chevron-left"></i>
+                    </button>
+                </li>
+                @for (var i = StartPage; i <= EndPage; i++)
+                {
+                    var pageNumber = i;
+                    <li class="page-item @(pageNumber == Parent.Page ? "active" : "")">
+                        <button class="page-link" @onclick="() => ChangePage(pageNumber)">@pageNumber</button>
+                    </li>
+                }
+                <li class="page-item @(Parent.Page == Parent.TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(Parent.Page + 1)"
+                            disabled="@(Parent.Page == Parent.TotalPages)" aria-label="Next">
+                        <i class="bi bi-chevron-right"></i>
+                    </button>
+                </li>
+                <li class="page-item @(Parent.Page == Parent.TotalPages ? "disabled" : "")">
+                    <button class="page-link" @onclick="() => ChangePage(Parent.TotalPages)"
+                            disabled="@(Parent.Page == Parent.TotalPages)" aria-label="Last">
+                        <i class="bi bi-chevron-double-right"></i>
+                    </button>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    <div class="col-auto d-flex align-items-center">
+        <Counter Parent="Parent"/>
+    </div>
 </div>
 
 @code {
-	[Parameter] public EventCallback<int> OnPageChanged { get; set; }
-	[Parameter] [EditorRequired] public required PaginatedListComponentBase Parent { get; set; }
+    [Parameter] public EventCallback<int> OnPageChanged { get; set; }
+    [Parameter] [EditorRequired] public required PaginatedListComponentBase Parent { get; set; }
 
-	private int StartPage => Math.Max(1, Parent.Page - 2);
-	private int EndPage => Math.Min(Parent.TotalPages, Parent.Page + 2);
+    private int StartPage => Math.Max(1, Parent.Page - 2);
+    private int EndPage => Math.Min(Parent.TotalPages, Parent.Page + 2);
 
-	private async Task ChangePage(int newPage)
-	{
-		if (newPage >= 1 && newPage <= Parent.TotalPages)
-		{
-			await Parent.ChangePage(newPage);
-		}
-	}
+    private async Task ChangePage(int newPage)
+    {
+        if (newPage >= 1 && newPage <= Parent.TotalPages)
+        {
+            await Parent.ChangePage(newPage);
+        }
+    }
 
 }

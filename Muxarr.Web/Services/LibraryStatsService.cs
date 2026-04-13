@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Muxarr.Core.Models;
 using Muxarr.Core.Config;
 using Muxarr.Core.Extensions;
 using Muxarr.Data;
@@ -95,7 +96,10 @@ public class LibraryStatsService(IDbContextFactory<AppDbContext> contextFactory,
             .OrderByDescending(e => e.Count)
             .ToListAsync();
 
-        foreach (var entry in entries) entry.Label = entry.Label.FormatCodec();
+        foreach (var entry in entries)
+        {
+            entry.Label = entry.Label.FormatCodec();
+        }
 
         return entries;
     }

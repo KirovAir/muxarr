@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Muxarr.Core.Models;
 using Muxarr.Core.Utilities;
-using Muxarr.Data.Entities;
 
 namespace Muxarr.Core.MkvToolNix;
 
@@ -14,11 +13,15 @@ public static class MkvMerge
     public const string SubtitlesTrack = "subtitles";
 
     // mkvmerge exit codes: 0=success, 1=warnings (still valid), 2=error.
-    public static bool IsSuccess(ProcessResult result) => result.ExitCode is 0 or 1;
+    public static bool IsSuccess(ProcessResult result)
+    {
+        return result.ExitCode is 0 or 1;
+    }
 
     public static async Task<ProcessJsonResult<MkvMergeInfo>> GetFileInfo(string file)
     {
-        var result = await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, $"-J \"{file}\"", TimeSpan.FromSeconds(30));
+        var result =
+            await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, $"-J \"{file}\"", TimeSpan.FromSeconds(30));
         var json = new ProcessJsonResult<MkvMergeInfo>(result);
 
         if (!IsSuccess(result) || string.IsNullOrEmpty(result.Output))
@@ -64,6 +67,7 @@ public static class MkvMerge
         {
             command += " --no-chapters";
         }
+
         if (plan.Delta.HasAttachments == false)
         {
             command += " --no-attachments";
@@ -75,30 +79,38 @@ public static class MkvMerge
             {
                 command += $" --track-name {track.TrackNumber}:{MkvToolNixHelper.EscapeValue(track.Name)}";
             }
+
             if (track.LanguageCode != null)
             {
                 command += $" --language {track.TrackNumber}:{track.LanguageCode}";
             }
+
             if (track.IsDefault != null)
             {
                 command += $" --default-track-flag {track.TrackNumber}:{(track.IsDefault.Value ? "1" : "0")}";
             }
+
             if (track.IsForced != null)
             {
                 command += $" --forced-display-flag {track.TrackNumber}:{(track.IsForced.Value ? "1" : "0")}";
             }
+
             if (track.IsHearingImpaired != null)
             {
-                command += $" --hearing-impaired-flag {track.TrackNumber}:{(track.IsHearingImpaired.Value ? "1" : "0")}";
+                command +=
+                    $" --hearing-impaired-flag {track.TrackNumber}:{(track.IsHearingImpaired.Value ? "1" : "0")}";
             }
+
             if (track.IsVisualImpaired != null)
             {
                 command += $" --visual-impaired-flag {track.TrackNumber}:{(track.IsVisualImpaired.Value ? "1" : "0")}";
             }
+
             if (track.IsCommentary != null)
             {
                 command += $" --commentary-flag {track.TrackNumber}:{(track.IsCommentary.Value ? "1" : "0")}";
             }
+
             if (track.IsOriginal != null)
             {
                 command += $" --original-flag {track.TrackNumber}:{(track.IsOriginal.Value ? "1" : "0")}";
@@ -109,7 +121,8 @@ public static class MkvMerge
         command += $" --track-order {string.Join(",", tracks.Select(t => $"0:{t.TrackNumber}"))}";
 
         var lastProgress = 0;
-        return await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, command, timeout, onOutputLine: OnOutputLine);
+        return await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, command, timeout,
+            OnOutputLine);
 
         void OnOutputLine(string line, bool error)
         {
@@ -121,6 +134,7 @@ public static class MkvMerge
                     lastProgress = progressValue;
                 }
             }
+
             onProgress?.Invoke(line, lastProgress);
         }
     }

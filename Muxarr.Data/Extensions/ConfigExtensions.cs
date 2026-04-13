@@ -34,7 +34,9 @@ public static class ConfigExtensions
     {
         var config = set.Find(key);
         if (config == null)
+        {
             return new T();
+        }
 
         return JsonHelper.Deserialize<T>(config.Value) ?? new T();
     }
@@ -48,7 +50,9 @@ public static class ConfigExtensions
     {
         var config = set.Find(key);
         if (config == null)
+        {
             return default;
+        }
 
         return JsonHelper.Deserialize<T>(config.Value);
     }
@@ -76,7 +80,10 @@ public static class ConfigExtensions
         {
             var existing = set.Find(key);
             if (existing != null)
+            {
                 set.Remove(existing);
+            }
+
             return;
         }
 

@@ -22,8 +22,15 @@ public static class NotificationRegistration
 
 public record NotificationTestResult(bool Success, string Message)
 {
-    public static NotificationTestResult Ok(string message = "Test notification sent!") => new(true, message);
-    public static NotificationTestResult Fail(string message) => new(false, message);
+    public static NotificationTestResult Ok(string message = "Test notification sent!")
+    {
+        return new NotificationTestResult(true, message);
+    }
+
+    public static NotificationTestResult Fail(string message)
+    {
+        return new NotificationTestResult(false, message);
+    }
 }
 
 public sealed class NotificationService
@@ -226,7 +233,8 @@ public sealed class NotificationService
         }
     }
 
-    private static NotificationPayload BuildPayload(NotificationEventType type, MediaConversion conversion, string? filePath)
+    private static NotificationPayload BuildPayload(NotificationEventType type, MediaConversion conversion,
+        string? filePath)
     {
         // Cap before interpolation so a long filename or error doesn't crowd out the trailing info.
         var name = NotificationProvider.Clip(conversion.Name, 256);

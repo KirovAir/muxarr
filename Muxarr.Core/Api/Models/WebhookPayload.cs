@@ -47,7 +47,9 @@ public class WebhookPayload
         {
             case "download":
                 if (!string.IsNullOrEmpty(MovieFile?.Path) && Movie != null)
+                {
                     items.Add(new WebhookFileItem(MovieFile.Path, Movie.Title, originalLanguage));
+                }
 
                 if (!string.IsNullOrEmpty(EpisodeFile?.Path) && Series != null)
                 {
@@ -57,18 +59,24 @@ public class WebhookPayload
                         : Series.Title;
                     items.Add(new WebhookFileItem(EpisodeFile.Path, title, originalLanguage));
                 }
+
                 break;
 
             case "rename":
                 if (RenamedMovieFiles != null && Movie != null)
+                {
                     items.AddRange(RenamedMovieFiles
                         .Where(f => !string.IsNullOrEmpty(f.Path))
                         .Select(f => new WebhookFileItem(f.Path!, Movie.Title, originalLanguage)));
+                }
 
                 if (RenamedEpisodeFiles != null && Series != null)
+                {
                     items.AddRange(RenamedEpisodeFiles
                         .Where(f => !string.IsNullOrEmpty(f.Path))
                         .Select(f => new WebhookFileItem(f.Path!, Series.Title, originalLanguage)));
+                }
+
                 break;
         }
 

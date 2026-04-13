@@ -45,14 +45,14 @@ public class StatsResponse
         ComputedAtUtc = new DateTime(2026, 4, 2, 12, 0, 0, DateTimeKind.Utc),
         LastConversionAt = new DateTime(2026, 4, 2, 10, 30, 0, DateTimeKind.Utc),
         LastFileAddedAt = new DateTime(2026, 4, 2, 12, 15, 0, DateTimeKind.Utc),
-        VideoCodecs = new() { ["H.265 / HEVC"] = 900, ["H.264 / AVC"] = 334 },
-        AudioCodecs = new() { ["AAC"] = 1100, ["AC-3"] = 134 },
-        SubtitleCodecs = new() { ["SRT"] = 800, ["PGS"] = 200 },
-        Resolutions = new() { ["1920x1080"] = 900, ["3840x2160"] = 334 },
-        ChannelLayouts = new() { ["5.1"] = 800, ["Stereo"] = 434 },
-        AudioLanguages = new() { ["English"] = 1200, ["French"] = 200 },
-        SubtitleLanguages = new() { ["English"] = 800 },
-        Containers = new() { ["Matroska"] = 1234 },
-        VideoBitDepths = new() { ["8-bit"] = 900, ["10-bit"] = 334 },
+        VideoCodecs = new Dictionary<string, int> { ["H.265 / HEVC"] = 900, ["H.264 / AVC"] = 334 },
+        AudioCodecs = new Dictionary<string, int> { ["AAC"] = 1100, ["AC-3"] = 134 },
+        SubtitleCodecs = new Dictionary<string, int> { ["SRT"] = 800, ["PGS"] = 200 },
+        Resolutions = new Dictionary<string, int> { ["1920x1080"] = 900, ["3840x2160"] = 334 },
+        ChannelLayouts = new Dictionary<string, int> { ["5.1"] = 800, ["Stereo"] = 434 },
+        AudioLanguages = new Dictionary<string, int> { ["English"] = 1200, ["French"] = 200 },
+        SubtitleLanguages = new Dictionary<string, int> { ["English"] = 800 },
+        Containers = new Dictionary<string, int> { ["Matroska"] = 1234 },
+        VideoBitDepths = new Dictionary<string, int> { ["8-bit"] = 900, ["10-bit"] = 334 }
     };
 }

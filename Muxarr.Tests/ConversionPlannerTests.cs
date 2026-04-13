@@ -90,7 +90,7 @@ public class ConversionPlannerTests
         {
             file.Tracks.First(t => t.Type == MediaTrackType.Video).ToSnapshot(),
             file.Tracks.First(t => t.TrackNumber == 2).ToSnapshot(),
-            file.Tracks.First(t => t.TrackNumber == 1).ToSnapshot(),
+            file.Tracks.First(t => t.TrackNumber == 1).ToSnapshot()
         };
         var target = TargetFromSnapshot(file.ToMediaSnapshot(reordered));
 
@@ -202,7 +202,7 @@ public class ConversionPlannerTests
     public void VideoNameCleared_DiffCarriesEmptyString()
     {
         var file = MakeFileWithContainer("Matroska", null,
-            Video(0, trackName: "Original"),
+            Video(0, "Original"),
             Audio(1, "English"));
         var before = file.ToMediaSnapshot();
         var target = TargetFromSnapshot(before);
@@ -267,7 +267,7 @@ public class ConversionPlannerTests
     {
         return new TargetSnapshot
         {
-            Tracks = source.Tracks.Select(t => t.ToTargetTrack(nameLocked: false)).ToList(),
+            Tracks = source.Tracks.Select(t => t.ToTargetTrack(false)).ToList()
         };
     }
 

@@ -142,61 +142,61 @@
 
     <Loader IsLoading="IsLoading">
         <div class="table-responsive">
-        <table class="table table-striped">
-            <thead>
-            <tr>
-                <th>
-                    <SelectAllCheckbox Parent="this"/>
-                </th>
-                <th>
-                    <SortHeader Parent="this" SortProperty="Path">
-                        File
-                    </SortHeader>
-                </th>
-                <th>
-                    <SortHeader Parent="this" SortProperty="Size">
-                        Size
-                    </SortHeader>
-                </th>
-                <th>
-                    <SortHeader Parent="this" SortProperty="FileCreationTime">
-                        Created
-                    </SortHeader>
-                </th>
-                <th>
-                    <SortHeader Parent="this" SortProperty="TrackCount">
-                        Tracks
-                    </SortHeader>
-                </th>
-            </tr>
-            </thead>
-            <tbody>
-            @foreach (var file in Items)
-            {
+            <table class="table table-striped">
+                <thead>
                 <tr>
-                    <td>
-                        <SelectionCheckbox Parent="this" Item="file"/>
-                    </td>
-                    <td>
-                        <a href="/library/@file.Id">
+                    <th>
+                        <SelectAllCheckbox Parent="this"/>
+                    </th>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="Path">
+                            File
+                        </SortHeader>
+                    </th>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="Size">
+                            Size
+                        </SortHeader>
+                    </th>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="FileCreationTime">
+                            Created
+                        </SortHeader>
+                    </th>
+                    <th>
+                        <SortHeader Parent="this" SortProperty="TrackCount">
+                            Tracks
+                        </SortHeader>
+                    </th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var file in Items)
+                {
+                    <tr>
+                        <td>
+                            <SelectionCheckbox Parent="this" Item="file"/>
+                        </td>
+                        <td>
+                            <a href="/library/@file.Id">
                         <span class="small">
                             @file.GetName()
                         </span>
-                        </a>
-                    </td>
-                    <td>
-                        <FileSize SizeInBytes="file.Size"></FileSize>
-                    </td>
-                    <td>
-                        <TimeAgo DateTime="@file.FileCreationTime"/>
-                    </td>
-                    <td>
-                        <MediaTrackLabels Tracks="file.Tracks.Where(x => x.Type != MediaTrackType.Video).ToList()"/>
-                    </td>
-                </tr>
-            }
-            </tbody>
-        </table>
+                            </a>
+                        </td>
+                        <td>
+                            <FileSize SizeInBytes="file.Size"></FileSize>
+                        </td>
+                        <td>
+                            <TimeAgo DateTime="@file.FileCreationTime"/>
+                        </td>
+                        <td>
+                            <MediaTrackLabels Tracks="file.Tracks.Where(x => x.Type != MediaTrackType.Video).ToList()"/>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
         </div>
         <Pagination Parent="this"/>
     </Loader>
@@ -606,7 +606,7 @@
             ToastService.ShowWarning($"{skipped} file(s) skipped — not accessible (mount may be offline).");
         }
     }
-    
+
     private void OnScanningStateChanged(bool isScanning)
     {
         if (_disposed)

@@ -1,5 +1,3 @@
-using Muxarr.Data.Entities;
-
 namespace Muxarr.Core.Models;
 
 // Desired state for a single track, or a delta of changes from source.

@@ -11,31 +11,31 @@
 
     <ItemGroup>
         <PackageReference Include="coverlet.collector">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.NET.Test.Sdk" />
-        <PackageReference Include="MSTest.TestAdapter" />
-        <PackageReference Include="MSTest.TestFramework" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk"/>
+        <PackageReference Include="MSTest.TestAdapter"/>
+        <PackageReference Include="MSTest.TestFramework"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting" />
+        <Using Include="Microsoft.VisualStudio.TestTools.UnitTesting"/>
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Muxarr.Core\Muxarr.Core.csproj" />
-      <ProjectReference Include="..\Muxarr.Data\Muxarr.Data.csproj" />
-      <ProjectReference Include="..\Muxarr.Web\Muxarr.Web.csproj" />
+        <ProjectReference Include="..\Muxarr.Core\Muxarr.Core.csproj"/>
+        <ProjectReference Include="..\Muxarr.Data\Muxarr.Data.csproj"/>
+        <ProjectReference Include="..\Muxarr.Web\Muxarr.Web.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <None Update="Fixtures\test.mkv">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Update="Fixtures\test_complex.mkv">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
+        <None Update="Fixtures\test.mkv">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="Fixtures\test_complex.mkv">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>

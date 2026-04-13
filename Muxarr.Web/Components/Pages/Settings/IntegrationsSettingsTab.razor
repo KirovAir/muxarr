@@ -32,10 +32,12 @@
     </div>
 
     <div class="d-flex gap-2 mb-4">
-        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(IntegrationType.Sonarr)">
+        <button type="button" class="btn btn-outline-primary btn-sm"
+                @onclick="() => AddService(IntegrationType.Sonarr)">
             <i class="bi bi-plus-circle me-1"></i>Add Sonarr
         </button>
-        <button type="button" class="btn btn-outline-primary btn-sm" @onclick="() => AddService(IntegrationType.Radarr)">
+        <button type="button" class="btn btn-outline-primary btn-sm"
+                @onclick="() => AddService(IntegrationType.Radarr)">
             <i class="bi bi-plus-circle me-1"></i>Add Radarr
         </button>
     </div>
@@ -94,10 +96,15 @@
         }
     }
 
-    private bool HasMultiple(IntegrationType type) => Services.Count(s => s.Type == type) > 1;
+    private bool HasMultiple(IntegrationType type)
+    {
+        return Services.Count(s => s.Type == type) > 1;
+    }
 
-    private bool IsDefault(Integration svc) =>
-        svc == Services.FirstOrDefault(s => s.Type == svc.Type);
+    private bool IsDefault(Integration svc)
+    {
+        return svc == Services.FirstOrDefault(s => s.Type == svc.Type);
+    }
 
     protected override async Task OnInitializedAsync()
     {
@@ -114,6 +121,7 @@
             Services.Insert(0, sonarr);
             changed = true;
         }
+
         if (!Services.Any(s => s.Type == IntegrationType.Radarr))
         {
             var radarr = new Integration { Name = "Radarr", Type = IntegrationType.Radarr };
@@ -121,6 +129,7 @@
             Services.Add(radarr);
             changed = true;
         }
+
         if (changed)
         {
             await context.SaveChangesAsync();

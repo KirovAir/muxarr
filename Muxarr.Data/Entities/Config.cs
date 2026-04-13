@@ -14,11 +14,11 @@ public class ConfigConfiguration : AuditEntityConfiguration<Config>
     public override void Configure(EntityTypeBuilder<Config> builder)
     {
         base.Configure(builder);
-        
+
         builder.ToTable(nameof(Config));
 
         builder.HasKey(e => e.Id);
-        
+
         builder.Property(e => e.Id)
             .IsRequired()
             .HasColumnType("varchar(255)");

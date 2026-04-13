@@ -13,7 +13,8 @@ public class AppriseSettings
     public string Urls { get; set; } = "";
 
     [Field("Configuration Key",
-        HelpText = "Persistent mode. The key your notification URLs are stored under. Register them first via /add/{key} or the Apprise API web UI.")]
+        HelpText =
+            "Persistent mode. The key your notification URLs are stored under. Register them first via /add/{key} or the Apprise API web UI.")]
     public string ConfigKey { get; set; } = "";
 
     [Field("Tag",
@@ -66,6 +67,7 @@ public class AppriseProvider : NotificationProvider<AppriseSettings>
             {
                 body["tag"] = s.Tag.Trim();
             }
+
             endpoint = BuildUrl(s.Url, $"notify/{Uri.EscapeDataString(s.ConfigKey.Trim())}");
         }
 

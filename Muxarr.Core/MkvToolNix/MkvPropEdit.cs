@@ -11,7 +11,10 @@ public static class MkvPropEdit
 {
     private const string Executable = "mkvpropedit";
 
-    public static bool IsSuccess(ProcessResult result) => result.ExitCode == 0;
+    public static bool IsSuccess(ProcessResult result)
+    {
+        return result.ExitCode == 0;
+    }
 
     public static async Task<ProcessResult> Apply(string input, string output, ConversionPlan plan,
         Action<string, int>? onProgress = null, TimeSpan? timeout = null)

@@ -83,7 +83,9 @@ public abstract class NotificationProvider<TSettings> : NotificationProvider
     public override IReadOnlyDictionary<string, FieldAttribute> Fields => Binder.Fields;
 
     public override Task SendAsync(HttpClient client, NotificationConfig config, NotificationPayload payload)
-        => SendCoreAsync(client, Binder.Bind(config.Settings), payload);
+    {
+        return SendCoreAsync(client, Binder.Bind(config.Settings), payload);
+    }
 
     protected abstract Task SendCoreAsync(HttpClient client, TSettings settings, NotificationPayload payload);
 }

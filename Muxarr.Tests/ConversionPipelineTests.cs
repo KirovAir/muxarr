@@ -31,12 +31,12 @@ public class ConversionPipelineTests
             Sub(6, "Dutch"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch")]
@@ -65,12 +65,12 @@ public class ConversionPipelineTests
             Sub(4, "English"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage]
@@ -96,12 +96,12 @@ public class ConversionPipelineTests
             Sub(4, "English"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -123,18 +123,18 @@ public class ConversionPipelineTests
         var file = MakeFile("English",
             Video(0),
             Audio(1, "English", nameof(AudioCodec.TrueHd), 8),
-            Audio(2, "English", nameof(AudioCodec.Aac), 2, commentary: true),
+            Audio(2, "English", nameof(AudioCodec.Aac), 2, true),
             Sub(3, "English"),
             Sub(4, "English", commentary: true));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
                 RemoveCommentary = true
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -159,12 +159,12 @@ public class ConversionPipelineTests
             Sub(4, "English", forced: true));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -207,7 +207,7 @@ public class ConversionPipelineTests
     public void Pipeline_StandardizeNames_AppliesTemplate()
     {
         var file = MakeFile("English",
-            Video(0, trackName: "x264 Encoder Output"),
+            Video(0, "x264 Encoder Output"),
             Audio(1, "English", nameof(AudioCodec.TrueHd), 8, trackName: "Surround 7.1"),
             Sub(2, "English", trackName: "Full Subtitles", hi: true));
 
@@ -247,7 +247,7 @@ public class ConversionPipelineTests
             Audio(1, "English", nameof(AudioCodec.Aac), 6, trackName: "Original Name"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -283,7 +283,7 @@ public class ConversionPipelineTests
                 AllowedLanguages = [IsoLanguage.Find("English")],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language}",
-                TrackNameOverrides = new()
+                TrackNameOverrides = new Dictionary<TrackFlag, string>
                 {
                     [TrackFlag.HearingImpaired] = "{language} SDH",
                     [TrackFlag.Forced] = "{language} Forced"
@@ -312,7 +312,7 @@ public class ConversionPipelineTests
                 AllowedLanguages = [IsoLanguage.Find("English")],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {hi}",
-                TrackNameOverrides = new()
+                TrackNameOverrides = new Dictionary<TrackFlag, string>
                 {
                     [TrackFlag.HearingImpaired] = ""
                 }
@@ -339,7 +339,7 @@ public class ConversionPipelineTests
                 AllowedLanguages = [IsoLanguage.Find("English")],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language}",
-                TrackNameOverrides = new()
+                TrackNameOverrides = new Dictionary<TrackFlag, string>
                 {
                     [TrackFlag.HearingImpaired] = "{language} (SDH)",
                     [TrackFlag.Forced] = "{language} (Forced)"
@@ -362,7 +362,7 @@ public class ConversionPipelineTests
             Audio(1, "Undetermined", nameof(AudioCodec.Aac), 6));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -389,14 +389,14 @@ public class ConversionPipelineTests
             Audio(2, "English", nameof(AudioCodec.Eac3), 6));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages =
                 [
                     IsoLanguage.Find("Korean"),
-                    IsoLanguage.Find("English"),
-                ],
+                    IsoLanguage.Find("English")
+                ]
             });
 
         var (_, outputs) = RunPipeline(file, profile);
@@ -418,14 +418,14 @@ public class ConversionPipelineTests
             Audio(2, "English", nameof(AudioCodec.Eac3), 6, isOriginal: true));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages =
                 [
                     IsoLanguage.Find("Korean"),
-                    IsoLanguage.Find("English"),
-                ],
+                    IsoLanguage.Find("English")
+                ]
             });
 
         var (_, outputs) = RunPipeline(file, profile);
@@ -445,10 +445,10 @@ public class ConversionPipelineTests
             Audio(1, "English", nameof(AudioCodec.Eac3), 6, isOriginal: true));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
+                AllowedLanguages = [IsoLanguage.Find("English")]
             });
 
         var (_, outputs) = RunPipeline(file, profile);
@@ -468,15 +468,15 @@ public class ConversionPipelineTests
             Sub(2, "English", isOriginal: false));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
+                AllowedLanguages = [IsoLanguage.Find("English")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English")],
+                AllowedLanguages = [IsoLanguage.Find("English")]
             });
 
         var (_, outputs) = RunPipeline(file, profile);
@@ -499,9 +499,21 @@ public class ConversionPipelineTests
         var customAllowed = new List<TrackSnapshot>
         {
             new() { Type = MediaTrackType.Video, TrackNumber = 0 },
-            new() { Type = MediaTrackType.Audio, TrackNumber = 1, LanguageName = "English", LanguageCode = "eng", Codec = nameof(AudioCodec.Aac), AudioChannels = 6, IsDefault = true, TrackName = "Main Audio" },
-            new() { Type = MediaTrackType.Audio, TrackNumber = 2, LanguageName = "French", LanguageCode = "fre", Codec = nameof(AudioCodec.Aac), AudioChannels = 6, IsDefault = false, TrackName = "French Dub" },
-            new() { Type = MediaTrackType.Subtitles, TrackNumber = 3, LanguageName = "English", LanguageCode = "eng", Codec = nameof(SubtitleCodec.Srt), IsForced = true, TrackName = "Forced" }
+            new()
+            {
+                Type = MediaTrackType.Audio, TrackNumber = 1, LanguageName = "English", LanguageCode = "eng",
+                Codec = nameof(AudioCodec.Aac), AudioChannels = 6, IsDefault = true, TrackName = "Main Audio"
+            },
+            new()
+            {
+                Type = MediaTrackType.Audio, TrackNumber = 2, LanguageName = "French", LanguageCode = "fre",
+                Codec = nameof(AudioCodec.Aac), AudioChannels = 6, IsDefault = false, TrackName = "French Dub"
+            },
+            new()
+            {
+                Type = MediaTrackType.Subtitles, TrackNumber = 3, LanguageName = "English", LanguageCode = "eng",
+                Codec = nameof(SubtitleCodec.Srt), IsForced = true, TrackName = "Forced"
+            }
         };
 
         var target = file.BuildTargetFromCustom(customAllowed);
@@ -526,7 +538,7 @@ public class ConversionPipelineTests
             Audio(1, "French", nameof(AudioCodec.Aac), 6));
 
         file.Profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -537,7 +549,11 @@ public class ConversionPipelineTests
         var customAllowed = new List<TrackSnapshot>
         {
             new() { Type = MediaTrackType.Video, TrackNumber = 0 },
-            new() { Type = MediaTrackType.Audio, TrackNumber = 1, LanguageName = "French", LanguageCode = "fre", Codec = nameof(AudioCodec.Aac), AudioChannels = 6, TrackName = "Keep This" }
+            new()
+            {
+                Type = MediaTrackType.Audio, TrackNumber = 1, LanguageName = "French", LanguageCode = "fre",
+                Codec = nameof(AudioCodec.Aac), AudioChannels = 6, TrackName = "Keep This"
+            }
         };
 
         var before = file.ToMediaSnapshot();
@@ -565,10 +581,26 @@ public class ConversionPipelineTests
         var customAllowed = new List<TrackSnapshot>
         {
             new() { Type = MediaTrackType.Video, TrackNumber = 0 },
-            new() { Type = MediaTrackType.Audio, TrackNumber = 2, LanguageName = "French", LanguageCode = "fre", Codec = nameof(AudioCodec.Aac), AudioChannels = 6 },
-            new() { Type = MediaTrackType.Audio, TrackNumber = 1, LanguageName = "English", LanguageCode = "eng", Codec = nameof(AudioCodec.Aac), AudioChannels = 6 },
-            new() { Type = MediaTrackType.Subtitles, TrackNumber = 4, LanguageName = "French", LanguageCode = "fre", Codec = nameof(SubtitleCodec.Srt) },
-            new() { Type = MediaTrackType.Subtitles, TrackNumber = 3, LanguageName = "English", LanguageCode = "eng", Codec = nameof(SubtitleCodec.Srt) },
+            new()
+            {
+                Type = MediaTrackType.Audio, TrackNumber = 2, LanguageName = "French", LanguageCode = "fre",
+                Codec = nameof(AudioCodec.Aac), AudioChannels = 6
+            },
+            new()
+            {
+                Type = MediaTrackType.Audio, TrackNumber = 1, LanguageName = "English", LanguageCode = "eng",
+                Codec = nameof(AudioCodec.Aac), AudioChannels = 6
+            },
+            new()
+            {
+                Type = MediaTrackType.Subtitles, TrackNumber = 4, LanguageName = "French", LanguageCode = "fre",
+                Codec = nameof(SubtitleCodec.Srt)
+            },
+            new()
+            {
+                Type = MediaTrackType.Subtitles, TrackNumber = 3, LanguageName = "English", LanguageCode = "eng",
+                Codec = nameof(SubtitleCodec.Srt)
+            }
         };
 
         var before = file.ToMediaSnapshot();
@@ -608,7 +640,8 @@ public class ConversionPipelineTests
         // CorrectFlagsFromTrackName should detect "SDH" and set IsHearingImpaired
         var sub = outputs.First(o => o.Type == MediaTrackType.Subtitles);
         Assert.AreEqual("English SDH", sub.Name, "Template should reflect corrected HI flag");
-        Assert.AreEqual(true, sub.IsHearingImpaired, "HI flag must be explicitly set on output so mkvmerge preserves it");
+        Assert.AreEqual(true, sub.IsHearingImpaired,
+            "HI flag must be explicitly set on output so mkvmerge preserves it");
     }
 
     [TestMethod]
@@ -623,12 +656,12 @@ public class ConversionPipelineTests
             Sub(3, "English"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -653,17 +686,17 @@ public class ConversionPipelineTests
         // so mkvmerge/mkvpropedit explicitly sets them on the output file.
         var file = MakeFile("English",
             Video(0),
-            Audio(1, "English", nameof(AudioCodec.Aac), 2, commentary: true),
+            Audio(1, "English", nameof(AudioCodec.Aac), 2, true),
             Sub(2, "English", hi: true),
             Sub(3, "English", forced: true));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -700,16 +733,18 @@ public class ConversionPipelineTests
             Sub(9, "Spanish"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
+                AllowedLanguages =
+                    [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
                 RemoveCommentary = true
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
+                AllowedLanguages =
+                    [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
                 RemoveImpaired = true
             });
 
@@ -731,9 +766,9 @@ public class ConversionPipelineTests
     public void Pipeline_MovieWithCommentaryAndSDH_StripsExtras()
     {
         var file = MakeFile("English",
-            Video(0, trackName: "h265 10bit HDR"),
+            Video(0, "h265 10bit HDR"),
             Audio(1, "English", nameof(AudioCodec.TrueHd), 8),
-            Audio(2, "English", nameof(AudioCodec.Aac), 2, commentary: true),
+            Audio(2, "English", nameof(AudioCodec.Aac), 2, true),
             Audio(3, "Dutch", "E-AC-3", 6),
             Sub(4, "English"),
             Sub(5, "English", hi: true),
@@ -869,7 +904,7 @@ public class ConversionPipelineTests
             Audio(1, "French", nameof(AudioCodec.Aac), 6));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -887,10 +922,10 @@ public class ConversionPipelineTests
         // All English audio is commentary. RemoveCommentary is on, but safety prevents removing all.
         var file = MakeFile("English",
             Video(0),
-            Audio(1, "English", nameof(AudioCodec.Aac), 2, commentary: true));
+            Audio(1, "English", nameof(AudioCodec.Aac), 2, true));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -911,12 +946,12 @@ public class ConversionPipelineTests
             Audio(1, "English", nameof(AudioCodec.Aac), 6));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -936,7 +971,7 @@ public class ConversionPipelineTests
             Audio(0, "English", "FLAC", 2));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -958,7 +993,7 @@ public class ConversionPipelineTests
             Audio(2, "French", nameof(AudioCodec.Aac), 6));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage]
@@ -983,8 +1018,8 @@ public class ConversionPipelineTests
             Sub(4, "Spanish"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings { Enabled = false },
-            subtitle: new TrackSettings { Enabled = false });
+            new TrackSettings { Enabled = false },
+            new TrackSettings { Enabled = false });
 
         var (snapshots, outputs) = RunPipeline(file, profile);
 
@@ -1005,7 +1040,7 @@ public class ConversionPipelineTests
             Audio(3, "English", "E-AC-3", 6));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -1027,7 +1062,7 @@ public class ConversionPipelineTests
             Audio(2, "English", nameof(AudioCodec.Aac), 6));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -1075,12 +1110,12 @@ public class ConversionPipelineTests
             Sub(3, "German"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")]
@@ -1102,7 +1137,7 @@ public class ConversionPipelineTests
             Audio(1, "English", nameof(AudioCodec.Aac), 6, trackName: "Director's \"Special\" Cut (5.1\\Surround)"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -1124,18 +1159,18 @@ public class ConversionPipelineTests
         var file = MakeFile("English",
             Video(0),
             Audio(1, "English", nameof(AudioCodec.Aac), 6),
-            Audio(2, "English", nameof(AudioCodec.Aac), 2, commentary: true),
+            Audio(2, "English", nameof(AudioCodec.Aac), 2, true),
             Sub(3, "English"),
             Sub(4, "English", hi: true, commentary: true));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
                 RemoveCommentary = true
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
@@ -1171,12 +1206,18 @@ public class ConversionPipelineTests
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = false
         };
         var before = new MediaSnapshot { Tracks = [track] };
-        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
+        var target = new MediaSnapshot
         {
-            TrackNumber = 1, Type = MediaTrackType.Audio,
-            TrackName = "English 5.1", LanguageCode = "eng",
-            IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = false
-        }] };
+            Tracks =
+            [
+                new TrackSnapshot
+                {
+                    TrackNumber = 1, Type = MediaTrackType.Audio,
+                    TrackName = "English 5.1", LanguageCode = "eng",
+                    IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = false
+                }
+            ]
+        };
 
         var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
         Assert.IsFalse(outputs.Any(TargetDiff.HasChanges));
@@ -1185,29 +1226,43 @@ public class ConversionPipelineTests
     [TestMethod]
     public void BuildTrackOutputs_NameChanged_HasChanges()
     {
-        var before = new MediaSnapshot { Tracks = [new TrackSnapshot
+        var before = new MediaSnapshot
         {
-            TrackNumber = 1, Type = MediaTrackType.Audio,
-            TrackName = "English", LanguageCode = "eng"
-        }] };
-        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
+            Tracks =
+            [
+                new TrackSnapshot
+                {
+                    TrackNumber = 1, Type = MediaTrackType.Audio,
+                    TrackName = "English", LanguageCode = "eng"
+                }
+            ]
+        };
+        var target = new MediaSnapshot
         {
-            TrackNumber = 1, Type = MediaTrackType.Audio,
-            TrackName = "English 5.1", LanguageCode = "eng"
-        }] };
+            Tracks =
+            [
+                new TrackSnapshot
+                {
+                    TrackNumber = 1, Type = MediaTrackType.Audio,
+                    TrackName = "English 5.1", LanguageCode = "eng"
+                }
+            ]
+        };
 
         var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
         Assert.IsTrue(outputs.Any(TargetDiff.HasChanges));
     }
 
     [TestMethod]
-    [DataRow(null,            "", false, DisplayName = "Null original name, cleared = no diff")]
-    [DataRow("",              "", false, DisplayName = "Empty original name, cleared = no diff")]
-    [DataRow("x264 - Scene",  "", true,  DisplayName = "Has existing name, cleared = diff")]
+    [DataRow(null, "", false, DisplayName = "Null original name, cleared = no diff")]
+    [DataRow("", "", false, DisplayName = "Empty original name, cleared = no diff")]
+    [DataRow("x264 - Scene", "", true, DisplayName = "Has existing name, cleared = diff")]
     public void BuildTrackOutputs_ClearVideoName(string? originalName, string targetName, bool expected)
     {
-        var before = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = originalName }] };
-        var target = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = targetName }] };
+        var before = new MediaSnapshot
+            { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = originalName }] };
+        var target = new MediaSnapshot
+            { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = targetName }] };
 
         var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
         Assert.AreEqual(expected, outputs.Any(TargetDiff.HasChanges));
@@ -1216,18 +1271,30 @@ public class ConversionPipelineTests
     [TestMethod]
     public void BuildTrackOutputs_FlagChanged_HasChanges()
     {
-        var before = new MediaSnapshot { Tracks = [new TrackSnapshot
+        var before = new MediaSnapshot
         {
-            TrackNumber = 2, Type = MediaTrackType.Subtitles,
-            TrackName = "English", LanguageCode = "eng",
-            IsDefault = false, IsForced = false, IsHearingImpaired = false, IsCommentary = false
-        }] };
-        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
+            Tracks =
+            [
+                new TrackSnapshot
+                {
+                    TrackNumber = 2, Type = MediaTrackType.Subtitles,
+                    TrackName = "English", LanguageCode = "eng",
+                    IsDefault = false, IsForced = false, IsHearingImpaired = false, IsCommentary = false
+                }
+            ]
+        };
+        var target = new MediaSnapshot
         {
-            TrackNumber = 2, Type = MediaTrackType.Subtitles,
-            TrackName = "English", LanguageCode = "eng",
-            IsDefault = false, IsForced = true, IsHearingImpaired = false, IsCommentary = false
-        }] };
+            Tracks =
+            [
+                new TrackSnapshot
+                {
+                    TrackNumber = 2, Type = MediaTrackType.Subtitles,
+                    TrackName = "English", LanguageCode = "eng",
+                    IsDefault = false, IsForced = true, IsHearingImpaired = false, IsCommentary = false
+                }
+            ]
+        };
 
         var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
         Assert.IsTrue(outputs.Any(TargetDiff.HasChanges));
@@ -1244,12 +1311,18 @@ public class ConversionPipelineTests
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = true
         };
         var before = new MediaSnapshot { Tracks = [track] };
-        var target = new MediaSnapshot { Tracks = [new TrackSnapshot
+        var target = new MediaSnapshot
         {
-            TrackNumber = 0, Type = MediaTrackType.Video,
-            TrackName = "x264", LanguageCode = "eng",
-            IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = true
-        }] };
+            Tracks =
+            [
+                new TrackSnapshot
+                {
+                    TrackNumber = 0, Type = MediaTrackType.Video,
+                    TrackName = "x264", LanguageCode = "eng",
+                    IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = true
+                }
+            ]
+        };
 
         var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
         Assert.IsFalse(outputs.Any(TargetDiff.HasChanges));
@@ -1268,21 +1341,21 @@ public class ConversionPipelineTests
             Sub(2, "Korean", forced: true, trackName: "Korean"));
 
         var profile = MakeProfile(
-            audio: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("Korean")],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {channels}"
             },
-            subtitle: new TrackSettings
+            new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("Korean")],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language}"
             },
-            clearVideoNames: true);
+            true);
 
         var before = file.ToMediaSnapshot();
         var target = file.BuildTargetSnapshot(profile);
@@ -1290,7 +1363,8 @@ public class ConversionPipelineTests
 
         var hasMetadataChanges = outputs.Any(TargetDiff.HasChanges);
 
-        Assert.IsFalse(hasMetadataChanges, "File with null video name and ClearVideoTrackNames should be considered optimal");
+        Assert.IsFalse(hasMetadataChanges,
+            "File with null video name and ClearVideoTrackNames should be considered optimal");
     }
 
     // --- CheckHasNonStandardMetadata ---
@@ -1302,7 +1376,7 @@ public class ConversionPipelineTests
             Video(0),
             Audio(1, "English", trackName: "Surround 5.1"));
 
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             StandardizeTrackNames = true,
@@ -1318,7 +1392,7 @@ public class ConversionPipelineTests
     {
         var file = MakeFile("English", Video(0), Audio(1, "Undetermined"));
 
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AssumeUndeterminedIsOriginal = true,
@@ -1333,7 +1407,7 @@ public class ConversionPipelineTests
     {
         var file = MakeFile("English", Video(0), Audio(1, "Undetermined"));
 
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AssumeUndeterminedIsOriginal = false,
@@ -1348,7 +1422,7 @@ public class ConversionPipelineTests
     {
         var file = MakeFile("English", Video(0), Audio(1, "Undetermined"), Audio(2, "English"));
 
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AssumeUndeterminedIsOriginal = true,
@@ -1363,7 +1437,7 @@ public class ConversionPipelineTests
     {
         var file = MakeFile("SomeInventedLanguage", Video(0), Audio(1, "Undetermined"));
 
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AssumeUndeterminedIsOriginal = true,
@@ -1381,7 +1455,7 @@ public class ConversionPipelineTests
             Video(0),
             Audio(1, "English", trackName: "English 5.1"));
 
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AssumeUndeterminedIsOriginal = true,
@@ -1399,7 +1473,7 @@ public class ConversionPipelineTests
     public void BuildTargetSnapshot_ClearsVideoTrackName()
     {
         var file = MakeFile("English",
-            Video(0, trackName: "x264 HDR"),
+            Video(0, "x264 HDR"),
             Audio(1, "English"));
         var profile = MakeProfile(clearVideoNames: true);
 
@@ -1429,7 +1503,7 @@ public class ConversionPipelineTests
     {
         var file = MakeFile("English",
             Audio(1, "Undetermined"));
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
@@ -1447,7 +1521,7 @@ public class ConversionPipelineTests
     {
         var file = MakeFile("English",
             Audio(1, "English", trackName: "Surround 5.1"));
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
@@ -1465,7 +1539,7 @@ public class ConversionPipelineTests
     {
         var file = MakeFile("English",
             Audio(1, "English", trackName: "Custom Name"));
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
@@ -1484,7 +1558,7 @@ public class ConversionPipelineTests
         var file = MakeFile("English",
             Audio(1, "English", isDefault: false),
             Audio(2, "Japanese", isDefault: true));
-        var profile = MakeProfile(audio: new TrackSettings
+        var profile = MakeProfile(new TrackSettings
         {
             Enabled = true,
             DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
@@ -1526,8 +1600,8 @@ public class ConversionPipelineTests
         var file = MakeFile("English",
             Video(0),
             Audio(1, "English"),
-            Sub(2, "English", codec: nameof(SubtitleCodec.Pgs)),
-            Sub(3, "English", codec: nameof(SubtitleCodec.Srt)));
+            Sub(2, "English", nameof(SubtitleCodec.Pgs)),
+            Sub(3, "English", nameof(SubtitleCodec.Srt)));
 
         var profile = MakeProfile(
             subtitle: new TrackSettings
@@ -1543,7 +1617,8 @@ public class ConversionPipelineTests
 
         var subs = snapshots.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
         Assert.AreEqual(1, subs.Count, "MaxTracks=1 should keep only one subtitle");
-        Assert.AreEqual(nameof(SubtitleCodec.Srt), subs[0].Codec, "Text-based (SRT) should be preferred over bitmap (PGS)");
+        Assert.AreEqual(nameof(SubtitleCodec.Srt), subs[0].Codec,
+            "Text-based (SRT) should be preferred over bitmap (PGS)");
     }
 
     [TestMethod]
@@ -1552,10 +1627,10 @@ public class ConversionPipelineTests
         var file = MakeFile("English",
             Video(0),
             Audio(1, "English"),
-            Sub(2, "English", codec: nameof(SubtitleCodec.Srt)),
-            Sub(3, "English", codec: nameof(SubtitleCodec.Pgs)),
-            Sub(4, "Dutch", codec: nameof(SubtitleCodec.Srt)),
-            Sub(5, "Dutch", codec: nameof(SubtitleCodec.Pgs)));
+            Sub(2, "English", nameof(SubtitleCodec.Srt)),
+            Sub(3, "English", nameof(SubtitleCodec.Pgs)),
+            Sub(4, "Dutch", nameof(SubtitleCodec.Srt)),
+            Sub(5, "Dutch", nameof(SubtitleCodec.Pgs)));
 
         var profile = MakeProfile(
             subtitle: new TrackSettings
@@ -1582,10 +1657,10 @@ public class ConversionPipelineTests
     {
         // Complex scenario: multiple languages, name standardization, flag correction, priority reordering
         var file = MakeFile("Japanese",
-            Video(0, trackName: "x265 HDR"),
+            Video(0, "x265 HDR"),
             Audio(1, "English", nameof(AudioCodec.TrueHd), 8),
             Audio(2, "Japanese", nameof(AudioCodec.Aac), 6),
-            Sub(3, "English", trackName: "English SDH"),    // HI flag should be corrected
+            Sub(3, "English", trackName: "English SDH"), // HI flag should be corrected
             Sub(4, "Japanese"),
             Sub(5, "English", forced: true));
 
@@ -1594,14 +1669,14 @@ public class ConversionPipelineTests
             audio: new TrackSettings
             {
                 Enabled = true,
-                    AllowedLanguages = [IsoLanguage.Find("Japanese"), IsoLanguage.Find("English")],
+                AllowedLanguages = [IsoLanguage.Find("Japanese"), IsoLanguage.Find("English")],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {channels}"
             },
             subtitle: new TrackSettings
             {
                 Enabled = true,
-                    AllowedLanguages = [IsoLanguage.Find("Japanese"), IsoLanguage.Find("English")],
+                AllowedLanguages = [IsoLanguage.Find("Japanese"), IsoLanguage.Find("English")],
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {forced}"
             });
@@ -1629,24 +1704,29 @@ public class ConversionPipelineTests
             {
                 Assert.AreEqual(preview.TrackName, output.Name, $"Track {i}: Name mismatch");
             }
+
             if (output.IsDefault != null)
             {
                 Assert.AreEqual(preview.IsDefault, output.IsDefault, $"Track {i}: IsDefault mismatch");
             }
+
             if (output.IsForced != null)
             {
                 Assert.AreEqual(preview.IsForced, output.IsForced, $"Track {i}: IsForced mismatch");
             }
+
             if (output.IsHearingImpaired != null)
             {
-                Assert.AreEqual(preview.IsHearingImpaired, output.IsHearingImpaired, $"Track {i}: IsHearingImpaired mismatch");
+                Assert.AreEqual(preview.IsHearingImpaired, output.IsHearingImpaired,
+                    $"Track {i}: IsHearingImpaired mismatch");
             }
         }
     }
 
     // --- Helpers ---
 
-    private static (List<TrackSnapshot> snapshots, List<TargetTrack> outputs) RunPipeline(MediaFile file, Profile profile)
+    private static (List<TrackSnapshot> snapshots, List<TargetTrack> outputs) RunPipeline(MediaFile file,
+        Profile profile)
     {
         file.Profile = profile;
         // Preview snapshots (what the UI renders) and desired target (what the

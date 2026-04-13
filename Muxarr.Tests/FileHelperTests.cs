@@ -79,15 +79,15 @@ public class FileHelperTests : FixtureTestBase
     [TestMethod]
     public async Task MoveFileAsync_NullSourcePath_ThrowsArgumentNullException()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(
-            () => FileHelper.MoveFileAsync(null!, Path.Combine(TempDir, "dest.bin")));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            FileHelper.MoveFileAsync(null!, Path.Combine(TempDir, "dest.bin")));
     }
 
     [TestMethod]
     public async Task MoveFileAsync_EmptySourcePath_ThrowsArgumentNullException()
     {
-        await Assert.ThrowsAsync<ArgumentNullException>(
-            () => FileHelper.MoveFileAsync("", Path.Combine(TempDir, "dest.bin")));
+        await Assert.ThrowsAsync<ArgumentNullException>(() =>
+            FileHelper.MoveFileAsync("", Path.Combine(TempDir, "dest.bin")));
     }
 
     [TestMethod]
@@ -96,17 +96,15 @@ public class FileHelperTests : FixtureTestBase
         var source = Path.Combine(TempDir, "source.bin");
         File.WriteAllText(source, "hello");
 
-        await Assert.ThrowsAsync<ArgumentNullException>(
-            () => FileHelper.MoveFileAsync(source, null!));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => FileHelper.MoveFileAsync(source, null!));
     }
 
     [TestMethod]
     public async Task MoveFileAsync_NonExistentSource_ThrowsFileNotFoundException()
     {
-        await Assert.ThrowsAsync<FileNotFoundException>(
-            () => FileHelper.MoveFileAsync(
-                Path.Combine(TempDir, "nope.bin"),
-                Path.Combine(TempDir, "dest.bin")));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => FileHelper.MoveFileAsync(
+            Path.Combine(TempDir, "nope.bin"),
+            Path.Combine(TempDir, "dest.bin")));
     }
 
     [TestMethod]

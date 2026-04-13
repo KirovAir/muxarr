@@ -5,8 +5,10 @@ namespace Muxarr.Tests;
 [TestClass]
 public class PathFilterTests
 {
-    private static string P(string unixPath) =>
-        unixPath.Replace('/', Path.DirectorySeparatorChar);
+    private static string P(string unixPath)
+    {
+        return unixPath.Replace('/', Path.DirectorySeparatorChar);
+    }
 
     [TestMethod]
     [DataRow("/media/movies/._Movie.mkv")]

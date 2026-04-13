@@ -13,7 +13,10 @@ public static class FFmpeg
     internal const string FfmpegExecutable = "ffmpeg";
     internal const string FfprobeExecutable = "ffprobe";
 
-    public static bool IsSuccess(ProcessResult result) => result.ExitCode == 0;
+    public static bool IsSuccess(ProcessResult result)
+    {
+        return result.ExitCode == 0;
+    }
 
     public static async Task<ProcessJsonResult<FFprobeResult>> GetStreamInfo(string file)
     {
@@ -48,14 +51,17 @@ public static class FFmpeg
         {
             throw new ArgumentException("Input path is required.", nameof(input));
         }
+
         if (string.IsNullOrEmpty(output))
         {
             throw new ArgumentException("Output path is required.", nameof(output));
         }
+
         if (string.Equals(input, output, StringComparison.Ordinal))
         {
             throw new ArgumentException("Output path must differ from input path.", nameof(output));
         }
+
         if (plan.Delta.Tracks.Count == 0)
         {
             throw new ArgumentException("At least one track is required.", nameof(plan));
@@ -88,13 +94,14 @@ public static class FFmpeg
                     return false;
                 }
 
-                long size = ((long)header[0] << 24) | ((long)header[1] << 16) | ((long)header[2] << 8) | header[3];
+                var size = ((long)header[0] << 24) | ((long)header[1] << 16) | ((long)header[2] << 8) | header[3];
                 var type = Encoding.ASCII.GetString(header, 4, 4);
 
                 if (type == "moov")
                 {
                     return true;
                 }
+
                 if (type == "mdat")
                 {
                     return false;
@@ -108,11 +115,13 @@ public static class FFmpeg
                     {
                         return false;
                     }
+
                     long extSize = 0;
                     for (var i = 0; i < 8; i++)
                     {
                         extSize = (extSize << 8) | ext[i];
                     }
+
                     advance = extSize - 16;
                 }
                 else if (size == 0)
@@ -128,6 +137,7 @@ public static class FFmpeg
                 {
                     return false;
                 }
+
                 fs.Seek(advance, SeekOrigin.Current);
             }
         }
@@ -135,10 +145,12 @@ public static class FFmpeg
         {
             /* IO error */
         }
+
         return false;
     }
 
-    public static string BuildRemuxArguments(string input, string output, ConversionPlan plan, string muxerFormat = "mp4")
+    public static string BuildRemuxArguments(string input, string output, ConversionPlan plan,
+        string muxerFormat = "mp4")
     {
         var tracks = plan.Delta.Tracks;
         var faststart = plan.Delta.Faststart ?? false;
@@ -196,7 +208,7 @@ public static class FFmpeg
             FfmpegExecutable,
             arguments,
             timeout ?? TimeSpan.FromMinutes(60),
-            onOutputLine: OnOutputLine);
+            OnOutputLine);
 
         void OnOutputLine(string line, bool isError)
         {

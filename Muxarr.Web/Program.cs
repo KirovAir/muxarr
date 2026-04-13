@@ -21,10 +21,7 @@ await builder.RunWithLoggingAsync(async b =>
     // Core framework
     b.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
-    b.Services.AddControllers().AddJsonOptions(opt =>
-    {
-        JsonHelper.ConfigureJsonDotNetDefaults(opt.JsonSerializerOptions);
-    });
+    b.Services.AddControllers().AddJsonOptions(opt => { JsonHelper.ConfigureJsonDotNetDefaults(opt.JsonSerializerOptions); });
     b.Services.AddHttpContextAccessor();
     b.Services.AddMemoryCache();
 

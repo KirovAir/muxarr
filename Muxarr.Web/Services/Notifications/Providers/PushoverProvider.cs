@@ -15,13 +15,14 @@ public class PushoverProvider : NotificationProvider<PushoverSettings>
 {
     public override string Icon => "bi-phone";
 
-    protected override Task SendCoreAsync(HttpClient client, PushoverSettings s, NotificationPayload payload)
-        // Pushover caps title at 250 and message at 1024 characters.
-        => PostJsonAsync(client, "https://api.pushover.net/1/messages.json", new
+    protected override Task SendCoreAsync(HttpClient client, PushoverSettings s, NotificationPayload payload) // Pushover caps title at 250 and message at 1024 characters.
+    {
+        return PostJsonAsync(client, "https://api.pushover.net/1/messages.json", new
         {
             token = s.AppToken,
             user = s.UserKey,
             title = Clip(payload.Title, 250),
             message = Clip(payload.Body, 1024)
         });
+    }
 }

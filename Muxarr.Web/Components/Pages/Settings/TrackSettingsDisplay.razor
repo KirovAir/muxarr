@@ -72,7 +72,8 @@ else
 
             @if (Settings.ExcludeCodecs && Settings.ExcludedCodecs.Count > 0)
             {
-                <ToolTip Tip="@($"Excluding codecs: {string.Join(", ", Settings.ExcludedCodecs.Select(c => c.DisplayName()))}")">
+                <ToolTip
+                    Tip="@($"Excluding codecs: {string.Join(", ", Settings.ExcludedCodecs.Select(c => c.DisplayName()))}")">
                     <span class="badge text-bg-warning me-1">
                         <i class="bi bi-x-lg me-1"></i>@string.Join(", ", Settings.ExcludedCodecs.Select(c => c.DisplayName()))
                     </span>
@@ -92,7 +93,8 @@ else
 
     @if (Settings.DefaultStrategy == DefaultTrackStrategy.SpecCompliant)
     {
-        <ToolTip Tip="Default track: commentary and accessibility tracks marked as non-default. Player picks from the rest.">
+        <ToolTip
+            Tip="Default track: commentary and accessibility tracks marked as non-default. Player picks from the rest.">
             <span class="badge text-bg-info me-1">
                 <i class="bi bi-shield-check me-1"></i>Spec defaults
             </span>
@@ -132,4 +134,5 @@ else
         !Settings.Enabled
         && Settings.DefaultStrategy == DefaultTrackStrategy.DontChange
         && Settings.ReorderStrategy == TrackReorderStrategy.DontReorder;
+
 }

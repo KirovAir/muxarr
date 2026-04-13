@@ -1,26 +1,26 @@
 ﻿<div class="form-group">
-	<select class="form-select" @onchange="OnSelectionChanged" value="@(Value?.ToString()?.ToLower())">
-		<option value="">@(EmptyValue ?? "Select")</option>
-		<option value="true">@TrueDisplay</option>
-		<option value="false">@FalseDisplay</option>
-	</select>
+    <select class="form-select" @onchange="OnSelectionChanged" value="@(Value?.ToString()?.ToLower())">
+        <option value="">@(EmptyValue ?? "Select")</option>
+        <option value="true">@TrueDisplay</option>
+        <option value="false">@FalseDisplay</option>
+    </select>
 </div>
 
 @code {
-	[Parameter] public bool? Value { get; set; }
+    [Parameter] public bool? Value { get; set; }
 
-	[Parameter] public EventCallback<bool?> ValueChanged { get; set; }
+    [Parameter] public EventCallback<bool?> ValueChanged { get; set; }
 
-	[Parameter] public string? EmptyValue { get; set; }
+    [Parameter] public string? EmptyValue { get; set; }
 
-	[Parameter] public string TrueDisplay { get; set; } = "Yes";
+    [Parameter] public string TrueDisplay { get; set; } = "Yes";
 
-	[Parameter] public string FalseDisplay { get; set; } = "No";
+    [Parameter] public string FalseDisplay { get; set; } = "No";
 
-	private async Task OnSelectionChanged(ChangeEventArgs e)
-	{
-		var value = e.Value?.ToString();
-		await ValueChanged.InvokeAsync(string.IsNullOrEmpty(value) ? null : bool.Parse(value));
-	}
+    private async Task OnSelectionChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        await ValueChanged.InvokeAsync(string.IsNullOrEmpty(value) ? null : bool.Parse(value));
+    }
 
 }

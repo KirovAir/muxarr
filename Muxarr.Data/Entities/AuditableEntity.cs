@@ -9,7 +9,9 @@ public abstract class AuditableEntity
     public DateTime UpdatedDate { get; set; }
 }
 
-public abstract class AuditEntityConfiguration<TEntity> : IEntityTypeConfiguration<TEntity> where TEntity : AuditableEntity {
+public abstract class AuditEntityConfiguration<TEntity> : IEntityTypeConfiguration<TEntity>
+    where TEntity : AuditableEntity
+{
     public virtual void Configure(EntityTypeBuilder<TEntity> builder)
     {
         builder.Property(e => e.CreatedDate).IsRequired();

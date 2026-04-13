@@ -1,31 +1,31 @@
 ﻿@typeparam TEnum where TEnum : struct, Enum
 <div class="form-group">
-	<select class="form-select" @onchange="OnSelectionChanged" value="@Value">
-		<option value="">@(EmptyValue ?? "Select")</option>
-		@foreach (TEnum? enumValue in Enum.GetValues(typeof(TEnum)))
-		{
-			<option value="@enumValue">@enumValue.GetDisplayName()</option>
-		}
-	</select>
+    <select class="form-select" @onchange="OnSelectionChanged" value="@Value">
+        <option value="">@(EmptyValue ?? "Select")</option>
+        @foreach (TEnum? enumValue in Enum.GetValues(typeof(TEnum)))
+        {
+            <option value="@enumValue">@enumValue.GetDisplayName()</option>
+        }
+    </select>
 </div>
 
 @code {
-	[Parameter] public TEnum? Value { get; set; }
-	[Parameter] public EventCallback<TEnum?> ValueChanged { get; set; }
-	[Parameter] public string? EmptyValue { get; set; }
+    [Parameter] public TEnum? Value { get; set; }
+    [Parameter] public EventCallback<TEnum?> ValueChanged { get; set; }
+    [Parameter] public string? EmptyValue { get; set; }
 
-	private async Task OnSelectionChanged(ChangeEventArgs e)
-	{
-		if (string.IsNullOrEmpty(e.Value?.ToString()))
-		{
-			await ValueChanged.InvokeAsync(null);
-			return;
-		}
+    private async Task OnSelectionChanged(ChangeEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.Value?.ToString()))
+        {
+            await ValueChanged.InvokeAsync(null);
+            return;
+        }
 
-		if (Enum.TryParse(e.Value?.ToString(), out TEnum selectedValue))
-		{
-			await ValueChanged.InvokeAsync(selectedValue);
-		}
-	}
+        if (Enum.TryParse(e.Value?.ToString(), out TEnum selectedValue))
+        {
+            await ValueChanged.InvokeAsync(selectedValue);
+        }
+    }
 
 }

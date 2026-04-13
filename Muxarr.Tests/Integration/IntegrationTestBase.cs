@@ -35,7 +35,15 @@ public abstract class IntegrationTestBase : FixtureTestBase
 
     protected override Task OnTeardown()
     {
-        try { Fixture?.Dispose(); } catch { /* best effort */ }
+        try
+        {
+            Fixture?.Dispose();
+        }
+        catch
+        {
+            /* best effort */
+        }
+
         return Task.CompletedTask;
     }
 
@@ -63,6 +71,7 @@ public abstract class IntegrationTestBase : FixtureTestBase
                 // skip malformed path entries
             }
         }
+
         return false;
     }
 }

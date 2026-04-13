@@ -6,7 +6,8 @@ public abstract class SelectablePaginatedListComponent<T> : PaginatedListCompone
 {
     public readonly HashSet<T> SelectedItems = new(new EntityComparer<T>());
 
-    [Parameter] public EventCallback<IEnumerable<T>> OnSelectionChanged { get; set; }
+    [Parameter]
+    public EventCallback<IEnumerable<T>> OnSelectionChanged { get; set; }
 
     public bool ShowMultiSelect { get; set; }
 

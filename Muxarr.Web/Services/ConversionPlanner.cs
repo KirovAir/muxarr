@@ -10,7 +10,12 @@ namespace Muxarr.Web.Services;
 // its inputs.
 public static class ConversionPlanner
 {
-    public enum ConversionStrategy { Skip, MetadataEdit, Remux }
+    public enum ConversionStrategy
+    {
+        Skip,
+        MetadataEdit,
+        Remux
+    }
 
     public sealed record PlanResult(ConversionStrategy Strategy, ConversionPlan Plan);
 
@@ -54,6 +59,7 @@ public static class ConversionPlanner
                 return true;
             }
         }
+
         return false;
     }
 }

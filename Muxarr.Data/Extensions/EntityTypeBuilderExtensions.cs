@@ -68,27 +68,41 @@ public static class EntityTypeBuilderExtensions
     private static List<string> ParseStringList(string? value)
     {
         if (string.IsNullOrEmpty(value))
+        {
             return [];
+        }
 
         return value.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
     }
 
     private static bool ListsEqual(List<string>? left, List<string>? right)
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return left.SequenceEqual(right);
     }
 
     private static int GetListHashCode(List<string>? values)
     {
-        if (values is null or { Count: 0 }) return 0;
+        if (values is null or { Count: 0 })
+        {
+            return 0;
+        }
 
         var hash = new HashCode();
         foreach (var item in values)
         {
             hash.Add(item);
         }
+
         return hash.ToHashCode();
     }
 
@@ -99,15 +113,25 @@ public static class EntityTypeBuilderExtensions
     private static T DeserializeOrNew<T>(string? value) where T : class?, new()
     {
         if (string.IsNullOrEmpty(value))
+        {
             return new T();
+        }
 
         return JsonHelper.Deserialize<T>(value) ?? new T();
     }
 
     private static bool JsonEquals<T>(T? left, T? right) where T : class?
     {
-        if (ReferenceEquals(left, right)) return true;
-        if (left is null || right is null) return false;
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
         return JsonHelper.Serialize(left) == JsonHelper.Serialize(right);
     }
 

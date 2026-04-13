@@ -11,20 +11,26 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
 {
     private Dictionary<MemberInfo, object?>? _filterProperties;
 
-    [Inject] public required IMemoryCache Cache { get; set; }
+    [Inject]
+    public required IMemoryCache Cache { get; set; }
 
-    [Filter] public int Page { get; set; } = 1;
+    [Filter]
+    public int Page { get; set; } = 1;
 
-    [Filter] public string SearchTerm { get; set; } = string.Empty;
+    [Filter]
+    public string SearchTerm { get; set; } = string.Empty;
 
     public int TotalItems { get; set; }
     public int TotalPages { get; set; }
 
-    [Filter] public string? CurrentSortProperty { get; set; } = "Id";
+    [Filter]
+    public string? CurrentSortProperty { get; set; } = "Id";
 
-    [Filter] public bool? IsAscending { get; set; }
+    [Filter]
+    public bool? IsAscending { get; set; }
 
-    [Filter] public int PageSize { get; set; } = 50;
+    [Filter]
+    public int PageSize { get; set; } = 50;
 
     public bool IsLoading { get; set; }
 
@@ -98,7 +104,10 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
 
         _filterProperties = new Dictionary<MemberInfo, object?>();
 
-        foreach (var property in props) _filterProperties[property] = GetValue(property);
+        foreach (var property in props)
+        {
+            _filterProperties[property] = GetValue(property);
+        }
     }
 
     private object? GetValue(MemberInfo member)

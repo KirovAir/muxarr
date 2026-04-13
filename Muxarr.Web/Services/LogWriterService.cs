@@ -28,7 +28,10 @@ public class LogWriterService(
 
         // Drain the queue
         var batch = new List<LogEntry>();
-        while (sink.TryDequeue(out var entry)) batch.Add(entry);
+        while (sink.TryDequeue(out var entry))
+        {
+            batch.Add(entry);
+        }
 
         if (batch.Count > 0)
         {

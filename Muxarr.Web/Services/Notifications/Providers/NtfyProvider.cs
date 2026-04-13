@@ -12,7 +12,8 @@ public class NtfySettings
     [Field("Topic", Placeholder = "muxarr")]
     public string Topic { get; set; } = "";
 
-    [Field("Access Token", Type = FieldType.Password, HelpText = "Required for self-hosted ntfy instances with authentication.")]
+    [Field("Access Token", Type = FieldType.Password,
+        HelpText = "Required for self-hosted ntfy instances with authentication.")]
     public string Token { get; set; } = "";
 }
 
@@ -59,8 +60,8 @@ public class NtfyProvider : NotificationProvider<NtfySettings>
 
             var length = Math.Min(chunkSize, bytes.Length - offset);
             sb.Append("=?UTF-8?B?")
-              .Append(Convert.ToBase64String(bytes, offset, length))
-              .Append("?=");
+                .Append(Convert.ToBase64String(bytes, offset, length))
+                .Append("?=");
         }
 
         return sb.ToString();

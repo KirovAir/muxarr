@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -23,7 +24,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var sizeBefore = new FileInfo(path).Length;
 
         var target = file.BuildTargetFromCustom(file.Tracks.ToSnapshots());
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
@@ -51,7 +52,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         targetTracks.First(t => t.TrackNumber == newDefault.TrackNumber).IsDefault = true;
         var target = file.BuildTargetFromCustom(targetTracks);
 
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
@@ -83,7 +84,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
             .ToSnapshots();
         var target = file.BuildTargetFromCustom(keptTracks);
 
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
@@ -119,7 +120,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
             .ToSnapshots();
         var target = file.BuildTargetFromCustom(keptTracks);
 
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
@@ -154,7 +155,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
             .ToSnapshots();
         var target = file.BuildTargetFromCustom(videoOnly);
 
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
@@ -191,7 +192,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         });
         var target = file.BuildTargetFromCustom(tracks);
 
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 

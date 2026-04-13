@@ -22,7 +22,8 @@
         }
         @if (DisplayLanguage == OriginalLanguage)
         {
-            <ToolTip Tip="@(ResolvedLanguage != null ? $"Undetermined -> {ResolvedLanguage} (original language)" : "Original Language")">
+            <ToolTip
+                Tip="@(ResolvedLanguage != null ? $"Undetermined -> {ResolvedLanguage} (original language)" : "Original Language")">
                 <i class="bi bi-star-fill text-warning ms-1" style="font-size: 0.65rem;"></i>
             </ToolTip>
         }
@@ -36,6 +37,7 @@
             {
                 <span class="text-muted small text-decoration-line-through me-1">@Track.TrackName</span>
             }
+
             @if (!string.IsNullOrEmpty(Preview?.TrackName))
             {
                 <span class="small text-info">@Preview.TrackName</span>
@@ -98,27 +100,34 @@
             {
                 changes.Add(new FlagChange("Default", Preview.IsDefault));
             }
+
             if (Preview.IsForced != Track.IsForced)
             {
                 changes.Add(new FlagChange("Forced", Preview.IsForced));
             }
+
             if (Preview.IsHearingImpaired != Track.IsHearingImpaired)
             {
                 changes.Add(new FlagChange("SDH", Preview.IsHearingImpaired));
             }
+
             if (Preview.IsCommentary != Track.IsCommentary)
             {
                 changes.Add(new FlagChange("Commentary", Preview.IsCommentary));
             }
+
             if (Preview.IsVisualImpaired != Track.IsVisualImpaired)
             {
                 changes.Add(new FlagChange("AD", Preview.IsVisualImpaired));
             }
+
             if (Preview.IsDub != Track.IsDub)
             {
                 changes.Add(new FlagChange("Dub", Preview.IsDub));
             }
+
             return changes;
         }
     }
+
 }

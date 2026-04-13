@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Data.Entities;
 
@@ -44,7 +45,7 @@ public static class TrackQualityScorer
         var isSpatial = IsSpatialAudio(track);
         var flagScore = track.IsCommentary ? 0 : track.IsVisualImpaired ? 1 : track.IsDub ? 1 : 2;
 
-        return (isLossless ? 1000 : 0) + (isSpatial ? 500 : 0) + (track.AudioChannels * 10) + flagScore;
+        return (isLossless ? 1000 : 0) + (isSpatial ? 500 : 0) + track.AudioChannels * 10 + flagScore;
     }
 
     /// <summary>

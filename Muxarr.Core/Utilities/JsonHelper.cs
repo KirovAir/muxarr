@@ -36,7 +36,10 @@ public static class JsonHelper
 
     public static T? Deserialize<T>(string json)
     {
-        if (string.IsNullOrWhiteSpace(json)) return default;
+        if (string.IsNullOrWhiteSpace(json))
+        {
+            return default;
+        }
 
         return JsonSerializer.Deserialize<T>(json, Settings);
     }

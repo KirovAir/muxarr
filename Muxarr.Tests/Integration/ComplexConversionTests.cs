@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Data.Entities;
@@ -27,7 +28,7 @@ public class ComplexConversionTests : IntegrationTestBase
         // Profile filters to English + French, strips Commentary, standardizes
         // track names, and sets spec-compliant defaults.
         var conversion = await Fixture.SeedConversion(
-            file, file.BuildTargetFromProfile(profile), custom: false);
+            file, file.BuildTargetFromProfile(profile), false);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -76,7 +77,7 @@ public class ComplexConversionTests : IntegrationTestBase
         // Same profile against an MP4 source. Non-Matroska -> ffmpeg remux.
         // IsDub survives as a disposition (MP4 supports +dub natively).
         var conversion = await Fixture.SeedConversion(
-            file, file.BuildTargetFromProfile(profile), custom: false);
+            file, file.BuildTargetFromProfile(profile), false);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -111,15 +112,17 @@ public class ComplexConversionTests : IntegrationTestBase
         // planner sees pure metadata deltas (-> MetadataEdit strategy ->
         // mkvpropedit in place). Flipping each flag to the opposite of
         // what the source carries so every assertion can distinguish.
-        var english51 = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
+        var english51 =
+            file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
         var commentary = file.Tracks.First(t => t.IsCommentary);
         var frenchDub = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
-        var englishSub = file.Tracks.First(t => t.Type == MediaTrackType.Subtitles && t.LanguageCode == "eng" && !t.IsHearingImpaired && !t.IsForced);
+        var englishSub = file.Tracks.First(t =>
+            t.Type == MediaTrackType.Subtitles && t.LanguageCode == "eng" && !t.IsHearingImpaired && !t.IsForced);
         var forcedSub = file.Tracks.First(t => t.IsForced);
         var sdhSub = file.Tracks.First(t => t.IsHearingImpaired);
 
         var snapshots = file.Tracks.ToSnapshots();
-        SnapshotFor(english51).IsForced = true;        // flag on a track whose title doesn't encode forced
+        SnapshotFor(english51).IsForced = true; // flag on a track whose title doesn't encode forced
         SnapshotFor(english51).IsOriginal = true;
         SnapshotFor(english51).IsVisualImpaired = true;
 
@@ -143,11 +146,13 @@ public class ComplexConversionTests : IntegrationTestBase
         SnapshotFor(sdhSub).IsHearingImpaired = false;
         SnapshotFor(sdhSub).TrackName = "English";
 
-        TrackSnapshot SnapshotFor(MediaTrack t) =>
-            snapshots.First(s => s.TrackNumber == t.TrackNumber);
+        TrackSnapshot SnapshotFor(MediaTrack t)
+        {
+            return snapshots.First(s => s.TrackNumber == t.TrackNumber);
+        }
 
         var target = file.BuildTargetFromCustom(snapshots);
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -199,16 +204,17 @@ public class ComplexConversionTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var english = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
+        var english =
+            file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
         Assert.IsFalse(english.IsDub, "fixture precondition: English audio should not already be dub");
 
         var snapshots = file.Tracks.ToSnapshots();
         var englishSnap = snapshots.First(s => s.TrackNumber == english.TrackNumber);
         englishSnap.IsDub = true;
-        englishSnap.TrackName = Muxarr.Core.MkvToolNix.TrackNameFlags.EncodeDubInName(englishSnap.TrackName, true);
+        englishSnap.TrackName = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(englishSnap.TrackName, true);
 
         var target = file.BuildTargetFromCustom(snapshots);
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -229,7 +235,8 @@ public class ComplexConversionTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var english = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
+        var english =
+            file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
         var anySub = file.Tracks.First(t => t.Type == MediaTrackType.Subtitles && !t.IsHearingImpaired && !t.IsForced);
 
         var snapshots = file.Tracks.ToSnapshots();
@@ -242,7 +249,7 @@ public class ComplexConversionTests : IntegrationTestBase
         subSnap.IsHearingImpaired = true;
 
         var target = file.BuildTargetFromCustom(snapshots);
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -282,10 +289,10 @@ public class ComplexConversionTests : IntegrationTestBase
         var snapshots = file.Tracks.ToSnapshots();
         var french = snapshots.First(s => s.TrackNumber == frenchDub.TrackNumber);
         french.IsDub = false;
-        french.TrackName = Muxarr.Core.MkvToolNix.TrackNameFlags.EncodeDubInName(french.TrackName, false) ?? "";
+        french.TrackName = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(french.TrackName, false) ?? "";
 
         var target = file.BuildTargetFromCustom(snapshots);
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
@@ -297,7 +304,7 @@ public class ComplexConversionTests : IntegrationTestBase
         var probed = await FileAssertions.ProbeAsync(path);
         var probeFrench = probed.Tracks.First(t => t.TrackNumber == frenchDub.TrackNumber);
         Assert.IsFalse(probeFrench.IsDub, "French audio should no longer be flagged as dub");
-        Assert.IsFalse(Muxarr.Core.MkvToolNix.TrackNameFlags.ContainsDub(probeFrench.TrackName),
+        Assert.IsFalse(Core.MkvToolNix.TrackNameFlags.ContainsDub(probeFrench.TrackName),
             $"French audio title should no longer contain dub; got '{probeFrench.TrackName}'");
     }
 
@@ -315,7 +322,7 @@ public class ComplexConversionTests : IntegrationTestBase
         // Seed a track with title "Dub" in-place via mkvpropedit so we
         // exercise the strip-to-empty path without creating a whole new fixture.
         var frenchDub = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
-        await Muxarr.Core.Utilities.ProcessExecutor.ExecuteProcessAsync(
+        await Core.Utilities.ProcessExecutor.ExecuteProcessAsync(
             "mkvpropedit",
             $"\"{path}\" --edit track:{frenchDub.TrackNumber + 1} --set name=\"Dub\"",
             TimeSpan.FromSeconds(10));
@@ -328,11 +335,11 @@ public class ComplexConversionTests : IntegrationTestBase
         var snapshots = file.Tracks.ToSnapshots();
         var french = snapshots.First(s => s.TrackNumber == frenchDub.TrackNumber);
         french.IsDub = false;
-        french.TrackName = Muxarr.Core.MkvToolNix.TrackNameFlags.EncodeDubInName(french.TrackName, false) ?? "";
+        french.TrackName = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(french.TrackName, false) ?? "";
         Assert.AreEqual("", french.TrackName, "precondition: UI should normalize strip-to-empty as ''");
 
         var target = file.BuildTargetFromCustom(snapshots);
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -359,15 +366,16 @@ public class ComplexConversionTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var englishSub = file.Tracks.First(t => t.Type == MediaTrackType.Subtitles && t.LanguageCode == "eng" && !t.IsHearingImpaired && !t.IsForced);
+        var englishSub = file.Tracks.First(t =>
+            t.Type == MediaTrackType.Subtitles && t.LanguageCode == "eng" && !t.IsHearingImpaired && !t.IsForced);
 
         var snapshots = file.Tracks.ToSnapshots();
         var sub = snapshots.First(s => s.TrackNumber == englishSub.TrackNumber);
         sub.IsDub = true;
-        sub.TrackName = Muxarr.Core.MkvToolNix.TrackNameFlags.EncodeDubInName(sub.TrackName, true) ?? "";
+        sub.TrackName = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(sub.TrackName, true) ?? "";
 
         var target = file.BuildTargetFromCustom(snapshots);
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -393,9 +401,9 @@ public class ComplexConversionTests : IntegrationTestBase
         // track that has no "Dub" in its title.
         var prep = await FileAssertions.ProbeAsync(path);
         var sub = prep.Tracks.First(t => t.Type == MediaTrackType.Subtitles
-            && !Muxarr.Core.MkvToolNix.TrackNameFlags.ContainsDub(t.TrackName));
+                                         && !Core.MkvToolNix.TrackNameFlags.ContainsDub(t.TrackName));
 
-        await Muxarr.Core.Utilities.ProcessExecutor.ExecuteProcessAsync(
+        await Core.Utilities.ProcessExecutor.ExecuteProcessAsync(
             "mkvpropedit",
             $"\"{path}\" --edit track:{sub.TrackNumber + 1} --set flag-original=0",
             TimeSpan.FromSeconds(10));
@@ -421,7 +429,7 @@ public class ComplexConversionTests : IntegrationTestBase
         Assert.AreEqual("und", video.LanguageCode, "fixture precondition");
 
         var target = file.BuildTargetFromCustom(file.Tracks.ToSnapshots());
-        var conversion = await Fixture.SeedConversion(file, target, custom: true);
+        var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
@@ -448,7 +456,7 @@ public class ComplexConversionTests : IntegrationTestBase
                     AllowedLanguages =
                     [
                         IsoLanguage.Find("English"),
-                        IsoLanguage.Find("French"),
+                        IsoLanguage.Find("French")
                     ],
                     RemoveCommentary = true,
                     RemoveImpaired = false,
@@ -456,7 +464,7 @@ public class ComplexConversionTests : IntegrationTestBase
                     DefaultStrategy = DefaultTrackStrategy.SpecCompliant,
                     ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
                     StandardizeTrackNames = true,
-                    TrackNameTemplate = "{language} {codec} {channels}",
+                    TrackNameTemplate = "{language} {codec} {channels}"
                 },
                 SubtitleSettings = new TrackSettings
                 {
@@ -464,7 +472,7 @@ public class ComplexConversionTests : IntegrationTestBase
                     AllowedLanguages =
                     [
                         IsoLanguage.Find("English"),
-                        IsoLanguage.Find("French"),
+                        IsoLanguage.Find("French")
                     ],
                     RemoveCommentary = true,
                     StandardizeTrackNames = true,
@@ -472,9 +480,9 @@ public class ComplexConversionTests : IntegrationTestBase
                     TrackNameOverrides = new Dictionary<TrackFlag, string>
                     {
                         [TrackFlag.HearingImpaired] = "{language} SDH",
-                        [TrackFlag.Forced] = "{language} Forced",
-                    },
-                },
+                        [TrackFlag.Forced] = "{language} Forced"
+                    }
+                }
             };
             ctx.Profiles.Add(profile);
             await ctx.SaveChangesAsync();
@@ -482,6 +490,8 @@ public class ComplexConversionTests : IntegrationTestBase
         });
     }
 
-    private static bool TrackNameFlagsContainsDub(string? name) =>
-        Muxarr.Core.MkvToolNix.TrackNameFlags.ContainsDub(name);
+    private static bool TrackNameFlagsContainsDub(string? name)
+    {
+        return Core.MkvToolNix.TrackNameFlags.ContainsDub(name);
+    }
 }

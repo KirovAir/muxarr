@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Data.Entities;
@@ -194,18 +195,39 @@ public class TrackFilterTests
             },
             Tracks =
             [
-                new() { Type = MediaTrackType.Video, LanguageCode = "und", LanguageName = "Undetermined", Codec = nameof(VideoCodec.Avc), TrackNumber = 0 },
-                new() { Type = MediaTrackType.Audio, LanguageCode = "fre", LanguageName = "French", Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, TrackNumber = 1 },
-                new() { Type = MediaTrackType.Audio, LanguageCode = "eng", LanguageName = "English", Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, TrackNumber = 2 },
-                new() { Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French", IsForced = true, Codec = nameof(SubtitleCodec.Srt), TrackNumber = 3, TrackName = "French Forced" },
-                new() { Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French", Codec = nameof(SubtitleCodec.Srt), TrackNumber = 4, TrackName = "French" }
+                new MediaTrack
+                {
+                    Type = MediaTrackType.Video, LanguageCode = "und", LanguageName = "Undetermined",
+                    Codec = nameof(VideoCodec.Avc), TrackNumber = 0
+                },
+                new MediaTrack
+                {
+                    Type = MediaTrackType.Audio, LanguageCode = "fre", LanguageName = "French",
+                    Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, TrackNumber = 1
+                },
+                new MediaTrack
+                {
+                    Type = MediaTrackType.Audio, LanguageCode = "eng", LanguageName = "English",
+                    Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, TrackNumber = 2
+                },
+                new MediaTrack
+                {
+                    Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French", IsForced = true,
+                    Codec = nameof(SubtitleCodec.Srt), TrackNumber = 3, TrackName = "French Forced"
+                },
+                new MediaTrack
+                {
+                    Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French",
+                    Codec = nameof(SubtitleCodec.Srt), TrackNumber = 4, TrackName = "French"
+                }
             ]
         };
 
         var result = file.BuildTargetSnapshot(file.Profile).Tracks;
 
         // Should keep: video + English audio. No French anything.
-        Assert.AreEqual(2, result.Count, $"Expected video + English audio only, got: {string.Join(", ", result.Select(t => $"{t.Type}:{t.LanguageName}"))}");
+        Assert.AreEqual(2, result.Count,
+            $"Expected video + English audio only, got: {string.Join(", ", result.Select(t => $"{t.Type}:{t.LanguageName}"))}");
         Assert.IsTrue(result.Any(t => t.Type == MediaTrackType.Video));
         Assert.IsTrue(result.Any(t => t.Type == MediaTrackType.Audio && t.LanguageName == "English"));
         Assert.IsFalse(result.Any(t => t.LanguageName == "French"), "No French tracks should be kept");
@@ -356,7 +378,8 @@ public class TrackFilterTests
         var result = tracks.GetAllowedTracks(settings, "Japanese");
 
         Assert.AreEqual(1, result.Count);
-        Assert.AreEqual("English", result[0].LanguageName, "Japanese (original) should be dropped when KeepOriginal=false");
+        Assert.AreEqual("English", result[0].LanguageName,
+            "Japanese (original) should be dropped when KeepOriginal=false");
     }
 
     [TestMethod]
@@ -598,5 +621,4 @@ public class TrackFilterTests
 
         Assert.AreEqual(0, result.Count, "No allowed languages and no keep original should result in empty");
     }
-
 }

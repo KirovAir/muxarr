@@ -19,7 +19,6 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
-
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -48,6 +47,7 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
             {
                 entity.CreatedDate = now;
             }
+
             entity.UpdatedDate = now;
         }
     }

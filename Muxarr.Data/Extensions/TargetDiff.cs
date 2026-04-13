@@ -47,7 +47,7 @@ public static class TargetDiff
             IsVisualImpaired = DiffBool(source?.IsVisualImpaired, desired.IsVisualImpaired),
             IsCommentary = DiffBool(source?.IsCommentary, desired.IsCommentary),
             IsOriginal = DiffBool(source?.IsOriginal, desired.IsOriginal),
-            IsDub = DiffBool(source?.IsDub, desired.IsDub),
+            IsDub = DiffBool(source?.IsDub, desired.IsDub)
         };
     }
 
@@ -78,6 +78,7 @@ public static class TargetDiff
         {
             return null;
         }
+
         return string.Equals(source ?? "", desired, StringComparison.Ordinal) ? null : desired;
     }
 
@@ -87,10 +88,12 @@ public static class TargetDiff
         {
             return null;
         }
+
         if (source == null)
         {
             return desired;
         }
+
         return source.Value == desired.Value ? null : desired;
     }
 }

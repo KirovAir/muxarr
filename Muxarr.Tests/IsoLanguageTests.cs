@@ -10,22 +10,22 @@ public class IsoLanguageTests
     // --- Find by code/name ---
 
     [TestMethod]
-    [DataRow("en",      "English",          DisplayName = "Two-letter code")]
-    [DataRow("eng",     "English",          DisplayName = "Three-letter code (bibliographic)")]
-    [DataRow("dut",     "Dutch",            DisplayName = "Three-letter code (Dutch/dut)")]
-    [DataRow("nld",     "Dutch",            DisplayName = "Three-letter code (Dutch/nld terminological)")]
-    [DataRow("Japanese","Japanese",         DisplayName = "By English name")]
-    [DataRow("german",  "German",           DisplayName = "By English name (case-insensitive)")]
-    [DataRow("Deutsch", "German",           DisplayName = "By native name")]
-    [DataRow("fil",     "Filipino",         DisplayName = "ISO 639-2 only (no 639-1)")]
-    [DataRow("gsw",     "Swiss German",     DisplayName = "ISO 639-2 only")]
-    [DataRow("cnr",     "Montenegrin",      DisplayName = "ISO 639-2 only")]
-    [DataRow("cmn",     "Mandarin Chinese", DisplayName = "ISO 639-3 (custom)")]
-    [DataRow("yue",     "Cantonese",        DisplayName = "ISO 639-3 (custom)")]
-    [DataRow("und",     "Undetermined",     DisplayName = "Special code")]
-    [DataRow("zxx",     "No linguistic content", DisplayName = "Special code")]
-    [DataRow("mul",     "Multiple languages",    DisplayName = "Special code")]
-    [DataRow("pt-br",   null,               DisplayName = "Regional variant (not Unknown)")]
+    [DataRow("en", "English", DisplayName = "Two-letter code")]
+    [DataRow("eng", "English", DisplayName = "Three-letter code (bibliographic)")]
+    [DataRow("dut", "Dutch", DisplayName = "Three-letter code (Dutch/dut)")]
+    [DataRow("nld", "Dutch", DisplayName = "Three-letter code (Dutch/nld terminological)")]
+    [DataRow("Japanese", "Japanese", DisplayName = "By English name")]
+    [DataRow("german", "German", DisplayName = "By English name (case-insensitive)")]
+    [DataRow("Deutsch", "German", DisplayName = "By native name")]
+    [DataRow("fil", "Filipino", DisplayName = "ISO 639-2 only (no 639-1)")]
+    [DataRow("gsw", "Swiss German", DisplayName = "ISO 639-2 only")]
+    [DataRow("cnr", "Montenegrin", DisplayName = "ISO 639-2 only")]
+    [DataRow("cmn", "Mandarin Chinese", DisplayName = "ISO 639-3 (custom)")]
+    [DataRow("yue", "Cantonese", DisplayName = "ISO 639-3 (custom)")]
+    [DataRow("und", "Undetermined", DisplayName = "Special code")]
+    [DataRow("zxx", "No linguistic content", DisplayName = "Special code")]
+    [DataRow("mul", "Multiple languages", DisplayName = "Special code")]
+    [DataRow("pt-br", null, DisplayName = "Regional variant (not Unknown)")]
     public void Find_ResolvesCorrectly(string input, string? expectedName)
     {
         var result = IsoLanguage.Find(input);
@@ -42,11 +42,11 @@ public class IsoLanguageTests
     // --- Native name resolution (used by {nativelanguage} template) ---
 
     [TestMethod]
-    [DataRow("Dutch",    "Nederlands")]
-    [DataRow("German",   "Deutsch")]
-    [DataRow("French",   "français")]
+    [DataRow("Dutch", "Nederlands")]
+    [DataRow("German", "Deutsch")]
+    [DataRow("French", "français")]
     [DataRow("Japanese", "日本語")]
-    [DataRow("Spanish",  "Español")]
+    [DataRow("Spanish", "Español")]
     public void Find_ReturnsCorrectNativeName(string englishName, string expectedNative)
     {
         Assert.AreEqual(expectedNative, IsoLanguage.Find(englishName).NativeName);
@@ -57,13 +57,13 @@ public class IsoLanguageTests
     [TestMethod]
     public void Find_FuzzySearch_MatchesSubstring()
     {
-        Assert.AreEqual("Portuguese", IsoLanguage.Find("Portu", fuzzySearch: true).Name);
+        Assert.AreEqual("Portuguese", IsoLanguage.Find("Portu", true).Name);
     }
 
     [TestMethod]
     public void Find_FuzzySearch_NoMatchReturnsUnknown()
     {
-        Assert.AreEqual("Unknown", IsoLanguage.Find("xyznotreal", fuzzySearch: true).Name);
+        Assert.AreEqual("Unknown", IsoLanguage.Find("xyznotreal", true).Name);
     }
 
     // --- Search ranking ---
@@ -230,7 +230,7 @@ public class IsoLanguageTests
                 NativeName = native,
                 Iso6391 = entry.Iso6391,
                 Iso6392B = entry.Iso6392B,
-                Iso6392T = entry.Iso6392T,
+                Iso6392T = entry.Iso6392T
             });
         }
 
@@ -241,7 +241,7 @@ public class IsoLanguageTests
         {
             WriteIndented = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
         };
         var json = JsonSerializer.Serialize(result, options);
         await File.WriteAllTextAsync(outputPath, json + "\n");
@@ -309,26 +309,49 @@ public class IsoLanguageTests
 
     private class WooormEntry
     {
-        [JsonPropertyName("name")] public string Name { get; set; } = "";
-        [JsonPropertyName("iso6392B")] public string Iso6392B { get; set; } = "";
-        [JsonPropertyName("iso6392T")] public string? Iso6392T { get; set; }
-        [JsonPropertyName("iso6391")] public string? Iso6391 { get; set; }
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("iso6392B")]
+        public string Iso6392B { get; set; } = "";
+
+        [JsonPropertyName("iso6392T")]
+        public string? Iso6392T { get; set; }
+
+        [JsonPropertyName("iso6391")]
+        public string? Iso6391 { get; set; }
     }
 
     private class HaliaeetusEntry
     {
-        [JsonPropertyName("639-1")] public string? TwoLetterCode { get; set; }
-        [JsonPropertyName("639-2")] public string? ThreeLetterCode { get; set; }
-        [JsonPropertyName("639-2/B")] public string? ThreeLetterCodeB { get; set; }
-        [JsonPropertyName("nativeName")] public string? NativeName { get; set; }
+        [JsonPropertyName("639-1")]
+        public string? TwoLetterCode { get; set; }
+
+        [JsonPropertyName("639-2")]
+        public string? ThreeLetterCode { get; set; }
+
+        [JsonPropertyName("639-2/B")]
+        public string? ThreeLetterCodeB { get; set; }
+
+        [JsonPropertyName("nativeName")]
+        public string? NativeName { get; set; }
     }
 
     private class OutputEntry
     {
-        [JsonPropertyName("name")] public string Name { get; set; } = "";
-        [JsonPropertyName("nativeName")] public string? NativeName { get; set; }
-        [JsonPropertyName("iso6391")] public string? Iso6391 { get; set; }
-        [JsonPropertyName("iso6392B")] public string Iso6392B { get; set; } = "";
-        [JsonPropertyName("iso6392T")] public string? Iso6392T { get; set; }
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = "";
+
+        [JsonPropertyName("nativeName")]
+        public string? NativeName { get; set; }
+
+        [JsonPropertyName("iso6391")]
+        public string? Iso6391 { get; set; }
+
+        [JsonPropertyName("iso6392B")]
+        public string Iso6392B { get; set; } = "";
+
+        [JsonPropertyName("iso6392T")]
+        public string? Iso6392T { get; set; }
     }
 }

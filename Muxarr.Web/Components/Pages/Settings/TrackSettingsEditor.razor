@@ -88,7 +88,8 @@
             @switch (Settings.DefaultStrategy)
             {
                 case DefaultTrackStrategy.SpecCompliant:
-                    <text>Commentary, accessibility, and dub tracks are marked as non-default. Your player picks from the
+                    <text>
+                        Commentary, accessibility, and dub tracks are marked as non-default. Your player picks from the
                         rest.</text>
                     break;
                 case DefaultTrackStrategy.ForceFirstLanguage:
@@ -151,7 +152,8 @@
             <InputText id="@($"trackNameTemplate{TrackTypeLabel}")" class="form-control form-control-sm"
                        @bind-Value="Settings.TrackNameTemplate"/>
             <small class="form-text text-muted d-block">
-                Placeholders: <code>{language}</code>, <code>{lang}</code>, <code>{nativelanguage}</code>, <code>{codec}</code>,
+                Placeholders: <code>{language}</code>, <code>{lang}</code>, <code>{nativelanguage}</code>,
+                <code>{codec}</code>,
                 @if (IsAudio)
                 {
                     <code>{channels}</code>
@@ -166,8 +168,10 @@
             @if (HasDubWarning)
             {
                 <small class="form-text text-warning d-block mt-1">
-                    <i class="bi bi-exclamation-triangle me-1"></i>Template does not include <code>{dub}</code> or <code>{flags}</code>.
-                    Dub tracks in MKV files won't preserve their classification after remux since MKV has no native dub flag.
+                    <i class="bi bi-exclamation-triangle me-1"></i>Template does not include <code>{dub}</code> or
+                    <code>{flags}</code>.
+                    Dub tracks in MKV files won't preserve their classification after remux since MKV has no native dub
+                    flag.
                 </small>
             }
 

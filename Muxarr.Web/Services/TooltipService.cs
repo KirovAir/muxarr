@@ -58,6 +58,9 @@ public class TooltipService
             snapshot = [.. _subscribers];
         }
 
-        foreach (var subscriber in snapshot) subscriber.Invoke();
+        foreach (var subscriber in snapshot)
+        {
+            subscriber.Invoke();
+        }
     }
 }

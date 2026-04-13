@@ -105,7 +105,8 @@ public class ArrApiClient
         return result;
     }
 
-    public async Task<bool> UpdateWebhookNotification(IApiCredentials config, ArrNotification existing, string webhookUrl)
+    public async Task<bool> UpdateWebhookNotification(IApiCredentials config, ArrNotification existing,
+        string webhookUrl)
     {
         // Delete and recreate rather than PUT, because our model only maps a subset
         // of fields — PUTting back would lose unmapped fields (tags, extra event flags, etc.)

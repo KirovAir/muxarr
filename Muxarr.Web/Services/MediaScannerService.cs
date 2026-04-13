@@ -64,8 +64,10 @@ public class MediaScannerService(
             await arrSyncService.RunAsync(linked);
 
             while (!linked.IsCancellationRequested && _directoryQueue.TryDequeue(out var directory))
+            {
                 await ScanDirectory(directory.Path, directory.ForceRescan, directory.Profile, linked)
                     .ConfigureAwait(false);
+            }
 
             if (linked.IsCancellationRequested)
             {
@@ -102,7 +104,9 @@ public class MediaScannerService(
 
         foreach (var profile in await context.Profiles.ToListAsync())
         foreach (var directory in profile.Directories)
+        {
             _directoryQueue.Enqueue(new ScanDirectory(directory, forceRescan, profile));
+        }
 
         _ = RunAsync(CancellationToken.None);
     }
@@ -287,7 +291,7 @@ public class MediaScannerService(
                 // Never purge files that live under an offline directory
                 !inaccessible.Any(dir => f.Path.StartsWith(dir)) &&
                 (PathFilter.ShouldIgnore(f.Path) ||
-                !File.Exists(f.Path) || !profiles.Any(p => p.Directories.Any(dir => f.Path.StartsWith(dir)))))
+                 !File.Exists(f.Path) || !profiles.Any(p => p.Directories.Any(dir => f.Path.StartsWith(dir)))))
             .Select(f => f.Id)
             .ToList();
 

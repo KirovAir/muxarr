@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Muxarr.Core.Models;
 
 namespace Muxarr.Data.Entities;
 

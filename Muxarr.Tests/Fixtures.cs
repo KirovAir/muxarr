@@ -59,10 +59,12 @@ public static class Fixtures
         {
             Assert.Inconclusive($"Source fixture 'test_complex.mkv' missing at {source}.");
         }
+
         if (File.Exists(target) && File.GetLastWriteTimeUtc(target) >= File.GetLastWriteTimeUtc(source))
         {
             return;
         }
+
         if (File.Exists(target))
         {
             File.Delete(target);

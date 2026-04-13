@@ -445,6 +445,7 @@ public class MediaConverterService(
                 {
                     conversion.Log(line, logger);
                 }
+
                 reportProgress(progress);
             }, timeout);
 
@@ -492,9 +493,10 @@ public class MediaConverterService(
                 {
                     conversion.Log(line, logger);
                 }
+
                 reportProgress(progress);
             },
-            timeout: timeout);
+            timeout);
 
         token.ThrowIfCancellationRequested();
 
@@ -530,6 +532,7 @@ public class MediaConverterService(
             {
                 return;
             }
+
             last = p;
             conversion.Progress = p;
             ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
@@ -595,6 +598,7 @@ public class MediaConverterService(
             {
                 RestoreFromBackup(conversion, backupFile);
             }
+
             throw;
         }
 
@@ -641,6 +645,7 @@ public class MediaConverterService(
             {
                 File.Delete(originalPath);
             }
+
             File.Move(backupFile, originalPath);
             conversion.LogError(
                 $"Swap failed - restored original from {Path.GetFileName(backupFile)}.", logger);

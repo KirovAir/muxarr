@@ -16,7 +16,10 @@ public class TimeAgoService(ILogger<TimeAgoService> logger) : ScheduledServiceBa
             snapshot = [.. _subscribers];
         }
 
-        foreach (var subscriber in snapshot) subscriber.Invoke();
+        foreach (var subscriber in snapshot)
+        {
+            subscriber.Invoke();
+        }
 
         return Task.CompletedTask;
     }

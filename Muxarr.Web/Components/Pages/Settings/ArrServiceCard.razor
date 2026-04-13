@@ -72,9 +72,11 @@
 
 @code {
     private string TypeName => Service.Type == IntegrationType.Sonarr ? "Sonarr" : "Radarr";
+
     private string Example => Service.Type == IntegrationType.Sonarr
         ? "http://sonarr.instance:8989"
         : "http://radarr.instance:7878";
+
     private string IconClass => Service.Type == IntegrationType.Sonarr ? "bi-tv" : "bi-film";
     private string ElementId => Service.Id != 0 ? Service.Id.ToString() : Service.GetHashCode().ToString();
 

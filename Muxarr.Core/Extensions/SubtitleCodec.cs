@@ -32,7 +32,7 @@ public enum SubtitleCodec
     MovText,
 
     [Display(Name = "Unknown")]
-    Unknown,
+    Unknown
 }
 
 public static class SubtitleCodecExtensions
@@ -66,7 +66,7 @@ public static class SubtitleCodecExtensions
             "DVB TELETEXT" or "DVBTELETEXT" or "DVB_TELETEXT" => SubtitleCodec.DvbTeletext,
             // mkvmerge: (varies); ffprobe: mov_text
             "MOV_TEXT" or "MOVTEXT" or "MOV TEXT" or "TX3G" => SubtitleCodec.MovText,
-            _ => SubtitleCodec.Unknown,
+            _ => SubtitleCodec.Unknown
         };
     }
 }

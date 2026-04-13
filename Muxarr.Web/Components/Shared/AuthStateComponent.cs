@@ -5,9 +5,11 @@ namespace Muxarr.Web.Components.Shared;
 
 public abstract class AuthStateComponent : DisposableComponent
 {
-    [CascadingParameter] public AuthenticationState? AuthState { get; set; }
+    [CascadingParameter]
+    public AuthenticationState? AuthState { get; set; }
 
-    [Inject] public AuthenticationStateProvider? AuthenticationStateProvider { get; set; }
+    [Inject]
+    public AuthenticationStateProvider? AuthenticationStateProvider { get; set; }
 
     protected override async Task OnInitializedAsync()
     {

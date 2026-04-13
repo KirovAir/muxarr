@@ -29,9 +29,9 @@ public class ProcessExecutor
         return json;
     }
 
-    public static async Task<ProcessResult> ExecuteProcessAsync(string fileName, 
-        string? arguments = null, 
-        TimeSpan? timeout = null, 
+    public static async Task<ProcessResult> ExecuteProcessAsync(string fileName,
+        string? arguments = null,
+        TimeSpan? timeout = null,
         Action<string, bool>? onOutputLine = null)
     {
         using var process = new Process();
@@ -44,7 +44,7 @@ public class ProcessExecutor
             RedirectStandardError = true,
             CreateNoWindow = false,
             StandardOutputEncoding = Encoding.UTF8,
-            StandardErrorEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8
         };
 
         const string compatLocale = "C.UTF-8";
@@ -58,15 +58,21 @@ public class ProcessExecutor
 
         process.OutputDataReceived += (sender, e) =>
         {
-            if (e.Data == null) return;
-            
+            if (e.Data == null)
+            {
+                return;
+            }
+
             outputBuilder.AppendLine(e.Data);
             onOutputLine?.Invoke(e.Data, false);
         };
         process.ErrorDataReceived += (sender, e) =>
         {
-            if (e.Data == null) return;
-            
+            if (e.Data == null)
+            {
+                return;
+            }
+
             errorBuilder.AppendLine(e.Data);
             onOutputLine?.Invoke(e.Data, true);
         };
@@ -85,7 +91,7 @@ public class ProcessExecutor
 
         if (timedOut)
         {
-            process.Kill(entireProcessTree: true);
+            process.Kill(true);
         }
 
         await process.WaitForExitAsync(cts.Token);
@@ -122,6 +128,6 @@ public class ProcessJsonResult<T> : ProcessResult
         TimedOut = result.TimedOut;
         ExitCode = result.ExitCode;
     }
-        
+
     public T? Result { get; set; }
 }

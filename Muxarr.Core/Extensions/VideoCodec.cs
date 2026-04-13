@@ -29,7 +29,7 @@ public enum VideoCodec
     Vc1,
 
     [Display(Name = "Unknown")]
-    Unknown,
+    Unknown
 }
 
 public static class VideoCodecExtensions
@@ -63,7 +63,7 @@ public static class VideoCodecExtensions
             "MPEG2VIDEO" or "MPEG-2" or "MPEG-1/2" => VideoCodec.Mpeg2Video,
             // mkvmerge: VC-1; ffprobe: vc1
             "VC1" or "VC-1" => VideoCodec.Vc1,
-            _ => VideoCodec.Unknown,
+            _ => VideoCodec.Unknown
         };
     }
 }

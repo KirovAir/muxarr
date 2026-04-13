@@ -17,7 +17,8 @@ public class PlexSettings
     public string LibrarySectionId { get; set; } = "";
 
     [Field("Refresh only the changed folder when possible", Type = FieldType.Checkbox, Default = "true",
-        HelpText = "Sends a partial scan limited to the directory of the converted file. Requires a Library Section ID and matching paths between Muxarr and Plex.")]
+        HelpText =
+            "Sends a partial scan limited to the directory of the converted file. Requires a Library Section ID and matching paths between Muxarr and Plex.")]
     public bool UsePathRefresh { get; set; }
 }
 

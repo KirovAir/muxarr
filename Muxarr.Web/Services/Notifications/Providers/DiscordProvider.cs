@@ -17,9 +17,9 @@ public class DiscordProvider : NotificationProvider<DiscordSettings>
     {
         var color = payload.EventType switch
         {
-            NotificationEventType.Completed => 3066993,  // green
-            NotificationEventType.Failed => 15158332,    // red
-            _ => 3447003                                 // blue
+            NotificationEventType.Completed => 3066993, // green
+            NotificationEventType.Failed => 15158332, // red
+            _ => 3447003 // blue
         };
 
         // Discord embed limits: title 256, description 4096. Exceeding either returns 400.

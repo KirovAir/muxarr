@@ -12,24 +12,33 @@ public static class NativeStat
     [StructLayout(LayoutKind.Explicit, Size = 144)]
     private struct MacOSStatBuf
     {
-        [FieldOffset(0)] public uint st_dev;
-        [FieldOffset(6)] public ushort st_nlink;
+        [FieldOffset(0)]
+        public uint st_dev;
+
+        [FieldOffset(6)]
+        public ushort st_nlink;
     }
 
     // Linux x64: st_dev (8 bytes at 0), st_nlink (8 bytes at 16)
     [StructLayout(LayoutKind.Explicit, Size = 144)]
     private struct LinuxX64StatBuf
     {
-        [FieldOffset(0)] public ulong st_dev;
-        [FieldOffset(16)] public ulong st_nlink;
+        [FieldOffset(0)]
+        public ulong st_dev;
+
+        [FieldOffset(16)]
+        public ulong st_nlink;
     }
 
     // Linux arm64 (generic stat): st_dev (8 bytes at 0), st_nlink (4 bytes at 20)
     [StructLayout(LayoutKind.Explicit, Size = 144)]
     private struct LinuxArm64StatBuf
     {
-        [FieldOffset(0)] public ulong st_dev;
-        [FieldOffset(20)] public uint st_nlink;
+        [FieldOffset(0)]
+        public ulong st_dev;
+
+        [FieldOffset(20)]
+        public uint st_nlink;
     }
 
     [DllImport("libc", EntryPoint = "stat", SetLastError = true)]

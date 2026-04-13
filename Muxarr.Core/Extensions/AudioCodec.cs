@@ -41,7 +41,7 @@ public enum AudioCodec
     Pcm,
 
     [Display(Name = "Unknown")]
-    Unknown,
+    Unknown
 }
 
 public static class AudioCodecExtensions
@@ -99,7 +99,7 @@ public static class AudioCodecExtensions
             "MP3" or "MPEG AUDIO" => AudioCodec.Mp3,
             // MPEG Layer 2 (common in DVB/TS captures). ffprobe: mp2
             "MP2" => AudioCodec.Mp2,
-            _ => AudioCodec.Unknown,
+            _ => AudioCodec.Unknown
         };
     }
 }

@@ -14,17 +14,18 @@ public static class Configurator
     {
         // DbContext factory for components, background services, and shorter context lifespans.
         // Also registers T as a scoped service, so direct AppDbContext injection still works.
-        services.AddDbContextFactory<T>(DefaultDbConfiguration, lifetime: ServiceLifetime.Scoped);
+        services.AddDbContextFactory<T>(DefaultDbConfiguration, ServiceLifetime.Scoped);
     }
 
     private static void DefaultDbConfiguration(IServiceProvider sp, DbContextOptionsBuilder options)
     {
         var configuration = sp.GetRequiredService<IConfiguration>();
         var connectionString = configuration.GetConnectionString("DefaultConnection")
-                               ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+                               ?? throw new InvalidOperationException(
+                                   "Connection string 'DefaultConnection' not found.");
 
         options.UseSqlite(connectionString, o => o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
-               .AddInterceptors(new SqlitePerformanceInterceptor());
+            .AddInterceptors(new SqlitePerformanceInterceptor());
     }
 
     public static async Task Initialize(this AppDbContext context, ILogger? logger = null)
@@ -35,7 +36,8 @@ public static class Configurator
 
         // Auto-mark setup as complete for existing installs (has profiles or auth configured)
         var setupConfig = await context.Configs.GetAsync<SetupConfig>();
-        if (setupConfig == null && (context.Profiles.Any() || await context.Configs.GetAsync<AuthConfig>(AuthConfig.Key) != null))
+        if (setupConfig == null &&
+            (context.Profiles.Any() || await context.Configs.GetAsync<AuthConfig>(AuthConfig.Key) != null))
         {
             context.Configs.Set(new SetupConfig { CompletedAt = DateTime.UtcNow });
             await context.SaveChangesAsync();
@@ -79,7 +81,7 @@ public static class Configurator
         await context.Database.ExecuteSqlRawAsync(SqlitePerformanceInterceptor.FlushWalPragma);
 
         var backupPath = dbPath + ".bak";
-        File.Copy(dbPath, backupPath, overwrite: true);
+        File.Copy(dbPath, backupPath, true);
         logger?.LogInformation("Database backed up to {BackupPath}", backupPath);
     }
 }

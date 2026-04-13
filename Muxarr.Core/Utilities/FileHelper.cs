@@ -22,10 +22,12 @@ public static class FileHelper
         {
             throw new ArgumentNullException(nameof(sourcePath));
         }
+
         if (string.IsNullOrEmpty(destinationPath))
         {
             throw new ArgumentNullException(nameof(destinationPath));
         }
+
         if (!File.Exists(sourcePath))
         {
             throw new FileNotFoundException("Source file not found.", sourcePath);
@@ -115,7 +117,14 @@ public static class FileHelper
         }
         catch
         {
-            try { File.Delete(destinationPath); } catch { }
+            try
+            {
+                File.Delete(destinationPath);
+            }
+            catch
+            {
+            }
+
             throw;
         }
     }

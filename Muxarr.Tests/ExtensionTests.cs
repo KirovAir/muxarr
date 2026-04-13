@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Core.MkvToolNix;
@@ -229,19 +230,20 @@ public class ExtensionTests
     [TestMethod]
     public void ApplyTrackNameTemplate_AllPlaceholdersEmpty_ReturnsNull()
     {
-        var track = new TrackSnapshot { Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = nameof(SubtitleCodec.Srt) };
+        var track = new TrackSnapshot
+            { Type = MediaTrackType.Subtitles, LanguageName = "English", Codec = nameof(SubtitleCodec.Srt) };
         Assert.IsNull(track.ApplyTrackNameTemplate("{channels} {trackname}"));
     }
 
     // --- ApplyTrackNameTemplate: flag placeholders ---
 
     [TestMethod]
-    [DataRow(true,  false, false, false, false, "{language} {hi}",              "English SDH")]
-    [DataRow(false, false, false, false, false, "{language} {hi}",              "English")]
-    [DataRow(false, true,  false, false, false, "{language} {forced}",          "English Forced")]
-    [DataRow(false, false, true,  false, false, "{language} {channels} {commentary}", "English 2.0 Commentary")]
-    [DataRow(false, false, false, true,  false, "{language} {visualimpaired}",  "English AD")]
-    [DataRow(false, false, false, false, true,  "{language} {channels} {original}", "English 5.1 Original")]
+    [DataRow(true, false, false, false, false, "{language} {hi}", "English SDH")]
+    [DataRow(false, false, false, false, false, "{language} {hi}", "English")]
+    [DataRow(false, true, false, false, false, "{language} {forced}", "English Forced")]
+    [DataRow(false, false, true, false, false, "{language} {channels} {commentary}", "English 2.0 Commentary")]
+    [DataRow(false, false, false, true, false, "{language} {visualimpaired}", "English AD")]
+    [DataRow(false, false, false, false, true, "{language} {channels} {original}", "English 5.1 Original")]
     public void ApplyTrackNameTemplate_FlagPlaceholders(
         bool hi, bool forced, bool commentary, bool vi, bool original,
         string template, string expected)
@@ -258,9 +260,9 @@ public class ExtensionTests
     }
 
     [TestMethod]
-    [DataRow("{language} ({flags})",  true, true, false, false, false, "English (SDH, Forced)")]
-    [DataRow("{language} {flags}",    false, false, false, false, false, "English")]
-    [DataRow("{flags}",               true, true, true, true, true,   "SDH, Forced, Commentary, AD, Original")]
+    [DataRow("{language} ({flags})", true, true, false, false, false, "English (SDH, Forced)")]
+    [DataRow("{language} {flags}", false, false, false, false, false, "English")]
+    [DataRow("{flags}", true, true, true, true, true, "SDH, Forced, Commentary, AD, Original")]
     public void ApplyTrackNameTemplate_FlagsPlaceholder(
         string template, bool hi, bool forced, bool commentary, bool vi, bool original, string expected)
     {
@@ -289,15 +291,19 @@ public class ExtensionTests
     // --- ShouldResolveUndetermined ---
 
     [TestMethod]
-    [DataRow(true,  "und", 1, "English",          true,  DisplayName = "All conditions met")]
-    [DataRow(false, "und", 1, "English",          false, DisplayName = "Setting disabled")]
-    [DataRow(true,  "und", 2, "English",          false, DisplayName = "Multiple tracks")]
-    [DataRow(true,  "eng", 1, "English",          false, DisplayName = "Not undetermined")]
-    [DataRow(true,  "und", 1, "NotARealLanguage", false, DisplayName = "Unresolvable language")]
+    [DataRow(true, "und", 1, "English", true, DisplayName = "All conditions met")]
+    [DataRow(false, "und", 1, "English", false, DisplayName = "Setting disabled")]
+    [DataRow(true, "und", 2, "English", false, DisplayName = "Multiple tracks")]
+    [DataRow(true, "eng", 1, "English", false, DisplayName = "Not undetermined")]
+    [DataRow(true, "und", 1, "NotARealLanguage", false, DisplayName = "Unresolvable language")]
     public void ShouldResolveUndetermined(
         bool settingEnabled, string langCode, int trackCount, string originalLang, bool expected)
     {
-        var track = new MediaTrack { LanguageCode = langCode, LanguageName = langCode == "und" ? "Undetermined" : "English", Type = MediaTrackType.Audio };
+        var track = new MediaTrack
+        {
+            LanguageCode = langCode, LanguageName = langCode == "und" ? "Undetermined" : "English",
+            Type = MediaTrackType.Audio
+        };
         var settings = new TrackSettings { AssumeUndeterminedIsOriginal = settingEnabled };
 
         Assert.AreEqual(expected, track.ShouldResolveUndetermined(settings, trackCount, originalLang));
@@ -402,18 +408,18 @@ public class ExtensionTests
     // --- ToMkvMergeType / ToMediaTrackType round-trip ---
 
     [TestMethod]
-    [DataRow(MediaTrackType.Video,     "video")]
-    [DataRow(MediaTrackType.Audio,     "audio")]
+    [DataRow(MediaTrackType.Video, "video")]
+    [DataRow(MediaTrackType.Audio, "audio")]
     [DataRow(MediaTrackType.Subtitles, "subtitles")]
-    [DataRow(MediaTrackType.Unknown,   "")]
+    [DataRow(MediaTrackType.Unknown, "")]
     public void ToMkvMergeType_ConvertsCorrectly(MediaTrackType type, string expected)
     {
         Assert.AreEqual(expected, type.ToMkvMergeType());
     }
 
     [TestMethod]
-    [DataRow("video",     MediaTrackType.Video)]
-    [DataRow("audio",     MediaTrackType.Audio)]
+    [DataRow("video", MediaTrackType.Video)]
+    [DataRow("audio", MediaTrackType.Audio)]
     [DataRow("subtitles", MediaTrackType.Subtitles)]
     [DataRow("something", MediaTrackType.Unknown)]
     public void ToMediaTrackType_ConvertsCorrectly(string type, MediaTrackType expected)
@@ -455,6 +461,8 @@ public class ExtensionTests
 
     // --- Helpers ---
 
-    private static MediaTrack MakeAudioTrack(int channels) =>
-        new() { Type = MediaTrackType.Audio, AudioChannels = channels };
+    private static MediaTrack MakeAudioTrack(int channels)
+    {
+        return new MediaTrack { Type = MediaTrackType.Audio, AudioChannels = channels };
+    }
 }

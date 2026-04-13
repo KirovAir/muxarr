@@ -83,6 +83,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
             });
             await ctx.SaveChangesAsync();
         }
+
         await bootstrap.DisposeAsync();
 
         var root = services.BuildServiceProvider();
@@ -119,7 +120,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
     /// <summary>Scans a file with the real scanner and returns the persisted row with tracks.</summary>
     public async Task<MediaFile> ScanAndPersist(string filePath, Profile profile)
     {
-        await Scanner.ScanFile(filePath, forceRescan: true, profile);
+        await Scanner.ScanFile(filePath, true, profile);
 
         return await WithDbContext(async ctx =>
         {
@@ -176,7 +177,10 @@ public sealed class ConverterIntegrationFixture : IDisposable
         {
             _root.Dispose();
         }
-        catch { /* best effort */ }
+        catch
+        {
+            /* best effort */
+        }
 
         try
         {
@@ -185,6 +189,9 @@ public sealed class ConverterIntegrationFixture : IDisposable
                 File.Delete(_dbPath);
             }
         }
-        catch { /* SQLite may still hold the file briefly */ }
+        catch
+        {
+            /* SQLite may still hold the file briefly */
+        }
     }
 }

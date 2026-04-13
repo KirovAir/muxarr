@@ -6,19 +6,19 @@ public class EpisodeResponse
 {
     [JsonPropertyName("id")]
     public int Id { get; set; }
-    
+
     [JsonPropertyName("seriesId")]
     public int SeriesId { get; set; }
-    
+
     [JsonPropertyName("seasonNumber")]
     public int SeasonNumber { get; set; }
-    
+
     [JsonPropertyName("episodeNumber")]
     public int EpisodeNumber { get; set; }
-    
+
     [JsonPropertyName("episodeFile")]
     public EpisodeFile EpisodeFile { get; set; } = new();
-    
+
     [JsonPropertyName("hasFile")]
     public bool HasFile { get; set; }
 }

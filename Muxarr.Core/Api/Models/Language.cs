@@ -7,6 +7,6 @@ public class Language
     [JsonPropertyName("id")]
     public int Id { get; set; }
 
-    [JsonPropertyName("name")] 
+    [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
 }

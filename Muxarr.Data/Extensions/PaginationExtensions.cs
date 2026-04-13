@@ -45,7 +45,7 @@ public static class PagingExtensions
 
         return await res.ToListAsync();
     }
-    
+
     public static IQueryable<T> Sort<T>(this IQueryable<T> query, string? sortProperty, bool? ascending = true)
     {
         if (!string.IsNullOrEmpty(sortProperty))
@@ -60,8 +60,9 @@ public static class PagingExtensions
 
         return query;
     }
-    
-    public static IQueryable<T> WhereDynamic<T>(this IQueryable<T> sourceList, Expression<Func<T, IComparable>>[] searchProperties, string query)
+
+    public static IQueryable<T> WhereDynamic<T>(this IQueryable<T> sourceList,
+        Expression<Func<T, IComparable>>[] searchProperties, string query)
     {
         var parameter = Expression.Parameter(typeof(T), "x");
         var expressions = GetWhereExpressions(searchProperties, parameter, query).ToList();
@@ -122,7 +123,7 @@ public static class PagingExtensions
             }
         }
     }
-    
+
     public static string GetPropertyName<T>(this Expression<Func<T, IComparable>> prop)
     {
         PropertyInfo property;

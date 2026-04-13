@@ -51,7 +51,8 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_InputOutputArePresentAndQuoted()
     {
-        var args = FFmpeg.BuildRemuxArguments("/path with spaces/in.mp4", "/path with spaces/out.muxtmp", TestPlan.Of(new List<TargetTrack>()));
+        var args = FFmpeg.BuildRemuxArguments("/path with spaces/in.mp4", "/path with spaces/out.muxtmp",
+            TestPlan.Of(new List<TargetTrack>()));
 
         StringAssert.Contains(args, "-i \"/path with spaces/in.mp4\"");
         StringAssert.Contains(args, "\"/path with spaces/out.muxtmp\"");
@@ -64,7 +65,8 @@ public class FFmpegTests
         // escapes immediately before a double quote, so C:\Users\file.mp4
         // must appear verbatim. Doubling the backslashes would make ffmpeg
         // open the literal path "C:\\Users\\file.mp4" and fail.
-        var args = FFmpeg.BuildRemuxArguments(@"C:\Users\Jesse\in.mp4", @"C:\Users\Jesse\out.muxtmp", TestPlan.Of(new List<TargetTrack>()));
+        var args = FFmpeg.BuildRemuxArguments(@"C:\Users\Jesse\in.mp4", @"C:\Users\Jesse\out.muxtmp",
+            TestPlan.Of(new List<TargetTrack>()));
 
         StringAssert.Contains(args, "-i \"C:\\Users\\Jesse\\in.mp4\"");
         StringAssert.Contains(args, "\"C:\\Users\\Jesse\\out.muxtmp\"");
@@ -199,7 +201,7 @@ public class FFmpegTests
     public void BuildArguments_FaststartFalse_DoesNotAppendFaststartFlag()
     {
         var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp",
-            TestPlan.Of(new List<TargetTrack>(), faststart: false));
+            TestPlan.Of(new List<TargetTrack>(), false));
 
         StringAssert.Contains(args, "-movflags +use_metadata_tags");
         Assert.IsFalse(args.Contains("+faststart"), "faststart must be absent when not requested");
@@ -209,7 +211,7 @@ public class FFmpegTests
     public void BuildArguments_FaststartTrue_AppendsFaststartToMovflags()
     {
         var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp",
-            TestPlan.Of(new List<TargetTrack>(), faststart: true));
+            TestPlan.Of(new List<TargetTrack>(), true));
 
         StringAssert.Contains(args, "-movflags +use_metadata_tags+faststart");
     }
@@ -218,7 +220,7 @@ public class FFmpegTests
     public void BuildArguments_MovMuxer_EmitsDashFMov()
     {
         var args = FFmpeg.BuildRemuxArguments("/in.mov", "/out.muxtmp",
-            TestPlan.Of(new List<TargetTrack>()), muxerFormat: "mov");
+            TestPlan.Of(new List<TargetTrack>()), "mov");
 
         StringAssert.Contains(args, "-f mov");
         Assert.IsFalse(args.Contains("-f mp4"));
@@ -257,7 +259,7 @@ public class FFmpegTests
         var gen = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", genArgs, TimeSpan.FromSeconds(30));
         Assert.IsTrue(gen.ExitCode == 0, $"Failed to generate MP4 fixture: {gen.Error}");
 
-        File.Copy(_mp4Fixture, _workingCopy, overwrite: true);
+        File.Copy(_mp4Fixture, _workingCopy, true);
     }
 
     [TestCleanup]
@@ -434,10 +436,7 @@ public class FFmpegTests
     public async Task RemuxFile_SetsLanguage()
     {
         var output = _workingCopy + ".muxtmp";
-        var tracks = await BuildAllTracks(ts =>
-        {
-            ts.First(t => t.TrackNumber == 2).LanguageCode = "fre";
-        });
+        var tracks = await BuildAllTracks(ts => { ts.First(t => t.TrackNumber == 2).LanguageCode = "fre"; });
 
         var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
@@ -455,10 +454,7 @@ public class FFmpegTests
         var srcInfo = await MkvMerge.GetFileInfo(_workingCopy);
         var srcCount = srcInfo.Result!.Tracks.Count;
 
-        var tracks = await BuildAllTracks(ts =>
-        {
-            ts.First(t => t.TrackNumber == 1).Name = "Touched";
-        });
+        var tracks = await BuildAllTracks(ts => { ts.First(t => t.TrackNumber == 1).Name = "Touched"; });
 
         var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
@@ -568,7 +564,8 @@ public class FFmpegTests
                 Name = t.Type == MediaTrackType.Audio ? $"Renamed {extension}" : null
             }).ToList();
 
-            var result = await FFmpeg.Remux(fixture, output, TestPlan.Of(tracks, faststart: false, durationMs: source.DurationMs));
+            var result = await FFmpeg.Remux(fixture, output,
+                TestPlan.Of(tracks, false, source.DurationMs));
             Assert.IsTrue(FFmpeg.IsSuccess(result), $"{extension}: Remux failed: {result.Error}");
 
             var probed = new MediaFile { Path = output };
@@ -666,7 +663,10 @@ public class FFmpegTests
         }
         finally
         {
-            if (File.Exists(fixture)) File.Delete(fixture);
+            if (File.Exists(fixture))
+            {
+                File.Delete(fixture);
+            }
         }
     }
 
@@ -684,7 +684,7 @@ public class FFmpegTests
         var output = _workingCopy + ".muxtmp";
         var tracks = await BuildAllTracks();
 
-        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks, faststart: true));
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks, true));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.Remux failed: {result.Error}");
 
         Assert.IsTrue(FFmpeg.IsFaststartLayout(output),
@@ -697,7 +697,7 @@ public class FFmpegTests
         var output = _workingCopy + ".muxtmp";
         var tracks = await BuildAllTracks();
 
-        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks, faststart: false));
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks, false));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.Remux failed: {result.Error}");
 
         Assert.IsFalse(FFmpeg.IsFaststartLayout(output),
@@ -711,10 +711,7 @@ public class FFmpegTests
         // ffprobe path the scanner uses. If this works the scanner won't
         // re-queue the file on the next pass.
         var output = _workingCopy + ".muxtmp";
-        var tracks = await BuildAllTracks(ts =>
-        {
-            ts.First(t => t.TrackNumber == 1).Name = "Round Trip Title";
-        });
+        var tracks = await BuildAllTracks(ts => { ts.First(t => t.TrackNumber == 1).Name = "Round Trip Title"; });
 
         var editResult = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(editResult), $"FFmpeg.RemuxFile failed: {editResult.Error}");

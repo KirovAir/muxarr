@@ -14,8 +14,10 @@ public class SlackProvider : NotificationProvider<SlackSettings>
 
     // Slack parses <url|label> and & as control tokens; escape them but leave the * bold marker alone.
     protected override Task SendCoreAsync(HttpClient client, SlackSettings s, NotificationPayload payload)
-        => PostJsonAsync(client, s.Url, new
+    {
+        return PostJsonAsync(client, s.Url, new
         {
             text = $"*{EscapeHtml(payload.Title)}*\n{EscapeHtml(payload.Body)}"
         });
+    }
 }

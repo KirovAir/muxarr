@@ -16,7 +16,7 @@ public static class FileSize
 
         return (size, suffixes[suffixIndex]);
     }
-    
+
     public static string DisplayFileSize(this long bytes)
     {
         var (size, suffix) = GetFileSize(bytes);

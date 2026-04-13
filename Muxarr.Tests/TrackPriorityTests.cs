@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Core.MkvToolNix;
@@ -79,7 +80,7 @@ public class TrackPriorityTests
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "English", "TrueHd", 8),
-            Audio(3, "English", "Ac3", 6),
+            Audio(3, "English", "Ac3", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -107,7 +108,7 @@ public class TrackPriorityTests
         var tracks = new List<MediaTrack>
         {
             Audio(1, "English", "TrueHd", 8),
-            Audio(2, "English", "Aac", 2),
+            Audio(2, "English", "Aac", 2)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -132,7 +133,7 @@ public class TrackPriorityTests
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "English", "TrueHd", 8),
-            Audio(3, "English", "Ac3", 6),
+            Audio(3, "English", "Ac3", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -156,7 +157,7 @@ public class TrackPriorityTests
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "English", "TrueHd", 8),
-            Audio(3, "English", "Ac3", 6),
+            Audio(3, "English", "Ac3", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -183,7 +184,7 @@ public class TrackPriorityTests
             Audio(2, "English", "Aac", 2),
             Audio(3, "Japanese", "Flac", 2),
             Audio(4, "Japanese", "Aac", 2),
-            Audio(5, "Japanese", "Ac3", 6),
+            Audio(5, "Japanese", "Ac3", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -208,7 +209,7 @@ public class TrackPriorityTests
         var tracks = new List<MediaTrack>
         {
             Audio(1, "English", "Aac", 2),
-            Audio(2, "Japanese", "Aac", 2),
+            Audio(2, "Japanese", "Aac", 2)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -231,7 +232,7 @@ public class TrackPriorityTests
         {
             Audio(1, "English", "TrueHd", 8),
             Audio(2, "English", "Aac", 2),
-            Audio(3, "English", "Ac3", 6),
+            Audio(3, "English", "Ac3", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -255,7 +256,7 @@ public class TrackPriorityTests
         var tracks = new List<MediaTrack>
         {
             Audio(1, "English", "Aac", 2),
-            Audio(2, "Japanese", "Aac", 2),
+            Audio(2, "Japanese", "Aac", 2)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -273,15 +274,15 @@ public class TrackPriorityTests
             ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
             AllowedLanguages =
             [
-                IsoLanguage.OriginalLanguage,     // position 0
-                IsoLanguage.Find("English"),       // position 1
+                IsoLanguage.OriginalLanguage, // position 0
+                IsoLanguage.Find("English") // position 1
             ]
         };
 
         var tracks = new List<MediaTrack>
         {
             Audio(1, "English", "Aac", 2),
-            Audio(2, "Japanese", "Aac", 2),
+            Audio(2, "Japanese", "Aac", 2)
         };
 
         // Japanese is the original language, should sort to position 0
@@ -302,7 +303,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    DefaultStrategy = DefaultTrackStrategy.SpecCompliant,
+                DefaultStrategy = DefaultTrackStrategy.SpecCompliant,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Spanish")]
             },
             SubtitleSettings = new TrackSettings { Enabled = false }
@@ -316,8 +317,8 @@ public class TrackPriorityTests
         var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
         var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
-        Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = normal, eligible
-        Assert.IsTrue(audioOutputs[1].IsDefault == true);   // Spanish = normal, eligible
+        Assert.IsTrue(audioOutputs[0].IsDefault == true); // English = normal, eligible
+        Assert.IsTrue(audioOutputs[1].IsDefault == true); // Spanish = normal, eligible
     }
 
     [TestMethod]
@@ -328,7 +329,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    DefaultStrategy = DefaultTrackStrategy.SpecCompliant,
+                DefaultStrategy = DefaultTrackStrategy.SpecCompliant,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
             SubtitleSettings = new TrackSettings { Enabled = false }
@@ -336,14 +337,14 @@ public class TrackPriorityTests
 
         var file = MakeFile("English",
             Audio(1, "English", "Aac", 6),
-            Audio(2, "English", "Aac", 2, commentary: true)
+            Audio(2, "English", "Aac", 2, true)
         );
 
         var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
         var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
-        Assert.IsTrue(audioOutputs[0].IsDefault == true);    // Normal track = eligible
-        Assert.IsTrue(audioOutputs[1].IsDefault == false);   // Commentary = not eligible
+        Assert.IsTrue(audioOutputs[0].IsDefault == true); // Normal track = eligible
+        Assert.IsTrue(audioOutputs[1].IsDefault == false); // Commentary = not eligible
     }
 
     [TestMethod]
@@ -354,7 +355,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
+                DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Spanish")]
             },
             SubtitleSettings = new TrackSettings { Enabled = false }
@@ -368,8 +369,8 @@ public class TrackPriorityTests
         var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
         var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
-        Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = first priority
-        Assert.IsTrue(audioOutputs[1].IsDefault == false);   // Spanish = second
+        Assert.IsTrue(audioOutputs[0].IsDefault == true); // English = first priority
+        Assert.IsTrue(audioOutputs[1].IsDefault == false); // Spanish = second
     }
 
     [TestMethod]
@@ -380,7 +381,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Spanish")]
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Spanish")]
             },
             SubtitleSettings = new TrackSettings { Enabled = false }
         };
@@ -393,8 +394,8 @@ public class TrackPriorityTests
         var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
         var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
-        Assert.IsTrue(audioOutputs[0].IsDefault == false);  // English preserved as non-default
-        Assert.IsTrue(audioOutputs[1].IsDefault == true);   // Spanish preserved as default
+        Assert.IsTrue(audioOutputs[0].IsDefault == false); // English preserved as non-default
+        Assert.IsTrue(audioOutputs[1].IsDefault == true); // Spanish preserved as default
     }
 
     [TestMethod]
@@ -405,7 +406,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Spanish")]
+                AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Spanish")]
             },
             SubtitleSettings = new TrackSettings { Enabled = false }
         };
@@ -419,7 +420,7 @@ public class TrackPriorityTests
         var outputs = file.BuildTargetFromCustom(allowed).Tracks;
 
         var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
-        Assert.AreEqual(false, audioOutputs[0].IsDefault);  // Custom: flags passed through verbatim
+        Assert.AreEqual(false, audioOutputs[0].IsDefault); // Custom: flags passed through verbatim
         Assert.AreEqual(true, audioOutputs[1].IsDefault);
     }
 
@@ -433,7 +434,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
+                ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
                 DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
                 AllowedLanguages = [IsoLanguage.Find("Japanese"), IsoLanguage.Find("English")]
             },
@@ -464,12 +465,12 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
+                ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
                 DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
                 AllowedLanguages =
                 [
                     new LanguagePreference(IsoLanguage.Find("English")) { MaxTracks = 1 },
-                    IsoLanguage.Find("Spanish"),
+                    IsoLanguage.Find("Spanish")
                 ]
             },
             SubtitleSettings = new TrackSettings { Enabled = false }
@@ -493,8 +494,8 @@ public class TrackPriorityTests
         var outputs = file.BuildTargetFromProfile(profile).Tracks;
         var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
 
-        Assert.AreEqual(true, audioOutputs[0].IsDefault);   // English = default
-        Assert.AreEqual(false, audioOutputs[1].IsDefault);  // Spanish = not default
+        Assert.AreEqual(true, audioOutputs[0].IsDefault); // English = default
+        Assert.AreEqual(false, audioOutputs[1].IsDefault); // Spanish = not default
     }
 
     // --- Independent features: reorder without removal, defaults without matching tracks ---
@@ -512,7 +513,7 @@ public class TrackPriorityTests
         {
             Audio(1, "Japanese", "Aac", 2),
             Audio(2, "English", "Aac", 2),
-            Audio(3, "Dutch", "Aac", 2),
+            Audio(3, "Dutch", "Aac", 2)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -531,7 +532,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
+                DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
                 AllowedLanguages = [IsoLanguage.Find("English")]
             },
             SubtitleSettings = new TrackSettings { Enabled = false }
@@ -565,7 +566,7 @@ public class TrackPriorityTests
 
         var file = MakeFile("English",
             Audio(1, "English", "TrueHd", 8, isDefault: true),
-            Audio(2, "English", "Aac", 2, commentary: true, isDefault: true)
+            Audio(2, "English", "Aac", 2, true, isDefault: true)
         );
 
         var previews = file.BuildTargetSnapshot(profile).Tracks;
@@ -587,9 +588,9 @@ public class TrackPriorityTests
 
         var tracks = new List<MediaTrack>
         {
-            Audio(1, "English", "Aac", 2),       // score: 22
-            Audio(2, "English", "TrueHd", 8),     // score: 1082
-            Audio(3, "Dutch", "Aac", 6),           // score: 62
+            Audio(1, "English", "Aac", 2), // score: 22
+            Audio(2, "English", "TrueHd", 8), // score: 1082
+            Audio(3, "Dutch", "Aac", 6) // score: 62
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -620,7 +621,7 @@ public class TrackPriorityTests
         {
             Audio(1, "Japanese", "TrueHd", 8),
             Audio(2, "Japanese", "Aac", 2),
-            Audio(3, "English", "Aac", 6),
+            Audio(3, "English", "Aac", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
@@ -640,7 +641,7 @@ public class TrackPriorityTests
             AudioSettings = new TrackSettings
             {
                 Enabled = true,
-                    DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
+                DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
                 AllowedLanguages =
                 [
                     IsoLanguage.OriginalLanguage,
@@ -712,7 +713,7 @@ public class TrackPriorityTests
 
         var file = MakeFile("English",
             Sub(1, "English", trackName: "English"),
-            Sub(2, "English", trackName: "English SDH")  // IsHearingImpaired=false but name says SDH
+            Sub(2, "English", trackName: "English SDH") // IsHearingImpaired=false but name says SDH
         );
 
         var previews = file.BuildTargetSnapshot(profile).Tracks;
@@ -722,5 +723,4 @@ public class TrackPriorityTests
         Assert.IsTrue(subPreviews[1].IsHearingImpaired, "SDH flag should be corrected from track name");
         Assert.IsFalse(subPreviews[1].IsDefault, "SDH sub should be marked non-default by SpecCompliant");
     }
-
 }

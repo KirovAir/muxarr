@@ -41,6 +41,7 @@ public class WebhookService(
         var ready = new List<WebhookQueueItem>();
 
         while (_queue.TryDequeue(out var item))
+        {
             if (DateTime.UtcNow >= item.ProcessAfter)
             {
                 ready.Add(item);
@@ -49,8 +50,12 @@ public class WebhookService(
             {
                 pending.Add(item);
             }
+        }
 
-        foreach (var item in pending) _queue.Enqueue(item);
+        foreach (var item in pending)
+        {
+            _queue.Enqueue(item);
+        }
 
         if (ready.Count == 0)
         {
@@ -61,7 +66,10 @@ public class WebhookService(
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var config = context.Configs.GetOrDefault<WebhookConfig>();
 
-        foreach (var item in ready) await ProcessFile(item, config, token);
+        foreach (var item in ready)
+        {
+            await ProcessFile(item, config, token);
+        }
     }
 
     private async Task ProcessFile(WebhookQueueItem item, WebhookConfig config, CancellationToken token)

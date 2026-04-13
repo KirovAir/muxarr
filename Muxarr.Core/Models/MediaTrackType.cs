@@ -1,4 +1,4 @@
-namespace Muxarr.Data.Entities;
+namespace Muxarr.Core.Models;
 
 public enum MediaTrackType
 {

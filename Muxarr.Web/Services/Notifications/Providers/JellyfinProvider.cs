@@ -17,7 +17,8 @@ public class JellyfinSettings
     public string LibraryItemId { get; set; } = "";
 
     [Field("Full metadata refresh", Type = FieldType.Checkbox,
-        HelpText = "Re-fetches all metadata and images instead of only what's missing. Slower; only applies when a Library Item ID is set.")]
+        HelpText =
+            "Re-fetches all metadata and images instead of only what's missing. Slower; only applies when a Library Item ID is set.")]
     public bool FullMetadataRefresh { get; set; }
 }
 
