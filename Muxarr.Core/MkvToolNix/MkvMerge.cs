@@ -41,7 +41,7 @@ public static class MkvMerge
         return json;
     }
 
-    public static async Task<ProcessResult> Remux(string input, string output, TargetSnapshot delta,
+    public static async Task<ProcessResult> Remux(string input, string output, ConversionPlan delta,
         Action<string, int>? onProgress = null, TimeSpan? timeout = null)
     {
         var tracks = delta.Tracks;

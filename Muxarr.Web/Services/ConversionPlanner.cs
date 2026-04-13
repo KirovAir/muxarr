@@ -17,9 +17,9 @@ public static class ConversionPlanner
         Remux
     }
 
-    public sealed record PlanResult(ConversionStrategy Strategy, TargetSnapshot Delta);
+    public sealed record PlanResult(ConversionStrategy Strategy, ConversionPlan Delta);
 
-    public static PlanResult Plan(MediaFile file, MediaSnapshot source, TargetSnapshot desired)
+    public static PlanResult Plan(MediaFile file, MediaSnapshot source, ConversionPlan desired)
     {
         var family = file.ContainerType.ToContainerFamily();
         var delta = TargetDiff.Delta(source, desired);
@@ -45,7 +45,7 @@ public static class ConversionPlanner
         return new PlanResult(strategy, delta);
     }
 
-    private static bool HasStructuralChanges(MediaSnapshot source, TargetSnapshot desired)
+    private static bool HasStructuralChanges(MediaSnapshot source, ConversionPlan desired)
     {
         if (source.Tracks.Count != desired.Tracks.Count)
         {

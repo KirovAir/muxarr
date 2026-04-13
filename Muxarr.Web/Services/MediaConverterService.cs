@@ -169,7 +169,7 @@ public class MediaConverterService(
         {
             MediaFileId = media.Id,
             SizeBefore = media.Size,
-            TargetSnapshot = media.BuildTargetFromProfile(profile),
+            ConversionPlan = media.BuildTargetFromProfile(profile),
             SnapshotBefore = media.ToMediaSnapshot(),
             State = ConversionState.New,
             Name = media.GetName()
@@ -181,7 +181,7 @@ public class MediaConverterService(
         return true;
     }
 
-    public async Task<bool> AddMediaToQueue(MediaFile media, TargetSnapshot customTarget)
+    public async Task<bool> AddMediaToQueue(MediaFile media, ConversionPlan customTarget)
     {
         if (!File.Exists(media.Path))
         {
@@ -203,7 +203,7 @@ public class MediaConverterService(
         {
             MediaFileId = media.Id,
             SizeBefore = media.Size,
-            TargetSnapshot = customTarget,
+            ConversionPlan = customTarget,
             SnapshotBefore = media.ToMediaSnapshot(),
             State = ConversionState.New,
             Name = media.GetName(),
@@ -252,7 +252,7 @@ public class MediaConverterService(
 
         if (!conversion.IsCustomConversion)
         {
-            conversion.TargetSnapshot = conversion.MediaFile.BuildTargetFromProfile(conversion.MediaFile.Profile);
+            conversion.ConversionPlan = conversion.MediaFile.BuildTargetFromProfile(conversion.MediaFile.Profile);
         }
         else
         {
@@ -261,7 +261,7 @@ public class MediaConverterService(
             // und-resolution, name standardization). Only rejects targets
             // whose tracks no longer exist on the rescanned source.
             var availableTrackNumbers = conversion.MediaFile.Tracks.Select(t => t.TrackNumber).ToHashSet();
-            var missingTracks = conversion.TargetSnapshot.Tracks
+            var missingTracks = conversion.ConversionPlan.Tracks
                 .Where(t => !availableTrackNumbers.Contains(t.TrackNumber))
                 .Select(t => t.TrackNumber)
                 .ToList();
@@ -283,7 +283,7 @@ public class MediaConverterService(
         conversion.SnapshotBefore = conversion.MediaFile.ToMediaSnapshot();
         conversion.SizeBefore = conversion.MediaFile.Size;
 
-        if (conversion.TargetSnapshot.Tracks.Count == 0)
+        if (conversion.ConversionPlan.Tracks.Count == 0)
         {
             conversion.Log($"No allowed tracks could be found for {conversion.MediaFileId}", logger);
             conversion.State = ConversionState.Failed;
@@ -295,7 +295,7 @@ public class MediaConverterService(
         // Plan once, reuse its cached outputs - running the planner twice
         // against shifting snapshots risks strategy/output disagreement.
         var result = ConversionPlanner.Plan(
-            conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot);
+            conversion.MediaFile, conversion.SnapshotBefore, conversion.ConversionPlan);
         var delta = result.Delta;
 
         if (result.Strategy == ConversionPlanner.ConversionStrategy.Skip)
@@ -394,7 +394,7 @@ public class MediaConverterService(
 
     // Matroska in-place metadata edit. Rescans after to verify the changes
     // stuck; falls through to a full remux otherwise.
-    private async Task RunMkvPropEditInPlaceAsync(MediaConversion conversion, TargetSnapshot delta,
+    private async Task RunMkvPropEditInPlaceAsync(MediaConversion conversion, ConversionPlan delta,
         AppDbContext context, CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
@@ -415,7 +415,7 @@ public class MediaConverterService(
 
         await scanner.ScanMediaFile(mediaFile, true, context, mediaFile.Profile);
 
-        var verify = ConversionPlanner.Plan(mediaFile, mediaFile.ToMediaSnapshot(), conversion.TargetSnapshot);
+        var verify = ConversionPlanner.Plan(mediaFile, mediaFile.ToMediaSnapshot(), conversion.ConversionPlan);
         if (verify.Strategy != ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.Log("mkvpropedit reported success but some changes did not apply. Falling through to remux.",
@@ -430,7 +430,7 @@ public class MediaConverterService(
         conversion.State = ConversionState.Completed;
     }
 
-    private async Task RunMkvMergeRemuxAsync(MediaConversion conversion, TargetSnapshot delta, string tmp,
+    private async Task RunMkvMergeRemuxAsync(MediaConversion conversion, ConversionPlan delta, string tmp,
         AppDbContext context, TimeSpan? timeout, CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
@@ -472,7 +472,7 @@ public class MediaConverterService(
         await context.SaveChangesAsync(token);
     }
 
-    private async Task RunFFmpegRemuxAsync(MediaConversion conversion, TargetSnapshot delta,
+    private async Task RunFFmpegRemuxAsync(MediaConversion conversion, ConversionPlan delta,
         string tmp, AppDbContext context, TimeSpan? timeout, CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
@@ -559,7 +559,7 @@ public class MediaConverterService(
                 $"Could not probe output file with ffprobe. Error: {probe.Error?.Trim()}");
         }
 
-        OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.TargetSnapshot);
+        OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.ConversionPlan);
 
         conversion.Log("Validation of new file is ok!", logger);
         ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));

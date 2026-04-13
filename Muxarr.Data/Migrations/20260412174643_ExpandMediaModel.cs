@@ -44,7 +44,7 @@ namespace Muxarr.Data.Migrations
             migrationBuilder.RenameColumn(
                 name: "AllowedTracks",
                 table: "MediaConversion",
-                newName: "TargetSnapshot");
+                newName: "ConversionPlan");
 
             // Wrap existing JSON arrays (List<TrackSnapshot>) in the MediaSnapshot envelope.
             // Old: [{...}, {...}]  New: {"Tracks":[{...}],"HasChapters":false,...}
@@ -60,9 +60,9 @@ namespace Muxarr.Data.Migrations
                         THEN '{"Tracks":' || SnapshotAfter || ',"HasChapters":false,"HasAttachments":false}'
                         ELSE '{"Tracks":[],"HasChapters":false,"HasAttachments":false}'
                     END,
-                    TargetSnapshot = CASE
-                        WHEN TargetSnapshot IS NOT NULL AND TargetSnapshot != ''
-                        THEN '{"Tracks":' || TargetSnapshot || ',"HasChapters":false,"HasAttachments":false}'
+                    ConversionPlan = CASE
+                        WHEN ConversionPlan IS NOT NULL AND ConversionPlan != ''
+                        THEN '{"Tracks":' || ConversionPlan || ',"HasChapters":false,"HasAttachments":false}'
                         ELSE '{"Tracks":[],"HasChapters":false,"HasAttachments":false}'
                     END
                 """;
@@ -78,7 +78,7 @@ namespace Muxarr.Data.Migrations
                 UPDATE MediaConversion
                 SET SnapshotBefore = json_extract(SnapshotBefore, '$.Tracks'),
                     SnapshotAfter = json_extract(SnapshotAfter, '$.Tracks'),
-                    TargetSnapshot = json_extract(TargetSnapshot, '$.Tracks')
+                    ConversionPlan = json_extract(ConversionPlan, '$.Tracks')
                 """;
 
             migrationBuilder.Sql(unwrapSql);
@@ -94,7 +94,7 @@ namespace Muxarr.Data.Migrations
                 newName: "TracksAfter");
 
             migrationBuilder.RenameColumn(
-                name: "TargetSnapshot",
+                name: "ConversionPlan",
                 table: "MediaConversion",
                 newName: "AllowedTracks");
 

@@ -32,7 +32,7 @@ public static class ModalExtensions
         await result.Result;
     }
 
-    public static async Task<TargetSnapshot?> ShowCustomConversion(
+    public static async Task<ConversionPlan?> ShowCustomConversion(
         this IModalService modal,
         MediaFile file,
         List<Profile> profiles,
@@ -52,6 +52,6 @@ public static class ModalExtensions
             return null;
         }
 
-        return (TargetSnapshot?)modalResult.Data;
+        return (ConversionPlan?)modalResult.Data;
     }
 }

@@ -18,7 +18,7 @@ public class MediaConversion : AuditableEntity
     public long SizeDifference { get; set; }
     public MediaSnapshot SnapshotBefore { get; set; } = new();
     public MediaSnapshot SnapshotAfter { get; set; } = new();
-    public TargetSnapshot TargetSnapshot { get; set; } = new();
+    public ConversionPlan ConversionPlan { get; set; } = new();
     public bool IsCustomConversion { get; set; }
     public DateTime? StartedDate { get; set; }
     public ConversionState State { get; set; } = ConversionState.New;
@@ -79,7 +79,7 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
         builder.Property(e => e.SnapshotAfter)
             .HasJsonConversion();
 
-        builder.Property(e => e.TargetSnapshot)
+        builder.Property(e => e.ConversionPlan)
             .HasJsonConversion();
 
         builder.Property(e => e.IsCustomConversion)

@@ -194,7 +194,7 @@
     [Parameter] public int Id { get; set; }
 
     protected MediaFile? File { get; set; }
-    protected TargetSnapshot? Preview { get; set; }
+    protected ConversionPlan? Preview { get; set; }
     private List<Profile> _profiles = new();
     private bool _showPreview = true;
     private int _selectedProfileId;

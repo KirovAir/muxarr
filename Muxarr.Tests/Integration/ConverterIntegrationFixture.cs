@@ -131,7 +131,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
         });
     }
 
-    public async Task<MediaConversion> SeedConversion(MediaFile file, TargetSnapshot target,
+    public async Task<MediaConversion> SeedConversion(MediaFile file, ConversionPlan target,
         bool custom = false)
     {
         return await WithDbContext(async ctx =>
@@ -141,7 +141,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
                 MediaFileId = file.Id,
                 SizeBefore = file.Size,
                 SnapshotBefore = file.ToMediaSnapshot(),
-                TargetSnapshot = target,
+                ConversionPlan = target,
                 State = ConversionState.New,
                 Name = file.GetName(),
                 IsCustomConversion = custom

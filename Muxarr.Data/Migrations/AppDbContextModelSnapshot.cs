@@ -183,7 +183,7 @@ namespace Muxarr.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TargetSnapshot")
+                    b.Property<string>("ConversionPlan")
                         .IsRequired()
                         .IsUnicode(true)
                         .HasColumnType("TEXT");

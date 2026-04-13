@@ -260,18 +260,18 @@ public class ConversionPlannerTests
         return file;
     }
 
-    // Build a desired TargetSnapshot from an observed MediaSnapshot. Every
+    // Build a desired ConversionPlan from an observed MediaSnapshot. Every
     // field is treated as an "opinion" (same as the profile builder would
     // produce) so the planner's delta reflects only what tests change.
-    private static TargetSnapshot TargetFromSnapshot(MediaSnapshot source)
+    private static ConversionPlan TargetFromSnapshot(MediaSnapshot source)
     {
-        return new TargetSnapshot
+        return new ConversionPlan
         {
             Tracks = source.Tracks.Select(t => t.ToTargetTrack(false)).ToList()
         };
     }
 
-    private static (MediaFile, MediaSnapshot, TargetSnapshot) MakeWithModifiedAudio(
+    private static (MediaFile, MediaSnapshot, ConversionPlan) MakeWithModifiedAudio(
         string containerType, string field, string beforeValue, string afterValue)
     {
         var audio = field == "name"

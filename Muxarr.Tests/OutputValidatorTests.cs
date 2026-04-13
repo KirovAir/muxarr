@@ -20,9 +20,9 @@ public class OutputValidatorTests
         };
     }
 
-    private static TargetSnapshot Expected(params MediaTrackType[] types)
+    private static ConversionPlan Expected(params MediaTrackType[] types)
     {
-        return new TargetSnapshot
+        return new ConversionPlan
         {
             Tracks = types.Select(t => new TargetTrack { Type = t }).ToList()
         };

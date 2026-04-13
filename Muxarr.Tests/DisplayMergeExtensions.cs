@@ -7,8 +7,8 @@ using Muxarr.Data.Extensions;
 namespace Muxarr.Tests;
 
 /// <summary>
-/// Test-only bridge between TargetSnapshot (nullable delta) and MediaSnapshot
-/// (fully-populated display shape). Production code reads TargetSnapshot +
+/// Test-only bridge between ConversionPlan (nullable delta) and MediaSnapshot
+/// (fully-populated display shape). Production code reads ConversionPlan +
 /// MediaFile directly; these helpers exist so existing test assertions keep
 /// working without rewriting 30+ call sites.
 /// </summary>
@@ -20,7 +20,7 @@ internal static class DisplayMergeExtensions
         return target.MergeForDisplay(file);
     }
 
-    public static MediaSnapshot MergeForDisplay(this TargetSnapshot target, MediaFile file)
+    public static MediaSnapshot MergeForDisplay(this ConversionPlan target, MediaFile file)
     {
         var src = file.Tracks.ToDictionary(t => t.TrackNumber);
         return new MediaSnapshot

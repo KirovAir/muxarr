@@ -8,7 +8,7 @@ namespace Muxarr.Tests.Integration;
 /// <summary>
 /// End-to-end conversion tests: real scan, real mkvpropedit / mkvmerge /
 /// ffmpeg, assert on file + DB state. Uses custom conversions so the
-/// converter keeps the TargetSnapshot instead of rebuilding from profile.
+/// converter keeps the ConversionPlan instead of rebuilding from profile.
 /// </summary>
 [TestClass]
 public class MediaConverterEndToEndTests : IntegrationTestBase

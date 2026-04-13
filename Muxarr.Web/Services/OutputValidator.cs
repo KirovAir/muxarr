@@ -8,7 +8,7 @@ namespace Muxarr.Web.Services;
 // Catches container flips, track count or ordering drift, and truncation.
 public static class OutputValidator
 {
-    public static void ValidateOrThrow(MediaFile actual, MediaFile source, TargetSnapshot target)
+    public static void ValidateOrThrow(MediaFile actual, MediaFile source, ConversionPlan target)
     {
         var actualFamily = actual.ContainerType.ToContainerFamily();
         var sourceFamily = source.ContainerType.ToContainerFamily();
