@@ -1,7 +1,7 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.FFmpeg;
-using Muxarr.Core.MkvToolNix;
 using Muxarr.Core.Models;
+using Muxarr.Data.Entities;
 
 namespace Muxarr.Tests;
 
@@ -11,7 +11,7 @@ public class FFmpegHelperTests
     [TestMethod]
     public void BuildDispositionValue_AllFlagsNull_ReturnsNull()
     {
-        var track = new TrackOutput { TrackNumber = 0, Type = MkvMerge.AudioTrack };
+        var track = new TargetTrack { TrackNumber = 0, Type = MediaTrackType.Audio };
 
         Assert.IsNull(FFmpegHelper.BuildDispositionValue(track));
     }
@@ -19,10 +19,10 @@ public class FFmpegHelperTests
     [TestMethod]
     public void BuildDispositionValue_SingleFlagTrue_EmitsPositive()
     {
-        var track = new TrackOutput
+        var track = new TargetTrack
         {
             TrackNumber = 1,
-            Type = MkvMerge.AudioTrack,
+            Type = MediaTrackType.Audio,
             IsDefault = true
         };
 
@@ -32,10 +32,10 @@ public class FFmpegHelperTests
     [TestMethod]
     public void BuildDispositionValue_SingleFlagFalse_EmitsNegative()
     {
-        var track = new TrackOutput
+        var track = new TargetTrack
         {
             TrackNumber = 1,
-            Type = MkvMerge.AudioTrack,
+            Type = MediaTrackType.Audio,
             IsDefault = false
         };
 
@@ -45,10 +45,10 @@ public class FFmpegHelperTests
     [TestMethod]
     public void BuildDispositionValue_MultipleFlags_ConcatenatesInCanonicalOrder()
     {
-        var track = new TrackOutput
+        var track = new TargetTrack
         {
             TrackNumber = 2,
-            Type = MkvMerge.SubtitlesTrack,
+            Type = MediaTrackType.Subtitles,
             IsDefault = true,
             IsForced = true,
             IsHearingImpaired = false,
@@ -59,20 +59,20 @@ public class FFmpegHelperTests
     }
 
     [TestMethod]
-    [DataRow(nameof(TrackOutput.IsDefault), true, "+default")]
-    [DataRow(nameof(TrackOutput.IsDefault), false, "-default")]
-    [DataRow(nameof(TrackOutput.IsForced), true, "+forced")]
-    [DataRow(nameof(TrackOutput.IsHearingImpaired), true, "+hearing_impaired")]
-    [DataRow(nameof(TrackOutput.IsVisualImpaired), true, "+visual_impaired")]
-    [DataRow(nameof(TrackOutput.IsVisualImpaired), false, "-visual_impaired")]
-    [DataRow(nameof(TrackOutput.IsCommentary), true, "+comment")]
-    [DataRow(nameof(TrackOutput.IsOriginal), true, "+original")]
-    [DataRow(nameof(TrackOutput.IsOriginal), false, "-original")]
-    [DataRow(nameof(TrackOutput.IsDub), true, "+dub")]
+    [DataRow(nameof(TargetTrack.IsDefault), true, "+default")]
+    [DataRow(nameof(TargetTrack.IsDefault), false, "-default")]
+    [DataRow(nameof(TargetTrack.IsForced), true, "+forced")]
+    [DataRow(nameof(TargetTrack.IsHearingImpaired), true, "+hearing_impaired")]
+    [DataRow(nameof(TargetTrack.IsVisualImpaired), true, "+visual_impaired")]
+    [DataRow(nameof(TargetTrack.IsVisualImpaired), false, "-visual_impaired")]
+    [DataRow(nameof(TargetTrack.IsCommentary), true, "+comment")]
+    [DataRow(nameof(TargetTrack.IsOriginal), true, "+original")]
+    [DataRow(nameof(TargetTrack.IsOriginal), false, "-original")]
+    [DataRow(nameof(TargetTrack.IsDub), true, "+dub")]
     public void BuildDispositionValue_AllSupportedFlags(string fieldName, bool value, string expected)
     {
-        var track = new TrackOutput { TrackNumber = 1, Type = MkvMerge.AudioTrack };
-        typeof(TrackOutput).GetProperty(fieldName)!.SetValue(track, (bool?)value);
+        var track = new TargetTrack { TrackNumber = 1, Type = MediaTrackType.Audio };
+        typeof(TargetTrack).GetProperty(fieldName)!.SetValue(track, (bool?)value);
 
         Assert.AreEqual(expected, FFmpegHelper.BuildDispositionValue(track));
     }
@@ -80,12 +80,10 @@ public class FFmpegHelperTests
     [TestMethod]
     public void BuildDispositionValue_CommentaryMapsToFfmpegCommentFlag()
     {
-        // ffmpeg uses "comment", mkvmerge uses "commentary"; the rename has
-        // to happen in the wrapper.
-        var track = new TrackOutput
+        var track = new TargetTrack
         {
             TrackNumber = 3,
-            Type = MkvMerge.AudioTrack,
+            Type = MediaTrackType.Audio,
             IsCommentary = true
         };
 
@@ -110,8 +108,6 @@ public class FFmpegHelperTests
         Assert.AreEqual("\"a\\\\b\"", FFmpegHelper.EscapeValue("a\\b"));
     }
 
-    // --- ContainerFamily classifier ---
-
     [TestMethod]
     public void ToContainerFamily_Matroska()
     {
@@ -122,7 +118,6 @@ public class FFmpegHelperTests
     [TestMethod]
     public void ToContainerFamily_Mp4_BothMkvmergeVariants()
     {
-        // mkvmerge v82 and earlier emit "QuickTime/MP4"; v97+ flips it.
         Assert.AreEqual(ContainerFamily.Mp4, "QuickTime/MP4".ToContainerFamily());
         Assert.AreEqual(ContainerFamily.Mp4, "MP4/QuickTime".ToContainerFamily());
     }

@@ -1,5 +1,6 @@
 using Muxarr.Core.MkvToolNix;
 using Muxarr.Core.Models;
+using Muxarr.Data.Entities;
 
 namespace Muxarr.Tests;
 
@@ -130,14 +131,14 @@ public class MkvToolNixTests : FixtureTestBase
         var output = _workingCopy + ".remux.mkv";
         try
         {
-            var tracks = new List<TrackOutput>
+            var tracks = new List<TargetTrack>
             {
-                new() { TrackNumber = 0, Type = MkvMerge.VideoTrack },
-                new() { TrackNumber = 1, Type = MkvMerge.AudioTrack },
-                new() { TrackNumber = 2, Type = MkvMerge.AudioTrack }
+                new() { TrackNumber = 0, Type = MediaTrackType.Video },
+                new() { TrackNumber = 1, Type = MediaTrackType.Audio },
+                new() { TrackNumber = 2, Type = MediaTrackType.Audio }
             };
 
-            var result = await MkvMerge.RemuxFile(_workingCopy, output, tracks);
+            var result = await MkvMerge.Remux(_workingCopy, output, TestPlan.Of(tracks));
 
             Assert.IsTrue(MkvMerge.IsSuccess(result), $"RemuxFile failed: {result.Error}");
             Assert.IsTrue(File.Exists(output));
@@ -161,15 +162,15 @@ public class MkvToolNixTests : FixtureTestBase
         var output = _workingCopy + ".remux.mkv";
         try
         {
-            var tracks = new List<TrackOutput>
+            var tracks = new List<TargetTrack>
             {
-                new() { TrackNumber = 0, Type = MkvMerge.VideoTrack },
-                new() { TrackNumber = 1, Type = MkvMerge.AudioTrack },
-                new() { TrackNumber = 3, Type = MkvMerge.SubtitlesTrack },
-                new() { TrackNumber = 4, Type = MkvMerge.SubtitlesTrack }
+                new() { TrackNumber = 0, Type = MediaTrackType.Video },
+                new() { TrackNumber = 1, Type = MediaTrackType.Audio },
+                new() { TrackNumber = 3, Type = MediaTrackType.Subtitles },
+                new() { TrackNumber = 4, Type = MediaTrackType.Subtitles }
             };
 
-            var result = await MkvMerge.RemuxFile(_workingCopy, output, tracks);
+            var result = await MkvMerge.Remux(_workingCopy, output, TestPlan.Of(tracks));
 
             Assert.IsTrue(MkvMerge.IsSuccess(result), $"RemuxFile failed: {result.Error}");
 
@@ -192,14 +193,14 @@ public class MkvToolNixTests : FixtureTestBase
         var output = _workingCopy + ".remux.mkv";
         try
         {
-            var tracks = new List<TrackOutput>
+            var tracks = new List<TargetTrack>
             {
-                new() { TrackNumber = 0, Type = MkvMerge.VideoTrack },
-                new() { TrackNumber = 1, Type = MkvMerge.AudioTrack, Name = "English 2.0", LanguageCode = "eng" },
-                new() { TrackNumber = 3, Type = MkvMerge.SubtitlesTrack, Name = "English", LanguageCode = "eng" }
+                new() { TrackNumber = 0, Type = MediaTrackType.Video },
+                new() { TrackNumber = 1, Type = MediaTrackType.Audio, Name = "English 2.0", LanguageCode = "eng" },
+                new() { TrackNumber = 3, Type = MediaTrackType.Subtitles, Name = "English", LanguageCode = "eng" }
             };
 
-            var result = await MkvMerge.RemuxFile(_workingCopy, output, tracks);
+            var result = await MkvMerge.Remux(_workingCopy, output, TestPlan.Of(tracks));
 
             Assert.IsTrue(MkvMerge.IsSuccess(result), $"RemuxFile failed: {result.Error}");
 
@@ -222,14 +223,14 @@ public class MkvToolNixTests : FixtureTestBase
     [TestMethod]
     public async Task PropEdit_RenamesTracksInPlace()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack, Name = "" },
-            new() { TrackNumber = 1, Type = MkvMerge.AudioTrack, Name = "English 2.0", LanguageCode = "eng" },
-            new() { TrackNumber = 3, Type = MkvMerge.SubtitlesTrack, Name = "English", LanguageCode = "eng" }
+            new() { TrackNumber = 0, Type = MediaTrackType.Video, Name = "" },
+            new() { TrackNumber = 1, Type = MediaTrackType.Audio, Name = "English 2.0", LanguageCode = "eng" },
+            new() { TrackNumber = 3, Type = MediaTrackType.Subtitles, Name = "English", LanguageCode = "eng" }
         };
 
-        var result = await MkvPropEdit.EditTrackProperties(_workingCopy, tracks);
+        var result = await MkvPropEdit.Apply(_workingCopy, _workingCopy, TestPlan.Of(tracks));
         Assert.IsTrue(result.Success, $"MkvPropEdit failed: {result.Error}");
 
         var info = await MkvMerge.GetFileInfo(_workingCopy);
@@ -247,12 +248,12 @@ public class MkvToolNixTests : FixtureTestBase
     [TestMethod]
     public async Task PropEdit_ChangesLanguage()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 2, Type = MkvMerge.AudioTrack, LanguageCode = "eng" }
+            new() { TrackNumber = 2, Type = MediaTrackType.Audio, LanguageCode = "eng" }
         };
 
-        var result = await MkvPropEdit.EditTrackProperties(_workingCopy, tracks);
+        var result = await MkvPropEdit.Apply(_workingCopy, _workingCopy, TestPlan.Of(tracks));
         Assert.IsTrue(result.Success, $"MkvPropEdit failed: {result.Error}");
 
         var info = await MkvMerge.GetFileInfo(_workingCopy);
@@ -264,12 +265,12 @@ public class MkvToolNixTests : FixtureTestBase
     [TestMethod]
     public async Task PropEdit_ClearsTrackName()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack, Name = "" }
+            new() { TrackNumber = 0, Type = MediaTrackType.Video, Name = "" }
         };
 
-        var result = await MkvPropEdit.EditTrackProperties(_workingCopy, tracks);
+        var result = await MkvPropEdit.Apply(_workingCopy, _workingCopy, TestPlan.Of(tracks));
         Assert.IsTrue(result.Success, $"MkvPropEdit failed: {result.Error}");
 
         var info = await MkvMerge.GetFileInfo(_workingCopy);

@@ -313,10 +313,9 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: false)
         );
 
-        var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = normal, eligible
         Assert.IsTrue(audioOutputs[1].IsDefault == true);   // Spanish = normal, eligible
     }
@@ -340,10 +339,9 @@ public class TrackPriorityTests
             Audio(2, "English", "Aac", 2, commentary: true)
         );
 
-        var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);    // Normal track = eligible
         Assert.IsTrue(audioOutputs[1].IsDefault == false);   // Commentary = not eligible
     }
@@ -367,10 +365,9 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: true)
         );
 
-        var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = first priority
         Assert.IsTrue(audioOutputs[1].IsDefault == false);   // Spanish = second
     }
@@ -393,10 +390,9 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: true)
         );
 
-        var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.IsTrue(audioOutputs[0].IsDefault == false);  // English preserved as non-default
         Assert.IsTrue(audioOutputs[1].IsDefault == true);   // Spanish preserved as default
     }
@@ -420,12 +416,11 @@ public class TrackPriorityTests
         );
 
         var allowed = file.BuildTargetSnapshot(profile).Tracks;
-        var target = file.ToMediaSnapshot(allowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = file.BuildTargetFromCustom(allowed).Tracks;
 
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
-        Assert.IsTrue(audioOutputs[0].IsDefault == false);  // Custom: flags not touched
-        Assert.IsTrue(audioOutputs[1].IsDefault == true);
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
+        Assert.AreEqual(false, audioOutputs[0].IsDefault);  // Custom: flags passed through verbatim
+        Assert.AreEqual(true, audioOutputs[1].IsDefault);
     }
 
     // --- Preview matches BuildTrackOutputs ---
@@ -495,11 +490,11 @@ public class TrackPriorityTests
         Assert.AreEqual("TrueHd", allowed[0].Codec);
         Assert.AreEqual("Spanish", allowed[1].LanguageName);
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
 
-        Assert.IsTrue(audioOutputs[0].IsDefault == true);   // English = default
-        Assert.IsTrue(audioOutputs[1].IsDefault == false);   // Spanish = not default
+        Assert.AreEqual(true, audioOutputs[0].IsDefault);   // English = default
+        Assert.AreEqual(false, audioOutputs[1].IsDefault);  // Spanish = not default
     }
 
     // --- Independent features: reorder without removal, defaults without matching tracks ---
@@ -547,10 +542,9 @@ public class TrackPriorityTests
             Audio(1, "French", "Aac", 6, isDefault: true)
         );
 
-        var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
-        var audioOutput = outputs.First(o => o.Type == MkvMerge.AudioTrack);
+        var audioOutput = outputs.First(o => o.Type == MediaTrackType.Audio);
         Assert.IsTrue(audioOutput.IsDefault == true,
             "Original default flag should be preserved when no tracks match the priority list");
     }
@@ -662,10 +656,9 @@ public class TrackPriorityTests
             Audio(2, "Japanese", "Aac", 6, isDefault: false)
         );
 
-        var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(file.ToMediaSnapshot(), target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
 
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.IsTrue(audioOutputs.First(o => o.TrackNumber == 2).IsDefault == true,
             "Japanese (original language at priority 0) should become default");
         Assert.IsTrue(audioOutputs.First(o => o.TrackNumber == 1).IsDefault == false,

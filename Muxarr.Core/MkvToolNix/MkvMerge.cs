@@ -1,20 +1,19 @@
 using System.Diagnostics;
 using Muxarr.Core.Models;
 using Muxarr.Core.Utilities;
+using Muxarr.Data.Entities;
 
 namespace Muxarr.Core.MkvToolNix;
 
 public static class MkvMerge
 {
     private const string MkvMergeExecutable = "mkvmerge";
-    
+
     public const string VideoTrack = "video";
     public const string AudioTrack = "audio";
     public const string SubtitlesTrack = "subtitles";
 
-    /// <summary>
-    /// mkvmerge exit codes: 0=success, 1=warnings (still valid), 2=error.
-    /// </summary>
+    // mkvmerge exit codes: 0=success, 1=warnings (still valid), 2=error.
     public static bool IsSuccess(ProcessResult result) => result.ExitCode is 0 or 1;
 
     public static async Task<ProcessJsonResult<MkvMergeInfo>> GetFileInfo(string file)
@@ -38,36 +37,36 @@ public static class MkvMerge
 
         return json;
     }
-    
-    public static async Task<ProcessResult> RemuxFile(string file, string outputFile, List<TrackOutput> tracks,
+
+    public static async Task<ProcessResult> Remux(string input, string output, ConversionPlan plan,
         Action<string, int>? onProgress = null, TimeSpan? timeout = null)
     {
+        var tracks = plan.Delta.Tracks;
         if (tracks.Count == 0)
         {
-            throw new ArgumentException("At least one track is required.", nameof(tracks));
+            throw new ArgumentException("At least one track is required.", nameof(plan));
         }
 
-        var audioTracks = tracks.Where(t => t.Type == AudioTrack).ToList();
-        var subtitleTracks = tracks.Where(t => t.Type == SubtitlesTrack).ToList();
+        var audioTracks = tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        var subtitleTracks = tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
-        var command = $"-o \"{outputFile}\"";
+        var command = $"-o \"{output}\"";
 
-        if (audioTracks.Count > 0)
-        {
-            command += $" --audio-tracks {string.Join(",", audioTracks.Select(t => t.TrackNumber))}";
-        }
-        else
-        {
-            command += " --no-audio";
-        }
+        command += audioTracks.Count > 0
+            ? $" --audio-tracks {string.Join(",", audioTracks.Select(t => t.TrackNumber))}"
+            : " --no-audio";
 
-        if (subtitleTracks.Count > 0)
+        command += subtitleTracks.Count > 0
+            ? $" --subtitle-tracks {string.Join(",", subtitleTracks.Select(t => t.TrackNumber))}"
+            : " --no-subtitles";
+
+        if (plan.Delta.HasChapters == false)
         {
-            command += $" --subtitle-tracks {string.Join(",", subtitleTracks.Select(t => t.TrackNumber))}";
+            command += " --no-chapters";
         }
-        else
+        if (plan.Delta.HasAttachments == false)
         {
-            command += " --no-subtitles";
+            command += " --no-attachments";
         }
 
         foreach (var track in tracks)
@@ -106,9 +105,7 @@ public static class MkvMerge
             }
         }
 
-        command += $" \"{file}\"";
-
-        // Explicit track order so reordered tracks appear in the requested sequence.
+        command += $" \"{input}\"";
         command += $" --track-order {string.Join(",", tracks.Select(t => $"0:{t.TrackNumber}"))}";
 
         var lastProgress = 0;
@@ -138,7 +135,7 @@ public static class MkvMerge
             }
             catch (Exception)
             {
-                return false; // Skip if we can't access the process name
+                return false;
             }
         }).ToList();
 
@@ -189,5 +186,4 @@ public static class MkvMerge
     {
         return TrackNameFlags.ContainsDub(track.Properties.TrackName);
     }
-
 }

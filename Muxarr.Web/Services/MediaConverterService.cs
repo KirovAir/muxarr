@@ -169,7 +169,7 @@ public class MediaConverterService(
         {
             MediaFileId = media.Id,
             SizeBefore = media.Size,
-            TargetSnapshot = media.BuildTargetSnapshot(profile),
+            TargetSnapshot = media.BuildTargetFromProfile(profile),
             SnapshotBefore = media.ToMediaSnapshot(),
             State = ConversionState.New,
             Name = media.GetName()
@@ -181,7 +181,7 @@ public class MediaConverterService(
         return true;
     }
 
-    public async Task<bool> AddMediaToQueue(MediaFile media, MediaSnapshot customTarget)
+    public async Task<bool> AddMediaToQueue(MediaFile media, TargetSnapshot customTarget)
     {
         if (!File.Exists(media.Path))
         {
@@ -252,13 +252,14 @@ public class MediaConverterService(
 
         if (!conversion.IsCustomConversion)
         {
-            conversion.TargetSnapshot = conversion.MediaFile.BuildTargetSnapshot(conversion.MediaFile.Profile);
+            conversion.TargetSnapshot = conversion.MediaFile.BuildTargetFromProfile(conversion.MediaFile.Profile);
         }
         else
         {
-            // Reject custom conversions whose target references tracks the
-            // rescanned source no longer has - avoids silently producing a
-            // file that does not match what the user picked.
+            // Custom conversion: user input is authoritative. No profile
+            // mutations applied here (flag-from-title correction,
+            // und-resolution, name standardization). Only rejects targets
+            // whose tracks no longer exist on the rescanned source.
             var availableTrackNumbers = conversion.MediaFile.Tracks.Select(t => t.TrackNumber).ToHashSet();
             var missingTracks = conversion.TargetSnapshot.Tracks
                 .Where(t => !availableTrackNumbers.Contains(t.TrackNumber))
@@ -277,16 +278,6 @@ public class MediaConverterService(
                 ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
                 return;
             }
-
-            // Fix flags and resolve "und" languages, but don't rename tracks -
-            // user-picked names are authoritative for custom conversions.
-            var profile = conversion.MediaFile.Profile;
-            foreach (var track in conversion.TargetSnapshot.Tracks.Where(t => t.Type != MediaTrackType.Video))
-            {
-                var settings = track.Type == MediaTrackType.Audio ? profile?.AudioSettings : profile?.SubtitleSettings;
-                var count = conversion.TargetSnapshot.Tracks.Count(t => t.Type == track.Type);
-                track.ApplyTrackMutations(settings, count, conversion.MediaFile.OriginalLanguage, standardizeNames: false);
-            }
         }
 
         conversion.SnapshotBefore = conversion.MediaFile.ToMediaSnapshot();
@@ -303,10 +294,11 @@ public class MediaConverterService(
 
         // Plan once, reuse its cached outputs - running the planner twice
         // against shifting snapshots risks strategy/output disagreement.
-        var plan = ConversionPlanner.Plan(
+        var result = ConversionPlanner.Plan(
             conversion.MediaFile, conversion.SnapshotBefore, conversion.TargetSnapshot);
+        var plan = result.Plan;
 
-        if (plan.Strategy == ConversionPlanner.ConversionStrategy.Skip)
+        if (result.Strategy == ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.StartedDate ??= DateTime.UtcNow;
             conversion.Log("File already optimized, skipping.", logger);
@@ -315,9 +307,9 @@ public class MediaConverterService(
             conversion.SizeDifference = 0;
             conversion.State = ConversionState.Completed;
         }
-        else if (plan.Strategy == ConversionPlanner.ConversionStrategy.MetadataEdit)
+        else if (result.Strategy == ConversionPlanner.ConversionStrategy.MetadataEdit)
         {
-            await RunMkvPropEditInPlaceAsync(conversion, plan.DiffOutputs, context, token);
+            await RunMkvPropEditInPlaceAsync(conversion, plan, context, token);
         }
 
         if (conversion.State is ConversionState.Completed or ConversionState.Failed)
@@ -331,15 +323,12 @@ public class MediaConverterService(
 
         // Matroska writes go through mkvmerge. Everything else goes through
         // ffmpeg stream-copy so the container and every codec survive
-        // byte-identical (metadata edits, track removal, and reorder all use
-        // the same writer).
+        // byte-identical.
         var useFFmpeg = conversion.MediaFile.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
         var conversionTimeout = Config.ConversionTimeoutMinutes > 0
             ? TimeSpan.FromMinutes(Config.ConversionTimeoutMinutes)
             : (TimeSpan?)null;
 
-        // Place temp file next to source so the final move is an atomic rename
-        // instead of a cross-filesystem copy (e.g. /tmp -> mounted media volume).
         var tmp = conversion.MediaFile.Path + ".muxtmp";
         try
         {
@@ -352,11 +341,11 @@ public class MediaConverterService(
 
             if (useFFmpeg)
             {
-                await RunFFmpegRemuxAsync(conversion, plan.RemuxOutputs, tmp, context, conversionTimeout, token);
+                await RunFFmpegRemuxAsync(conversion, plan, tmp, context, conversionTimeout, token);
             }
             else
             {
-                await RunMkvMergeRemuxAsync(conversion, plan.RemuxOutputs, tmp, context, conversionTimeout, token);
+                await RunMkvMergeRemuxAsync(conversion, plan, tmp, context, conversionTimeout, token);
             }
 
             await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, token);
@@ -403,12 +392,9 @@ public class MediaConverterService(
         }
     }
 
-    /// <summary>
-    /// Applies metadata changes to a Matroska file in-place via mkvpropedit.
-    /// Rescans afterwards and falls through to a full remux if any requested
-    /// change failed to stick.
-    /// </summary>
-    private async Task RunMkvPropEditInPlaceAsync(MediaConversion conversion, List<TrackOutput> trackOutputs,
+    // Matroska in-place metadata edit. Rescans after to verify the changes
+    // stuck; falls through to a full remux otherwise.
+    private async Task RunMkvPropEditInPlaceAsync(MediaConversion conversion, ConversionPlan plan,
         AppDbContext context, CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
@@ -418,7 +404,7 @@ public class MediaConverterService(
         await context.SaveChangesAsync(token);
         ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
 
-        var propResult = await MkvPropEdit.EditTrackProperties(mediaFile.Path, trackOutputs);
+        var propResult = await MkvPropEdit.Apply(mediaFile.Path, mediaFile.Path, plan);
         if (!propResult.Success)
         {
             var errorDetail = !string.IsNullOrWhiteSpace(propResult.Error) ? propResult.Error : propResult.Output;
@@ -429,13 +415,8 @@ public class MediaConverterService(
 
         await scanner.ScanMediaFile(mediaFile, true, context, mediaFile.Profile);
 
-        var freshSnapshot = mediaFile.ToMediaSnapshot();
-        var family = mediaFile.ContainerType.ToContainerFamily();
-        var remainingDiff = ConversionPlanner.BuildTrackOutputs(
-            freshSnapshot, conversion.TargetSnapshot, family);
-        var stillDiffers = remainingDiff.Any(ConversionPlanner.HasChanges);
-
-        if (stillDiffers)
+        var verify = ConversionPlanner.Plan(mediaFile, mediaFile.ToMediaSnapshot(), conversion.TargetSnapshot);
+        if (verify.Strategy != ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.Log("mkvpropedit reported success but some changes did not apply. Falling through to remux.",
                 logger);
@@ -449,7 +430,7 @@ public class MediaConverterService(
         conversion.State = ConversionState.Completed;
     }
 
-    private async Task RunMkvMergeRemuxAsync(MediaConversion conversion, List<TrackOutput> trackOutputs, string tmp,
+    private async Task RunMkvMergeRemuxAsync(MediaConversion conversion, ConversionPlan plan, string tmp,
         AppDbContext context, TimeSpan? timeout, CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
@@ -457,7 +438,7 @@ public class MediaConverterService(
         await context.SaveChangesAsync(token);
 
         var reportProgress = BuildProgressReporter(conversion);
-        var result = await MkvMerge.RemuxFile(mediaFile.Path, tmp, trackOutputs,
+        var result = await MkvMerge.Remux(mediaFile.Path, tmp, plan,
             (line, progress) =>
             {
                 if (!line.StartsWith("Progress"))
@@ -490,24 +471,29 @@ public class MediaConverterService(
         await context.SaveChangesAsync(token);
     }
 
-    private async Task RunFFmpegRemuxAsync(MediaConversion conversion, List<TrackOutput> trackOutputs,
+    private async Task RunFFmpegRemuxAsync(MediaConversion conversion, ConversionPlan plan,
         string tmp, AppDbContext context, TimeSpan? timeout, CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
         conversion.Log($"Starting ffmpeg stream copy for {mediaFile.GetName()}..", logger);
         await context.SaveChangesAsync(token);
 
+        // Preserve source's faststart layout unless the target explicitly
+        // opted in/out.
+        plan.Delta.Faststart ??= mediaFile.HasFaststart;
+
         var reportProgress = BuildProgressReporter(conversion);
-        var result = await FFmpeg.RemuxFile(mediaFile.Path, tmp, trackOutputs, mediaFile.DurationMs,
-            (line, progress, isStderr) =>
+        var result = await FFmpeg.Remux(mediaFile.Path, tmp, plan,
+            (line, progress) =>
             {
-                if (isStderr)
+                // ffmpeg -progress pipe:1 lines start with key=value; everything
+                // else is diagnostic output we want to log.
+                if (!line.Contains('=') || line.StartsWith(" ") || line.Contains(' '))
                 {
                     conversion.Log(line, logger);
                 }
                 reportProgress(progress);
             },
-            faststart: mediaFile.HasFaststart,
             timeout: timeout);
 
         token.ThrowIfCancellationRequested();

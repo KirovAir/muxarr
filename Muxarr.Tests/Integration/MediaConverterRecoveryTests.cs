@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -76,7 +77,7 @@ public class MediaConverterRecoveryTests : IntegrationTestBase
                 MediaFileId = file.Id,
                 SizeBefore = file.Size,
                 SnapshotBefore = new MediaSnapshot(),
-                TargetSnapshot = new MediaSnapshot(),
+                TargetSnapshot = new TargetSnapshot(),
                 State = ConversionState.Processing,
                 TempFilePath = tempPath,
                 Name = file.GetName(),

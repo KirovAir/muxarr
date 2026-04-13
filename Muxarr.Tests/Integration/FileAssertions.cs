@@ -33,6 +33,12 @@ public static class FileAssertions
         Assert.AreEqual(expectedHash, actual, $"SHA256 mismatch for {path}. {message}");
     }
 
+    public static void AssertSha256NotEquals(string path, string otherHash, string message = "")
+    {
+        var actual = Sha256(path);
+        Assert.AreNotEqual(otherHash, actual, $"SHA256 should differ for {path}. {message}");
+    }
+
     public static async Task AssertContainerFamily(string path, ContainerFamily expected)
     {
         var file = await ProbeAsync(path);

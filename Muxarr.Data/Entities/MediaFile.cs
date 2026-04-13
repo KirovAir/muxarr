@@ -54,14 +54,6 @@ public class MediaTrack : IMediaTrack
     public MediaFile? MediaFile { get; set; }
 }
 
-public enum MediaTrackType
-{
-    Unknown,
-    Video,
-    Audio,
-    Subtitles
-}
-
 public class MediaFileConfiguration : AuditEntityConfiguration<MediaFile>
 {
     public override void Configure(EntityTypeBuilder<MediaFile> builder)

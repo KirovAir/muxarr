@@ -1,5 +1,6 @@
 using Blazored.Modal;
 using Blazored.Modal.Services;
+using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
 using Muxarr.Web.Components.Shared.Modals;
 
@@ -31,7 +32,7 @@ public static class ModalExtensions
         await result.Result;
     }
 
-    public static async Task<MediaSnapshot?> ShowCustomConversion(
+    public static async Task<TargetSnapshot?> ShowCustomConversion(
         this IModalService modal,
         MediaFile file,
         List<Profile> profiles,
@@ -51,6 +52,6 @@ public static class ModalExtensions
             return null;
         }
 
-        return (MediaSnapshot?)modalResult.Data;
+        return (TargetSnapshot?)modalResult.Data;
     }
 }

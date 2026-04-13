@@ -1,3 +1,4 @@
+using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
 using Muxarr.Web.Services;
 
@@ -19,11 +20,11 @@ public class OutputValidatorTests
         };
     }
 
-    private static MediaSnapshot Expected(params MediaTrackType[] types)
+    private static TargetSnapshot Expected(params MediaTrackType[] types)
     {
-        return new MediaSnapshot
+        return new TargetSnapshot
         {
-            Tracks = types.Select(t => new TrackSnapshot { Type = t }).ToList()
+            Tracks = types.Select(t => new TargetTrack { Type = t }).ToList()
         };
     }
 

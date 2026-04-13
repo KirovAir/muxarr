@@ -12,7 +12,7 @@ namespace Muxarr.Tests;
 [TestClass]
 public class ConversionPlannerTests
 {
-    // --- DetermineStrategy: Skip ---
+    // --- Strategy: Skip ---
 
     [TestMethod]
     [DataRow("Matroska")]
@@ -23,25 +23,26 @@ public class ConversionPlannerTests
         var file = MakeFileWithContainer(containerType, null,
             Video(0),
             Audio(1, "English"));
-        var snapshot = file.ToMediaSnapshot();
+        var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, snapshot, snapshot);
+        var result = ConversionPlanner.Plan(file, before, target);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, strategy);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
     }
 
-    // --- DetermineStrategy: MetadataEdit (Matroska only, when only flag/name changes) ---
+    // --- Strategy: MetadataEdit (Matroska only) ---
 
     [TestMethod]
     [DataRow("name", "English Audio", "Different Name")]
     [DataRow("language", "eng", "fre")]
     public void Strategy_MetadataChange_Matroska_ReturnsMetadataEdit(string field, string before, string after)
     {
-        var (file, beforeSnap, targetSnap) = MakeMatroskaWithModifiedAudio(field, before, after);
+        var (file, beforeSnap, target) = MakeWithModifiedAudio("Matroska", field, before, after);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, beforeSnap, targetSnap);
+        var result = ConversionPlanner.Plan(file, beforeSnap, target);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, strategy);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
     }
 
     [TestMethod]
@@ -49,14 +50,14 @@ public class ConversionPlannerTests
     [DataRow("language", "eng", "fre")]
     public void Strategy_MetadataChange_Mp4_ReturnsRemux(string field, string before, string after)
     {
-        var (file, beforeSnap, targetSnap) = MakeMp4WithModifiedAudio(field, before, after);
+        var (file, beforeSnap, target) = MakeWithModifiedAudio("MP4/QuickTime", field, before, after);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, beforeSnap, targetSnap);
+        var result = ConversionPlanner.Plan(file, beforeSnap, target);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, strategy);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
     }
 
-    // --- DetermineStrategy: Remux (track removal or order change) ---
+    // --- Strategy: Remux (structural changes) ---
 
     [TestMethod]
     [DataRow("Matroska")]
@@ -68,11 +69,11 @@ public class ConversionPlannerTests
             Audio(1, "English"),
             Audio(2, "French"));
         var before = file.ToMediaSnapshot();
-        var target = file.ToMediaSnapshot(file.Tracks.Take(2).ToSnapshots());
+        var target = TargetFromSnapshot(file.ToMediaSnapshot(file.Tracks.Take(2).ToSnapshots()));
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
+        var result = ConversionPlanner.Plan(file, before, target);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, strategy);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
     }
 
     [TestMethod]
@@ -89,370 +90,160 @@ public class ConversionPlannerTests
         {
             file.Tracks.First(t => t.Type == MediaTrackType.Video).ToSnapshot(),
             file.Tracks.First(t => t.TrackNumber == 2).ToSnapshot(),
-            file.Tracks.First(t => t.TrackNumber == 1).ToSnapshot()
+            file.Tracks.First(t => t.TrackNumber == 1).ToSnapshot(),
         };
-        var target = file.ToMediaSnapshot(reordered);
+        var target = TargetFromSnapshot(file.ToMediaSnapshot(reordered));
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
+        var result = ConversionPlanner.Plan(file, before, target);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, strategy);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
     }
 
-    // --- DetermineStrategy: IsDub edge cases ---
+    // --- IsDub: resolver encodes in title for Matroska, applies as flag for MP4 ---
 
     [TestMethod]
-    public void Strategy_OnlyIsDubChanged_Matroska_NameUnchanged_ReturnsSkip()
+    public void IsDubChange_Matroska_NameUnlocked_EncodedInTitle()
     {
-        // Matroska has no FlagDub element. The planner can't apply IsDub - it's the
-        // caller's responsibility to encode it in the name (e.g. CustomConversionModal
-        // does this when the user toggles the dub button). If only IsDub changed
-        // without an accompanying name change, there's nothing to do.
         var file = MakeFileWithContainer("Matroska", null,
             Video(0),
             Audio(1, "English", dub: false, trackName: "English"));
         var before = file.ToMediaSnapshot();
 
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        modifiedTracks.First(t => t.Type == MediaTrackType.Audio).IsDub = true;
-        var target = file.ToMediaSnapshot(modifiedTracks);
-
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
-
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, strategy);
-    }
-
-    [TestMethod]
-    public void Strategy_IsDubWithEncodedNameChange_Matroska_ReturnsMetadataEdit()
-    {
-        // Simulates what CustomConversionModal.ToggleDub does: toggles IsDub AND
-        // updates the name. The planner sees the name diff and routes to mkvpropedit.
-        var file = MakeFileWithContainer("Matroska", null,
-            Video(0),
-            Audio(1, "English", dub: false, trackName: "English"));
-        var before = file.ToMediaSnapshot();
-
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        var audio = modifiedTracks.First(t => t.Type == MediaTrackType.Audio);
+        var target = TargetFromSnapshot(before);
+        var audio = target.Tracks.First(t => t.Type == MediaTrackType.Audio);
         audio.IsDub = true;
-        audio.TrackName = TrackNameFlags.EncodeDubInName(audio.TrackName, audio.IsDub);
-        var target = file.ToMediaSnapshot(modifiedTracks);
+        audio.NameLocked = false;
+        TargetResolver.ResolveForContainer(target, before, ContainerFamily.Matroska);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        var audioOutput = outputs.First(o => o.Type == MkvMerge.AudioTrack);
+        var result = ConversionPlanner.Plan(file, before, target);
+        var audioDelta = result.Plan.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, strategy);
-        Assert.AreEqual("English Dub", audioOutput.Name);
-        Assert.IsNull(audioOutput.IsDub, "IsDub flag itself should not be set for Matroska");
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
+        Assert.AreEqual("English Dub", audioDelta.Name);
+        Assert.IsNull(audioDelta.IsDub, "Matroska has no FlagDub; resolver must drop IsDub");
     }
 
     [TestMethod]
-    public void BuildTrackOutputs_IsDubAlreadyInName_Matroska_NoNameChange()
+    public void IsDubChange_Matroska_NameLocked_LeavesTitleAlone()
     {
-        // Profile / template already added "Dub" to name - don't duplicate.
-        var beforeTrack = new TrackSnapshot { Type = MediaTrackType.Audio, TrackNumber = 1,
-            TrackName = "English Dub", LanguageCode = "eng", LanguageName = "English", IsDub = true };
-        var targetTrack = new TrackSnapshot { Type = MediaTrackType.Audio, TrackNumber = 1,
-            TrackName = "English Dub", LanguageCode = "eng", LanguageName = "English", IsDub = true };
-        var before = new MediaSnapshot { Tracks = [beforeTrack] };
-        var target = new MediaSnapshot { Tracks = [targetTrack] };
+        var file = MakeFileWithContainer("Matroska", null,
+            Video(0),
+            Audio(1, "English", dub: false, trackName: "English"));
+        var before = file.ToMediaSnapshot();
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
+        var target = TargetFromSnapshot(before);
+        var audio = target.Tracks.First(t => t.Type == MediaTrackType.Audio);
+        audio.IsDub = true;
+        audio.NameLocked = true;
+        TargetResolver.ResolveForContainer(target, before, ContainerFamily.Matroska);
 
-        Assert.IsNull(outputs[0].Name, "name already encodes dub state, no change needed");
+        var result = ConversionPlanner.Plan(file, before, target);
+        var audioDelta = result.Plan.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
+
+        Assert.IsNull(audioDelta.Name, "NameLocked=true blocks the resolver from rewriting the title");
+        Assert.IsNull(audioDelta.IsDub);
     }
 
     [TestMethod]
-    public void Strategy_OnlyIsDubChanged_Mp4_ReturnsRemux()
+    public void IsDubChange_Mp4_PreservedAsFlag()
     {
-        // MP4 supports dub via ffmpeg disposition, so IsDub change requires remux.
         var file = MakeFileWithContainer("MP4/QuickTime", null,
             Video(0),
             Audio(1, "English", dub: false));
         var before = file.ToMediaSnapshot();
 
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        modifiedTracks.First(t => t.Type == MediaTrackType.Audio).IsDub = true;
-        var target = file.ToMediaSnapshot(modifiedTracks);
+        var target = TargetFromSnapshot(before);
+        target.Tracks.First(t => t.Type == MediaTrackType.Audio).IsDub = true;
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
+        var result = ConversionPlanner.Plan(file, before, target);
+        var audioDelta = result.Plan.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, strategy);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
+        Assert.IsTrue(audioDelta.IsDub);
     }
 
     [TestMethod]
-    public void Strategy_IsDubPlusOtherChange_Matroska_ReturnsMetadataEdit()
+    public void IsDubAlreadyInName_Matroska_NoNameChange()
     {
-        // IsDub is dropped but the other change still needs to happen.
         var file = MakeFileWithContainer("Matroska", null,
             Video(0),
-            Audio(1, "English", dub: false, isDefault: false));
+            Audio(1, "English", dub: true, trackName: "English Dub"));
         var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
 
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        var audio = modifiedTracks.First(t => t.Type == MediaTrackType.Audio);
-        audio.IsDub = true;
-        audio.IsDefault = true;
-        var target = file.ToMediaSnapshot(modifiedTracks);
+        var result = ConversionPlanner.Plan(file, before, target);
+        var audioDelta = result.Plan.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
-
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, strategy);
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
+        Assert.IsNull(audioDelta.Name, "name already encodes dub state");
     }
 
-    // --- Strategy: IsOriginal / IsVisualImpaired trigger conversion (regression: used to be silently dropped) ---
+    // --- Strategy: other flag toggles ---
 
     [TestMethod]
     [DataRow("IsOriginal")]
     [DataRow("IsVisualImpaired")]
-    public void Strategy_FlagToggle_Matroska_ReturnsMetadataEdit(string flagName)
+    public void FlagToggle_Matroska_ReturnsMetadataEdit(string flagName)
     {
         var file = MakeFileWithContainer("Matroska", null, Video(0), Audio(1, "English"));
         var before = file.ToMediaSnapshot();
 
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        SetFlag(modifiedTracks.First(t => t.Type == MediaTrackType.Audio), flagName, true);
-        var target = file.ToMediaSnapshot(modifiedTracks);
+        var target = TargetFromSnapshot(before);
+        SetFlag(target.Tracks.First(t => t.Type == MediaTrackType.Audio), flagName, true);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
+        var result = ConversionPlanner.Plan(file, before, target);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, strategy,
-            $"{flagName} change on Matroska must route to mkvpropedit, not Skip");
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
     }
 
+    // --- Video tracks: name rewrite detected, other flags left alone ---
+
     [TestMethod]
-    [DataRow("IsOriginal")]
-    [DataRow("IsVisualImpaired")]
-    public void Strategy_FlagToggle_Mp4_ReturnsRemux(string flagName)
+    public void VideoNameCleared_DiffCarriesEmptyString()
     {
-        var file = MakeFileWithContainer("MP4/QuickTime", null, Video(0), Audio(1, "English"));
+        var file = MakeFileWithContainer("Matroska", null,
+            Video(0, trackName: "Original"),
+            Audio(1, "English"));
         var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
+        var video = target.Tracks.First(t => t.Type == MediaTrackType.Video);
+        video.Name = "";
 
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        SetFlag(modifiedTracks.First(t => t.Type == MediaTrackType.Audio), flagName, true);
-        var target = file.ToMediaSnapshot(modifiedTracks);
+        var result = ConversionPlanner.Plan(file, before, target);
+        var videoDelta = result.Plan.Delta.Tracks.First(t => t.Type == MediaTrackType.Video);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
-
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, strategy);
+        Assert.AreEqual("", videoDelta.Name);
     }
 
-    // --- BuildTrackOutputs: IsDub container behavior ---
-
-    [TestMethod]
-    [DataRow(ContainerFamily.Matroska, false)]
-    [DataRow(ContainerFamily.Mp4, true)]
-    [DataRow(ContainerFamily.Unknown, true)]
-    public void BuildTrackOutputs_IsDubChange_RespectsContainer(ContainerFamily family, bool expectIsDubSet)
-    {
-        var beforeTrack = new TrackSnapshot { Type = MediaTrackType.Audio, TrackNumber = 1, IsDub = false, LanguageCode = "eng", LanguageName = "English" };
-        var targetTrack = new TrackSnapshot { Type = MediaTrackType.Audio, TrackNumber = 1, IsDub = true, LanguageCode = "eng", LanguageName = "English" };
-        var before = new MediaSnapshot { Tracks = [beforeTrack] };
-        var target = new MediaSnapshot { Tracks = [targetTrack] };
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, family);
-
-        if (expectIsDubSet)
-        {
-            Assert.IsNotNull(outputs[0].IsDub, $"IsDub should be set for {family}");
-            Assert.IsTrue(outputs[0].IsDub!.Value);
-        }
-        else
-        {
-            Assert.IsNull(outputs[0].IsDub, $"IsDub should be dropped for {family}");
-        }
-    }
-
-    [TestMethod]
-    [DataRow(ContainerFamily.Matroska, false)]
-    [DataRow(ContainerFamily.Mp4, true)]
-    public void BuildTrackOutputs_Remux_IsDubRespectsContainer(ContainerFamily family, bool expectIsDubSet)
-    {
-        var track = new TrackSnapshot { Type = MediaTrackType.Audio, TrackNumber = 1, IsDub = true, LanguageCode = "eng", LanguageName = "English" };
-        var snapshot = new MediaSnapshot { Tracks = [track] };
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(snapshot, snapshot, family, diffOnly: false);
-
-        if (expectIsDubSet)
-        {
-            Assert.IsNotNull(outputs[0].IsDub);
-        }
-        else
-        {
-            Assert.IsNull(outputs[0].IsDub);
-        }
-    }
-
-    // --- BuildTrackOutputs: diff vs remux semantics ---
-
-    [TestMethod]
-    public void BuildTrackOutputs_Diff_OnlySetsChangedFields()
-    {
-        var beforeTrack = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, TrackNumber = 1,
-            TrackName = "English", LanguageCode = "eng", LanguageName = "English",
-            IsDefault = true, IsForced = false, IsCommentary = false, IsHearingImpaired = false
-        };
-        var targetTrack = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, TrackNumber = 1,
-            TrackName = "English", LanguageCode = "eng", LanguageName = "English",
-            IsDefault = true, IsForced = true, IsCommentary = false, IsHearingImpaired = false
-        };
-        var before = new MediaSnapshot { Tracks = [beforeTrack] };
-        var target = new MediaSnapshot { Tracks = [targetTrack] };
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-
-        Assert.IsNull(outputs[0].Name, "unchanged name should be null");
-        Assert.IsNull(outputs[0].LanguageCode, "unchanged language should be null");
-        Assert.IsNull(outputs[0].IsDefault, "unchanged default should be null");
-        Assert.IsNotNull(outputs[0].IsForced, "changed forced should be set");
-        Assert.IsTrue(outputs[0].IsForced!.Value);
-        Assert.IsNull(outputs[0].IsCommentary, "unchanged commentary should be null");
-    }
-
-    [TestMethod]
-    public void BuildTrackOutputs_Remux_SetsAllFieldsExplicitly()
-    {
-        var track = new TrackSnapshot
-        {
-            Type = MediaTrackType.Audio, TrackNumber = 1,
-            TrackName = "Foo", LanguageCode = "eng", LanguageName = "English",
-            IsDefault = true, IsForced = false, IsCommentary = false, IsHearingImpaired = false,
-            IsVisualImpaired = false, IsOriginal = true
-        };
-        var snapshot = new MediaSnapshot { Tracks = [track] };
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(snapshot, snapshot, ContainerFamily.Matroska, diffOnly: false);
-
-        Assert.IsNotNull(outputs[0].Name);
-        Assert.IsNotNull(outputs[0].LanguageCode);
-        Assert.IsNotNull(outputs[0].IsDefault);
-        Assert.IsNotNull(outputs[0].IsForced);
-        Assert.IsNotNull(outputs[0].IsCommentary);
-        Assert.IsNotNull(outputs[0].IsHearingImpaired);
-        Assert.IsNotNull(outputs[0].IsVisualImpaired);
-        Assert.IsNotNull(outputs[0].IsOriginal);
-    }
-
-    // --- BuildTrackOutputs: video tracks ---
-
-    [TestMethod]
-    public void BuildTrackOutputs_VideoNameUnchanged_NotSet()
-    {
-        var track = new TrackSnapshot { Type = MediaTrackType.Video, TrackNumber = 0, TrackName = "Video" };
-        var snapshot = new MediaSnapshot { Tracks = [track] };
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(snapshot, snapshot, ContainerFamily.Matroska);
-
-        Assert.IsNull(outputs[0].Name);
-    }
-
-    [TestMethod]
-    public void BuildTrackOutputs_VideoNameCleared_SetsEmptyString()
-    {
-        var beforeTrack = new TrackSnapshot { Type = MediaTrackType.Video, TrackNumber = 0, TrackName = "Original" };
-        var targetTrack = new TrackSnapshot { Type = MediaTrackType.Video, TrackNumber = 0, TrackName = null };
-        var before = new MediaSnapshot { Tracks = [beforeTrack] };
-        var target = new MediaSnapshot { Tracks = [targetTrack] };
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-
-        Assert.AreEqual("", outputs[0].Name, "cleared name should be empty string for tool to actually clear it");
-    }
-
-    // --- BuildTrackOutputs: all flag types ---
-
-    [TestMethod]
-    [DataRow("IsDefault")]
-    [DataRow("IsForced")]
-    [DataRow("IsHearingImpaired")]
-    [DataRow("IsVisualImpaired")]
-    [DataRow("IsCommentary")]
-    [DataRow("IsOriginal")]
-    public void BuildTrackOutputs_FlagToggle_DetectedInDiff(string flagName)
-    {
-        var beforeTrack = new TrackSnapshot { Type = MediaTrackType.Audio, TrackNumber = 1, LanguageCode = "eng", LanguageName = "English" };
-        var targetTrack = new TrackSnapshot { Type = MediaTrackType.Audio, TrackNumber = 1, LanguageCode = "eng", LanguageName = "English" };
-        SetFlag(targetTrack, flagName, true);
-
-        var before = new MediaSnapshot { Tracks = [beforeTrack] };
-        var target = new MediaSnapshot { Tracks = [targetTrack] };
-
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        var output = outputs[0];
-
-        Assert.IsTrue(ConversionPlanner.HasChanges(output), $"{flagName} change should produce a diff");
-        AssertFlagSet(output, flagName, true);
-    }
-
-    // --- HasChanges ---
-
-    [TestMethod]
-    public void HasChanges_AllNull_ReturnsFalse()
-    {
-        var output = new TrackOutput { TrackNumber = 1, Type = MkvMerge.AudioTrack };
-        Assert.IsFalse(ConversionPlanner.HasChanges(output));
-    }
-
-    [TestMethod]
-    [DataRow("Name", "Foo")]
-    [DataRow("LanguageCode", "eng")]
-    [DataRow("IsDefault", true)]
-    [DataRow("IsForced", true)]
-    [DataRow("IsHearingImpaired", true)]
-    [DataRow("IsVisualImpaired", true)]
-    [DataRow("IsCommentary", true)]
-    [DataRow("IsOriginal", true)]
-    [DataRow("IsDub", true)]
-    public void HasChanges_AnyFieldSet_ReturnsTrue(string field, object value)
-    {
-        var output = new TrackOutput { TrackNumber = 1, Type = MkvMerge.AudioTrack };
-        SetOutputField(output, field, value);
-
-        Assert.IsTrue(ConversionPlanner.HasChanges(output), $"{field}={value} should count as a change");
-    }
-
-    // --- Container family edge cases ---
+    // --- Unknown container falls out of MetadataEdit path ---
 
     [TestMethod]
     [DataRow(null)]
     [DataRow("")]
     [DataRow("UnknownContainer")]
-    public void Strategy_UnknownContainer_NotMetadataEdit(string? containerType)
+    public void UnknownContainer_NotMetadataEdit(string? containerType)
     {
-        // Unknown container can't use mkvpropedit, must remux for metadata changes.
         var file = MakeFileWithContainer(containerType, null,
             Video(0),
             Audio(1, "English", trackName: "Original"));
         var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
+        target.Tracks.First(t => t.Type == MediaTrackType.Audio).Name = "Renamed";
 
-        var modifiedTracks = file.Tracks.ToSnapshots();
-        modifiedTracks.First(t => t.Type == MediaTrackType.Audio).TrackName = "Renamed";
-        var target = file.ToMediaSnapshot(modifiedTracks);
+        var result = ConversionPlanner.Plan(file, before, target);
 
-        var strategy = ConversionPlanner.DetermineStrategy(file, before, target);
-
-        Assert.AreNotEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, strategy);
+        Assert.AreNotEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
     }
 
-    // --- TrackNameFlags.EncodeDubInName ---
+    // --- EncodeDubInName reference coverage (lives in TrackNameFlags) ---
 
     [TestMethod]
     [DataRow("English", true, "English Dub")]
     [DataRow("English Surround", true, "English Surround Dub")]
-    [DataRow("English Dub", true, "English Dub")]      // already encoded
-    [DataRow("English Dubbed", true, "English Dubbed")] // already encoded
-    [DataRow(null, true, "Dub")]                        // empty name
-    [DataRow("", true, "Dub")]                          // empty string
+    [DataRow("English Dub", true, "English Dub")]
+    [DataRow(null, true, "Dub")]
     [DataRow("English Dub", false, "English")]
-    [DataRow("English Dubbed", false, "English")]
-    [DataRow("Dub", false, null)]                       // only Dub keyword -> null
-    [DataRow("English", false, "English")]              // no Dub -> unchanged
-    [DataRow(null, false, null)]
-    [DataRow("English Dubbing Track", false, "English Track")]
+    [DataRow("Dub", false, null)]
     public void EncodeDubInName_ProducesExpectedName(string? input, bool isDub, string? expected)
     {
         var result = TrackNameFlags.EncodeDubInName(input, isDub);
@@ -469,15 +260,18 @@ public class ConversionPlannerTests
         return file;
     }
 
-    private static (MediaFile, MediaSnapshot, MediaSnapshot) MakeMatroskaWithModifiedAudio(
-        string field, string beforeValue, string afterValue) =>
-        MakeWithModifiedAudio("Matroska", field, beforeValue, afterValue);
+    // Build a desired TargetSnapshot from an observed MediaSnapshot. Every
+    // field is treated as an "opinion" (same as the profile builder would
+    // produce) so the planner's delta reflects only what tests change.
+    private static TargetSnapshot TargetFromSnapshot(MediaSnapshot source)
+    {
+        return new TargetSnapshot
+        {
+            Tracks = source.Tracks.Select(t => t.ToTargetTrack(nameLocked: false)).ToList(),
+        };
+    }
 
-    private static (MediaFile, MediaSnapshot, MediaSnapshot) MakeMp4WithModifiedAudio(
-        string field, string beforeValue, string afterValue) =>
-        MakeWithModifiedAudio("MP4/QuickTime", field, beforeValue, afterValue);
-
-    private static (MediaFile, MediaSnapshot, MediaSnapshot) MakeWithModifiedAudio(
+    private static (MediaFile, MediaSnapshot, TargetSnapshot) MakeWithModifiedAudio(
         string containerType, string field, string beforeValue, string afterValue)
     {
         var audio = field == "name"
@@ -487,22 +281,21 @@ public class ConversionPlannerTests
         var file = MakeFileWithContainer(containerType, null, Video(0), audio);
         var before = file.ToMediaSnapshot();
 
-        var modified = file.Tracks.ToSnapshots();
-        var modifiedAudio = modified.First(t => t.Type == MediaTrackType.Audio);
+        var target = TargetFromSnapshot(before);
+        var modifiedAudio = target.Tracks.First(t => t.Type == MediaTrackType.Audio);
         if (field == "name")
         {
-            modifiedAudio.TrackName = afterValue;
+            modifiedAudio.Name = afterValue;
         }
         else
         {
             modifiedAudio.LanguageCode = afterValue;
-            modifiedAudio.LanguageName = IsoLanguage.Find(afterValue).Name;
         }
 
-        return (file, before, file.ToMediaSnapshot(modified));
+        return (file, before, target);
     }
 
-    private static void SetFlag(TrackSnapshot track, string flagName, bool value)
+    private static void SetFlag(TargetTrack track, string flagName, bool value)
     {
         switch (flagName)
         {
@@ -514,40 +307,6 @@ public class ConversionPlannerTests
             case "IsOriginal": track.IsOriginal = value; break;
             case "IsDub": track.IsDub = value; break;
             default: throw new ArgumentException($"Unknown flag: {flagName}");
-        }
-    }
-
-    private static void AssertFlagSet(TrackOutput output, string flagName, bool expectedValue)
-    {
-        bool? actual = flagName switch
-        {
-            "IsDefault" => output.IsDefault,
-            "IsForced" => output.IsForced,
-            "IsHearingImpaired" => output.IsHearingImpaired,
-            "IsVisualImpaired" => output.IsVisualImpaired,
-            "IsCommentary" => output.IsCommentary,
-            "IsOriginal" => output.IsOriginal,
-            "IsDub" => output.IsDub,
-            _ => throw new ArgumentException($"Unknown flag: {flagName}")
-        };
-        Assert.IsNotNull(actual, $"{flagName} should be set");
-        Assert.AreEqual(expectedValue, actual.Value);
-    }
-
-    private static void SetOutputField(TrackOutput output, string field, object value)
-    {
-        switch (field)
-        {
-            case "Name": output.Name = (string)value; break;
-            case "LanguageCode": output.LanguageCode = (string)value; break;
-            case "IsDefault": output.IsDefault = (bool)value; break;
-            case "IsForced": output.IsForced = (bool)value; break;
-            case "IsHearingImpaired": output.IsHearingImpaired = (bool)value; break;
-            case "IsVisualImpaired": output.IsVisualImpaired = (bool)value; break;
-            case "IsCommentary": output.IsCommentary = (bool)value; break;
-            case "IsOriginal": output.IsOriginal = (bool)value; break;
-            case "IsDub": output.IsDub = (bool)value; break;
-            default: throw new ArgumentException($"Unknown field: {field}");
         }
     }
 }

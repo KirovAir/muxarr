@@ -127,7 +127,7 @@
                                     <i class="bi bi-chat-quote"></i>
                                 </button>
                             </ToolTip>
-                            <ToolTip Tip="Dub - Dubbed audio or subtitle track">
+                            <ToolTip Tip="Dub - Translated audio (e.g. English dub of a Japanese show). Matroska has no FlagDub; the state is stored in the track title and will be appended/stripped automatically when you toggle this. On MP4 it maps to a native disposition flag.">
                                 <button type="button"
                                         class="btn btn-sm @(track.IsDub ? "btn-primary" : "btn-outline-secondary")"
                                         @onclick="() => ToggleDub(track)">
@@ -263,9 +263,12 @@
 
         // Matroska has no FlagDub element - dub state lives in the track name.
         // Sync the name so the user sees what will actually be written.
+        // EncodeDubInName returns null when stripping "Dub" emptied the title;
+        // we keep that as an explicit clear ("") so the custom-conversion
+        // path carries the user's intent rather than treating it as "no opinion".
         if (File.ContainerType.ToContainerFamily() == ContainerFamily.Matroska)
         {
-            track.TrackName = TrackNameFlags.EncodeDubInName(track.TrackName, track.IsDub);
+            track.TrackName = TrackNameFlags.EncodeDubInName(track.TrackName, track.IsDub) ?? "";
         }
     }
 
@@ -335,9 +338,12 @@
             return;
         }
 
-        var selectedTracks = _editableTracks.Where(t => _selectedTrackIds.Contains(t.TrackNumber)).ToList();
-        var snapshot = File.ToMediaSnapshot(selectedTracks);
-        await BlazoredModal.CloseAsync(ModalResult.Ok(snapshot));
+        var videoTracks = _editableTracks.Where(t => t.Type == MediaTrackType.Video);
+        var selectedNonVideo = _editableTracks
+            .Where(t => t.Type != MediaTrackType.Video && _selectedTrackIds.Contains(t.TrackNumber));
+        var selectedTracks = videoTracks.Concat(selectedNonVideo).ToList();
+        var target = File.BuildTargetFromCustom(selectedTracks);
+        await BlazoredModal.CloseAsync(ModalResult.Ok(target));
     }
 
     private static string GetGroupIcon(MediaTrackType type)

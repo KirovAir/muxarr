@@ -5,6 +5,7 @@ using Muxarr.Core.Extensions;
 using Muxarr.Core.FFmpeg;
 using Muxarr.Core.Language;
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Models;
 using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 
@@ -144,6 +145,12 @@ public static class MediaFileExtensions
         file.ContainerType = NormalizeFFprobeContainer(probe.Format?.FormatName);
         file.Tracks.Clear();
 
+        // ffprobe's disposition.dub is only trustworthy for containers that
+        // carry a real dub atom. On Matroska, ffmpeg infers dub=1 from
+        // FlagOriginal=0, so any track our profile marks as not-original
+        // gets a bogus dub flag. MKV has no FlagDub; the title is authoritative.
+        var trustDispositionDub = file.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
+
         foreach (var stream in probe.Streams)
         {
             var type = stream.CodecType.ToMediaTrackTypeFromFFprobe();
@@ -188,7 +195,7 @@ public static class MediaFileExtensions
                                    || TrackNameFlags.ContainsVisualImpaired(trackName),
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
                 IsOriginal = disposition.Original == 1,
-                IsDub = TrackNameFlags.ContainsDub(trackName),
+                IsDub = (trustDispositionDub && disposition.Dub == 1) || TrackNameFlags.ContainsDub(trackName),
                 DurationMs = ParseDurationMs(stream.Duration)
             };
 
@@ -581,24 +588,54 @@ public static class MediaFileExtensions
     }
 
     /// <summary>
-    /// Builds the fully resolved target state for a file given a profile.
-    /// Single entry point for determining desired output - used by both
-    /// the UI preview and the conversion pipeline.
+    /// UI-facing preview of the desired output. Delegates to BuildTargetFromProfile
+    /// (which resolves container quirks) then merges nullable target fields
+    /// back with source so display fields (codec, channels, language name)
+    /// are populated and IsDub reflects the final on-disk state.
     /// </summary>
     public static MediaSnapshot BuildTargetSnapshot(this MediaFile file, Profile? profile)
     {
-        if (profile == null)
+        var target = file.BuildTargetFromProfile(profile);
+        return target.MergeForDisplay(file);
+    }
+
+    // Resolved TargetSnapshot -> display MediaSnapshot. Per-track merge
+    // lives on TargetTrack.ToDisplay; this is just the container shell.
+    public static MediaSnapshot MergeForDisplay(this TargetSnapshot target, MediaFile file)
+    {
+        var src = file.Tracks.ToDictionary(t => t.TrackNumber);
+        return new MediaSnapshot
         {
-            return file.ToMediaSnapshot();
+            Tracks = target.Tracks.Select(t => t.ToDisplay(src.GetValueOrDefault(t.TrackNumber))).ToList(),
+            HasChapters = target.HasChapters ?? file.ChapterCount > 0,
+            HasAttachments = target.HasAttachments ?? file.AttachmentCount > 0,
+        };
+    }
+
+    // Per-track display: start from the observed source snapshot, overlay
+    // only the fields the target has an opinion on. Source fields (codec,
+    // channels, duration, etc.) pass through untouched.
+    public static TrackSnapshot ToDisplay(this TargetTrack t, IMediaTrack? src)
+    {
+        var snap = src?.ToSnapshot() ?? new TrackSnapshot { TrackNumber = t.TrackNumber, Type = t.Type };
+
+        if (t.Name != null) { snap.TrackName = string.IsNullOrEmpty(t.Name) ? null : t.Name; }
+        if (t.LanguageCode != null)
+        {
+            snap.LanguageCode = t.LanguageCode;
+            snap.LanguageName = IsoLanguage.Find(t.LanguageCode).Name;
         }
+        if (t.IsDefault != null) { snap.IsDefault = t.IsDefault.Value; }
+        if (t.IsForced != null) { snap.IsForced = t.IsForced.Value; }
+        if (t.IsHearingImpaired != null) { snap.IsHearingImpaired = t.IsHearingImpaired.Value; }
+        if (t.IsVisualImpaired != null) { snap.IsVisualImpaired = t.IsVisualImpaired.Value; }
+        if (t.IsCommentary != null) { snap.IsCommentary = t.IsCommentary.Value; }
+        if (t.IsOriginal != null) { snap.IsOriginal = t.IsOriginal.Value; }
+        // Matroska's IsDub is nulled during resolution and encoded in the
+        // title; read it back from whichever title now applies.
+        snap.IsDub = t.IsDub ?? TrackNameFlags.ContainsDub(snap.TrackName);
 
-        var allowedTracks = GetAllowedTracks(file, profile).ToSnapshots();
-        ApplyProfileMutations(allowedTracks, profile,
-            file.Tracks.Count(t => t.Type == MediaTrackType.Audio),
-            file.Tracks.Count(t => t.Type == MediaTrackType.Subtitles),
-            file.OriginalLanguage);
-
-        return file.ToMediaSnapshot(allowedTracks);
+        return snap;
     }
 
     private static void ApplyProfileMutations(List<TrackSnapshot> snapshots, Profile profile,
@@ -644,6 +681,14 @@ public static class MediaFileExtensions
             var iso = IsoLanguage.Find(originalLanguage!);
             track.LanguageName = originalLanguage!;
             track.LanguageCode = iso.ThreeLetterCode!;
+        }
+
+        // Audio: FlagOriginal follows the arr-synced OriginalLanguage. Subs
+        // left alone - "original-language subtitle" usually means SDH/CC,
+        // which is semantically different.
+        if (track.Type == MediaTrackType.Audio && !string.IsNullOrEmpty(originalLanguage))
+        {
+            track.IsOriginal = string.Equals(track.LanguageName, originalLanguage, StringComparison.Ordinal);
         }
 
         if (standardizeNames && settings is { StandardizeTrackNames: true })
@@ -780,6 +825,154 @@ public static class MediaFileExtensions
             HasChapters = file.ChapterCount > 0,
             HasAttachments = file.AttachmentCount > 0
         };
+    }
+
+    // Profile-driven desired state. Runs profile mutations (flag correction
+    // from title, und-resolution, name standardization, default flag
+    // reassignment, IsOriginal auto-set) then resolves container quirks so
+    // the returned TargetSnapshot is ready for the planner and the UI.
+    public static TargetSnapshot BuildTargetFromProfile(this MediaFile file, Profile? profile)
+    {
+        if (profile == null)
+        {
+            return file.ToTargetSnapshotFromSource();
+        }
+
+        var allowed = GetAllowedTracks(file, profile).ToSnapshots();
+        ApplyProfileMutations(allowed, profile,
+            file.Tracks.Count(t => t.Type == MediaTrackType.Audio),
+            file.Tracks.Count(t => t.Type == MediaTrackType.Subtitles),
+            file.OriginalLanguage);
+
+        var target = new TargetSnapshot
+        {
+            Tracks = allowed.Select(t =>
+            {
+                var tt = t.ToTargetTrack(NameIsFromOverride(t, SettingsFor(t.Type, profile)));
+                // ClearVideoTrackNames means "strip the title". ApplyProfileMutations
+                // sets TrackName=null which would map to Name=null ("no opinion").
+                // Switch to "" so the diff carries an explicit clear.
+                if (t.Type == MediaTrackType.Video && profile.ClearVideoTrackNames)
+                {
+                    tt.Name = "";
+                }
+                return tt;
+            }).ToList(),
+        };
+
+        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
+            file.ContainerType.ToContainerFamily());
+        return target;
+    }
+
+    // Custom-conversion desired state. User input is authoritative. The UI's
+    // ToggleDub syncs titles eagerly; the resolver pass here is a safety net
+    // (NameLocked=true keeps it hands-off titles but still nulls IsDub on
+    // Matroska so converters never see a flag they cannot express).
+    public static TargetSnapshot BuildTargetFromCustom(this MediaFile file, IEnumerable<TrackSnapshot> userEditedTracks)
+    {
+        var tracks = new List<TargetTrack>();
+        foreach (var t in userEditedTracks)
+        {
+            var iso = IsoLanguage.Find(t.LanguageName);
+            var code = iso != IsoLanguage.Unknown ? iso.ThreeLetterCode ?? t.LanguageCode : t.LanguageCode;
+
+            tracks.Add(new TargetTrack
+            {
+                TrackNumber = t.TrackNumber,
+                Type = t.Type,
+                Name = t.TrackName,
+                LanguageCode = code,
+                IsDefault = t.IsDefault,
+                IsForced = t.IsForced,
+                IsHearingImpaired = t.IsHearingImpaired,
+                IsVisualImpaired = t.IsVisualImpaired,
+                IsCommentary = t.IsCommentary,
+                IsOriginal = t.IsOriginal,
+                IsDub = t.IsDub,
+                NameLocked = true,
+            });
+        }
+
+        var target = new TargetSnapshot { Tracks = tracks };
+        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
+            file.ContainerType.ToContainerFamily());
+        return target;
+    }
+
+    // Pass-through target when no profile applies: every track's current
+    // state is the desired state. NameLocked so the resolver leaves titles alone.
+    public static TargetSnapshot ToTargetSnapshotFromSource(this MediaFile file)
+    {
+        var target = new TargetSnapshot
+        {
+            Tracks = file.Tracks.Select(t => new TargetTrack
+            {
+                TrackNumber = t.TrackNumber,
+                Type = t.Type,
+                Name = t.TrackName,
+                LanguageCode = t.LanguageCode,
+                IsDefault = t.IsDefault,
+                IsForced = t.IsForced,
+                IsHearingImpaired = t.IsHearingImpaired,
+                IsVisualImpaired = t.IsVisualImpaired,
+                IsCommentary = t.IsCommentary,
+                IsOriginal = t.IsOriginal,
+                IsDub = t.IsDub,
+                NameLocked = true,
+            }).ToList(),
+        };
+
+        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
+            file.ContainerType.ToContainerFamily());
+        return target;
+    }
+
+    public static TargetTrack ToTargetTrack(this TrackSnapshot t, bool nameLocked)
+    {
+        return new TargetTrack
+        {
+            TrackNumber = t.TrackNumber,
+            Type = t.Type,
+            Name = t.TrackName,
+            LanguageCode = t.ResolveLanguageCode(),
+            IsDefault = t.IsDefault,
+            IsForced = t.IsForced,
+            IsHearingImpaired = t.IsHearingImpaired,
+            IsVisualImpaired = t.IsVisualImpaired,
+            IsCommentary = t.IsCommentary,
+            IsOriginal = t.IsOriginal,
+            IsDub = t.IsDub,
+            NameLocked = nameLocked,
+        };
+    }
+
+    private static TrackSettings? SettingsFor(MediaTrackType type, Profile profile)
+    {
+        return type switch
+        {
+            MediaTrackType.Audio => profile.AudioSettings,
+            MediaTrackType.Subtitles => profile.SubtitleSettings,
+            _ => null,
+        };
+    }
+
+    private static bool NameIsFromOverride(TrackSnapshot track, TrackSettings? settings)
+    {
+        if (settings is not { StandardizeTrackNames: true } || settings.TrackNameOverrides.Count == 0)
+        {
+            return false;
+        }
+        foreach (var flag in TrackFlagExtensions.All)
+        {
+            if (flag.Matches(track)
+                && settings.TrackNameOverrides.TryGetValue(flag, out var overrideTemplate)
+                && !string.IsNullOrEmpty(overrideTemplate))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     // Conversion output building

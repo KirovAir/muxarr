@@ -22,7 +22,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var hashBefore = FileAssertions.Sha256(path);
         var sizeBefore = new FileInfo(path).Length;
 
-        var target = file.ToMediaSnapshot();
+        var target = file.BuildTargetFromCustom(file.Tracks.ToSnapshots());
         var conversion = await Fixture.SeedConversion(file, target, custom: true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
@@ -49,7 +49,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var targetTracks = file.Tracks.ToSnapshots();
         targetTracks.First(t => t.TrackNumber == currentDefault.TrackNumber).IsDefault = false;
         targetTracks.First(t => t.TrackNumber == newDefault.TrackNumber).IsDefault = true;
-        var target = file.ToMediaSnapshot(targetTracks);
+        var target = file.BuildTargetFromCustom(targetTracks);
 
         var conversion = await Fixture.SeedConversion(file, target, custom: true);
 
@@ -81,7 +81,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var keptTracks = file.Tracks
             .Where(t => t.TrackNumber != droppedSub.TrackNumber)
             .ToSnapshots();
-        var target = file.ToMediaSnapshot(keptTracks);
+        var target = file.BuildTargetFromCustom(keptTracks);
 
         var conversion = await Fixture.SeedConversion(file, target, custom: true);
 
@@ -117,7 +117,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var keptTracks = file.Tracks
             .Where(t => t.TrackNumber != droppedAudio.TrackNumber)
             .ToSnapshots();
-        var target = file.ToMediaSnapshot(keptTracks);
+        var target = file.BuildTargetFromCustom(keptTracks);
 
         var conversion = await Fixture.SeedConversion(file, target, custom: true);
 
@@ -152,7 +152,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var videoOnly = file.Tracks
             .Where(t => t.Type == MediaTrackType.Video)
             .ToSnapshots();
-        var target = file.ToMediaSnapshot(videoOnly);
+        var target = file.BuildTargetFromCustom(videoOnly);
 
         var conversion = await Fixture.SeedConversion(file, target, custom: true);
 
@@ -189,7 +189,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
             LanguageName = "English",
             Codec = "Aac"
         });
-        var target = file.ToMediaSnapshot(tracks);
+        var target = file.BuildTargetFromCustom(tracks);
 
         var conversion = await Fixture.SeedConversion(file, target, custom: true);
 

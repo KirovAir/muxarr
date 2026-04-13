@@ -1,5 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Muxarr.Core.Models;
 using Muxarr.Data.Extensions;
 
 namespace Muxarr.Data.Entities;
@@ -17,7 +18,7 @@ public class MediaConversion : AuditableEntity
     public long SizeDifference { get; set; }
     public MediaSnapshot SnapshotBefore { get; set; } = new();
     public MediaSnapshot SnapshotAfter { get; set; } = new();
-    public MediaSnapshot TargetSnapshot { get; set; } = new();
+    public TargetSnapshot TargetSnapshot { get; set; } = new();
     public bool IsCustomConversion { get; set; }
     public DateTime? StartedDate { get; set; }
     public ConversionState State { get; set; } = ConversionState.New;

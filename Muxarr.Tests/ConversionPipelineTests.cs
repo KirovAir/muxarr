@@ -47,11 +47,11 @@ public class ConversionPipelineTests
         // French should be gone
         Assert.IsFalse(snapshots.Any(t => t.LanguageName == "French"), "French should be filtered out");
         // English and Dutch audio kept
-        Assert.AreEqual(2, outputs.Count(o => o.Type == MkvMerge.AudioTrack));
+        Assert.AreEqual(2, outputs.Count(o => o.Type == MediaTrackType.Audio));
         // English and Dutch subtitles kept
-        Assert.AreEqual(2, outputs.Count(o => o.Type == MkvMerge.SubtitlesTrack));
+        Assert.AreEqual(2, outputs.Count(o => o.Type == MediaTrackType.Subtitles));
         // Video always kept
-        Assert.AreEqual(1, outputs.Count(o => o.Type == MkvMerge.VideoTrack));
+        Assert.AreEqual(1, outputs.Count(o => o.Type == MediaTrackType.Video));
     }
 
     [TestMethod]
@@ -230,9 +230,9 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var video = outputs.First(o => o.Type == MkvMerge.VideoTrack);
-        var audio = outputs.First(o => o.Type == MkvMerge.AudioTrack);
-        var sub = outputs.First(o => o.Type == MkvMerge.SubtitlesTrack);
+        var video = outputs.First(o => o.Type == MediaTrackType.Video);
+        var audio = outputs.First(o => o.Type == MediaTrackType.Audio);
+        var sub = outputs.First(o => o.Type == MediaTrackType.Subtitles);
 
         Assert.AreEqual("", video.Name, "Video name should be cleared");
         Assert.AreEqual("English 7.1", audio.Name, "Audio should use template");
@@ -255,17 +255,16 @@ public class ConversionPipelineTests
             });
 
         var before = file.ToMediaSnapshot();
-        var target = file.BuildTargetSnapshot(profile);
+        var desired = file.BuildTargetFromProfile(profile);
 
-        // In diff mode (metadata edit), name should be null - no change needed.
-        var diffOutputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        var audioDiff = diffOutputs.First(o => o.Type == MkvMerge.AudioTrack);
-        Assert.IsNull(audioDiff.Name, "Name should be null (don't touch) when standardization is off");
+        // Full desired state carries the original name verbatim (standardize is off).
+        var audioTarget = desired.Tracks.First(t => t.Type == MediaTrackType.Audio);
+        Assert.AreEqual("Original Name", audioTarget.Name, "Target preserves original name when standardize is off");
 
-        // In remux mode, name is set explicitly but preserves the original value.
-        var remuxOutputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
-        var audioRemux = remuxOutputs.First(o => o.Type == MkvMerge.AudioTrack);
-        Assert.AreEqual("Original Name", audioRemux.Name, "Remux should preserve original name");
+        // Delta (what the converter receives) is null because source already has this name.
+        var diff = TestPlan.Diff(before, before, ContainerFamily.Matroska);
+        var audioDiff = diff.First(o => o.Type == MediaTrackType.Audio);
+        Assert.IsNull(audioDiff.Name, "Delta Name is null when target matches source");
     }
 
     [TestMethod]
@@ -293,7 +292,7 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var subs = outputs.Where(o => o.Type == MkvMerge.SubtitlesTrack).ToList();
+        var subs = outputs.Where(o => o.Type == MediaTrackType.Subtitles).ToList();
         Assert.AreEqual("English", subs[0].Name, "Regular sub uses default template");
         Assert.AreEqual("English SDH", subs[1].Name, "SDH sub uses HI override");
         Assert.AreEqual("English Forced", subs[2].Name, "Forced sub uses Forced override");
@@ -321,7 +320,7 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var sub = outputs.First(o => o.Type == MkvMerge.SubtitlesTrack);
+        var sub = outputs.First(o => o.Type == MediaTrackType.Subtitles);
         Assert.AreEqual("English SDH", sub.Name, "Empty override should fall back to default template");
     }
 
@@ -349,7 +348,7 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var sub = outputs.First(o => o.Type == MkvMerge.SubtitlesTrack);
+        var sub = outputs.First(o => o.Type == MediaTrackType.Subtitles);
         Assert.AreEqual("English (SDH)", sub.Name, "HI is checked before Forced in enum order");
     }
 
@@ -374,9 +373,116 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var audio = outputs.First(o => o.Type == MkvMerge.AudioTrack);
+        var audio = outputs.First(o => o.Type == MediaTrackType.Audio);
         Assert.AreEqual("eng", audio.LanguageCode, "Language code should be resolved to English");
         Assert.AreEqual("English 5.1", audio.Name, "Template should use resolved language");
+    }
+
+    // --- Auto-set FlagOriginal ---
+
+    [TestMethod]
+    public void Pipeline_AutoSetsIsOriginal_AudioMatchingOriginalLanguage()
+    {
+        var file = MakeFile("Korean",
+            Video(0),
+            Audio(1, "Korean", nameof(AudioCodec.Eac3), 6),
+            Audio(2, "English", nameof(AudioCodec.Eac3), 6));
+
+        var profile = MakeProfile(
+            audio: new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages =
+                [
+                    IsoLanguage.Find("Korean"),
+                    IsoLanguage.Find("English"),
+                ],
+            });
+
+        var (_, outputs) = RunPipeline(file, profile);
+
+        var korean = outputs.First(o => o.Type == MediaTrackType.Audio && o.LanguageCode == "kor");
+        var english = outputs.First(o => o.Type == MediaTrackType.Audio && o.LanguageCode == "eng");
+        Assert.AreEqual(true, korean.IsOriginal, "Audio matching OriginalLanguage must be marked original");
+        Assert.AreEqual(false, english.IsOriginal, "Audio not matching OriginalLanguage must be marked not-original");
+    }
+
+    [TestMethod]
+    public void Pipeline_AutoSetsIsOriginal_OverridesSourceFlag()
+    {
+        // Source has the wrong FlagOriginal (e.g. release-group mistake).
+        // Profile pass corrects it based on arr's OriginalLanguage.
+        var file = MakeFile("Korean",
+            Video(0),
+            Audio(1, "Korean", nameof(AudioCodec.Eac3), 6, isOriginal: false),
+            Audio(2, "English", nameof(AudioCodec.Eac3), 6, isOriginal: true));
+
+        var profile = MakeProfile(
+            audio: new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages =
+                [
+                    IsoLanguage.Find("Korean"),
+                    IsoLanguage.Find("English"),
+                ],
+            });
+
+        var (_, outputs) = RunPipeline(file, profile);
+
+        var korean = outputs.First(o => o.LanguageCode == "kor");
+        var english = outputs.First(o => o.LanguageCode == "eng");
+        Assert.AreEqual(true, korean.IsOriginal, "Wrong source flag must be corrected");
+        Assert.AreEqual(false, english.IsOriginal, "Wrong source flag must be corrected");
+    }
+
+    [TestMethod]
+    public void Pipeline_AutoSetIsOriginal_NullOriginalLanguage_LeavesFlagsIntact()
+    {
+        // arr sync hasn't run - OriginalLanguage is unknown. Don't invent data.
+        var file = MakeFile(null,
+            Video(0),
+            Audio(1, "English", nameof(AudioCodec.Eac3), 6, isOriginal: true));
+
+        var profile = MakeProfile(
+            audio: new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English")],
+            });
+
+        var (_, outputs) = RunPipeline(file, profile);
+
+        var english = outputs.First(o => o.Type == MediaTrackType.Audio);
+        Assert.AreEqual(true, english.IsOriginal, "Source flag preserved when arr data missing");
+    }
+
+    [TestMethod]
+    public void Pipeline_AutoSetIsOriginal_SubsLeftAlone()
+    {
+        // Subs in the original language are usually SDH/CC, not "original"
+        // in the player-pick-this-by-default sense. Don't auto-set.
+        var file = MakeFile("English",
+            Video(0),
+            Audio(1, "English", nameof(AudioCodec.Eac3), 6),
+            Sub(2, "English", isOriginal: false));
+
+        var profile = MakeProfile(
+            audio: new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English")],
+            },
+            subtitle: new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English")],
+            });
+
+        var (_, outputs) = RunPipeline(file, profile);
+
+        var sub = outputs.First(o => o.Type == MediaTrackType.Subtitles);
+        Assert.AreEqual(false, sub.IsOriginal, "Subtitle IsOriginal is not touched by the profile pass");
     }
 
     // --- Custom conversion ---
@@ -398,19 +504,18 @@ public class ConversionPipelineTests
             new() { Type = MediaTrackType.Subtitles, TrackNumber = 3, LanguageName = "English", LanguageCode = "eng", Codec = nameof(SubtitleCodec.Srt), IsForced = true, TrackName = "Forced" }
         };
 
-        var before = file.ToMediaSnapshot();
-        var target = file.ToMediaSnapshot(customAllowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
+        var target = file.BuildTargetFromCustom(customAllowed);
 
-        var audio1 = outputs.First(o => o.TrackNumber == 1);
-        var audio2 = outputs.First(o => o.TrackNumber == 2);
-        var sub = outputs.First(o => o.TrackNumber == 3);
+        var audio1 = target.Tracks.First(t => t.TrackNumber == 1);
+        var audio2 = target.Tracks.First(t => t.TrackNumber == 2);
+        var sub = target.Tracks.First(t => t.TrackNumber == 3);
 
         Assert.AreEqual(true, audio1.IsDefault, "Custom default flag should pass through");
         Assert.AreEqual(false, audio2.IsDefault, "Custom non-default should pass through");
         Assert.AreEqual(true, sub.IsForced, "Custom forced flag should pass through");
         Assert.AreEqual("Main Audio", audio1.Name, "Custom track name should pass through");
         Assert.AreEqual("Forced", sub.Name, "Custom sub name should pass through");
+        Assert.IsTrue(audio1.NameLocked, "Custom tracks have locked names (user-authored)");
     }
 
     [TestMethod]
@@ -437,7 +542,7 @@ public class ConversionPipelineTests
 
         var before = file.ToMediaSnapshot();
         var target = file.ToMediaSnapshot(customAllowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
 
         Assert.AreEqual(2, outputs.Count, "Custom conversion should keep user-selected tracks regardless of profile");
         Assert.AreEqual("Keep This", outputs[1].Name);
@@ -468,7 +573,7 @@ public class ConversionPipelineTests
 
         var before = file.ToMediaSnapshot();
         var target = file.ToMediaSnapshot(customAllowed);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
 
         // Output order must match the input order, not the original track numbers
         Assert.AreEqual(0, outputs[0].TrackNumber, "Video first");
@@ -501,7 +606,7 @@ public class ConversionPipelineTests
         var (snapshots, outputs) = RunPipeline(file, profile);
 
         // CorrectFlagsFromTrackName should detect "SDH" and set IsHearingImpaired
-        var sub = outputs.First(o => o.Type == MkvMerge.SubtitlesTrack);
+        var sub = outputs.First(o => o.Type == MediaTrackType.Subtitles);
         Assert.AreEqual("English SDH", sub.Name, "Template should reflect corrected HI flag");
         Assert.AreEqual(true, sub.IsHearingImpaired, "HI flag must be explicitly set on output so mkvmerge preserves it");
     }
@@ -533,11 +638,11 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var forcedSub = outputs.First(o => o.Type == MkvMerge.SubtitlesTrack && o.IsForced == true);
+        var forcedSub = outputs.First(o => o.Type == MediaTrackType.Subtitles && o.IsForced == true);
         Assert.IsNotNull(forcedSub, "Forced flag must be explicitly set on output");
         Assert.AreEqual("English Forced", forcedSub.Name);
 
-        var regularSub = outputs.First(o => o.Type == MkvMerge.SubtitlesTrack && o.TrackNumber == 3);
+        var regularSub = outputs.First(o => o.Type == MediaTrackType.Subtitles && o.TrackNumber == 3);
         Assert.AreEqual(false, regularSub.IsForced, "Non-forced sub should have IsForced=false");
     }
 
@@ -566,7 +671,7 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var audio = outputs.First(o => o.Type == MkvMerge.AudioTrack);
+        var audio = outputs.First(o => o.Type == MediaTrackType.Audio);
         Assert.AreEqual(true, audio.IsCommentary, "Commentary flag must be explicit on output");
 
         var hiSub = outputs.First(o => o.TrackNumber == 2);
@@ -658,16 +763,16 @@ public class ConversionPipelineTests
         var (snapshots, outputs) = RunPipeline(file, profile);
 
         // Audio: English TrueHD kept, commentary removed, Dutch kept
-        var audioOutputs = outputs.Where(o => o.Type == MkvMerge.AudioTrack).ToList();
+        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.AreEqual(2, audioOutputs.Count);
         Assert.AreEqual("English TrueHD 7.1", audioOutputs[0].Name);
         Assert.AreEqual("Dutch E-AC-3 5.1", audioOutputs[1].Name);
 
         // Video name cleared
-        Assert.AreEqual("", outputs.First(o => o.Type == MkvMerge.VideoTrack).Name);
+        Assert.AreEqual("", outputs.First(o => o.Type == MediaTrackType.Video).Name);
 
         // Subs: English regular + English forced + Dutch regular kept, HI removed
-        var subOutputs = outputs.Where(o => o.Type == MkvMerge.SubtitlesTrack).ToList();
+        var subOutputs = outputs.Where(o => o.Type == MediaTrackType.Subtitles).ToList();
         Assert.AreEqual(3, subOutputs.Count);
         Assert.IsTrue(subOutputs.All(o => o.Name == "English" || o.Name == "Dutch"),
             $"All sub names should be clean: {string.Join(", ", subOutputs.Select(o => o.Name))}");
@@ -772,7 +877,7 @@ public class ConversionPipelineTests
 
         var (snapshots, outputs) = RunPipeline(file, profile);
 
-        Assert.IsTrue(outputs.Any(o => o.Type == MkvMerge.AudioTrack),
+        Assert.IsTrue(outputs.Any(o => o.Type == MediaTrackType.Audio),
             "Audio must never be empty - fallback should keep at least one track");
     }
 
@@ -794,7 +899,7 @@ public class ConversionPipelineTests
 
         var (snapshots, outputs) = RunPipeline(file, profile);
 
-        Assert.AreEqual(1, outputs.Count(o => o.Type == MkvMerge.AudioTrack),
+        Assert.AreEqual(1, outputs.Count(o => o.Type == MediaTrackType.Audio),
             "Commentary audio should be kept when it's the only option");
     }
 
@@ -819,8 +924,8 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        Assert.AreEqual(0, outputs.Count(o => o.Type == MkvMerge.SubtitlesTrack));
-        Assert.AreEqual(1, outputs.Count(o => o.Type == MkvMerge.AudioTrack));
+        Assert.AreEqual(0, outputs.Count(o => o.Type == MediaTrackType.Subtitles));
+        Assert.AreEqual(1, outputs.Count(o => o.Type == MediaTrackType.Audio));
     }
 
     [TestMethod]
@@ -840,7 +945,7 @@ public class ConversionPipelineTests
         var (_, outputs) = RunPipeline(file, profile);
 
         Assert.AreEqual(1, outputs.Count);
-        Assert.AreEqual(MkvMerge.AudioTrack, outputs[0].Type);
+        Assert.AreEqual(MediaTrackType.Audio, outputs[0].Type);
     }
 
     [TestMethod]
@@ -908,7 +1013,7 @@ public class ConversionPipelineTests
 
         var (snapshots, outputs) = RunPipeline(file, profile);
 
-        Assert.AreEqual(3, outputs.Count(o => o.Type == MkvMerge.AudioTrack),
+        Assert.AreEqual(3, outputs.Count(o => o.Type == MediaTrackType.Audio),
             "All codec variants of an allowed language should be kept");
     }
 
@@ -932,7 +1037,7 @@ public class ConversionPipelineTests
 
         // Unknown language track should be filtered out, English kept.
         // At minimum, audio fallback guarantees at least one track.
-        Assert.IsTrue(outputs.Any(o => o.Type == MkvMerge.AudioTrack));
+        Assert.IsTrue(outputs.Any(o => o.Type == MediaTrackType.Audio));
     }
 
     [TestMethod]
@@ -983,9 +1088,9 @@ public class ConversionPipelineTests
 
         var (snapshots, outputs) = RunPipeline(file, profile);
 
-        Assert.AreEqual(0, outputs.Count(o => o.Type == MkvMerge.SubtitlesTrack),
+        Assert.AreEqual(0, outputs.Count(o => o.Type == MediaTrackType.Subtitles),
             "All subtitles can be removed if none match allowed languages");
-        Assert.IsTrue(outputs.Any(o => o.Type == MkvMerge.AudioTrack),
+        Assert.IsTrue(outputs.Any(o => o.Type == MediaTrackType.Audio),
             "Audio should still be present");
     }
 
@@ -1007,7 +1112,7 @@ public class ConversionPipelineTests
 
         var (_, outputs) = RunPipeline(file, profile);
 
-        var audio = outputs.First(o => o.Type == MkvMerge.AudioTrack);
+        var audio = outputs.First(o => o.Type == MediaTrackType.Audio);
         Assert.AreEqual("Director's \"Special\" Cut (5.1\\Surround)", audio.Name,
             "Special characters in track names should pass through unchanged");
     }
@@ -1052,8 +1157,8 @@ public class ConversionPipelineTests
     [DataRow("test", true, DisplayName = "Name set")]
     public void HasChanges_BasicOutput(string? name, bool expected)
     {
-        var output = new TrackOutput { TrackNumber = 0, Type = MkvMerge.VideoTrack, Name = name };
-        Assert.AreEqual(expected, ConversionPlanner.HasChanges(output));
+        var output = new TargetTrack { TrackNumber = 0, Type = MediaTrackType.Video, Name = name };
+        Assert.AreEqual(expected, TargetDiff.HasChanges(output));
     }
 
     [TestMethod]
@@ -1073,8 +1178,8 @@ public class ConversionPipelineTests
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = false
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        Assert.IsFalse(outputs.Any(ConversionPlanner.HasChanges));
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
+        Assert.IsFalse(outputs.Any(TargetDiff.HasChanges));
     }
 
     [TestMethod]
@@ -1091,8 +1196,8 @@ public class ConversionPipelineTests
             TrackName = "English 5.1", LanguageCode = "eng"
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        Assert.IsTrue(outputs.Any(ConversionPlanner.HasChanges));
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
+        Assert.IsTrue(outputs.Any(TargetDiff.HasChanges));
     }
 
     [TestMethod]
@@ -1104,8 +1209,8 @@ public class ConversionPipelineTests
         var before = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = originalName }] };
         var target = new MediaSnapshot { Tracks = [new TrackSnapshot { TrackNumber = 0, Type = MediaTrackType.Video, TrackName = targetName }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        Assert.AreEqual(expected, outputs.Any(ConversionPlanner.HasChanges));
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
+        Assert.AreEqual(expected, outputs.Any(TargetDiff.HasChanges));
     }
 
     [TestMethod]
@@ -1124,8 +1229,8 @@ public class ConversionPipelineTests
             IsDefault = false, IsForced = true, IsHearingImpaired = false, IsCommentary = false
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        Assert.IsTrue(outputs.Any(ConversionPlanner.HasChanges));
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
+        Assert.IsTrue(outputs.Any(TargetDiff.HasChanges));
     }
 
     [TestMethod]
@@ -1146,18 +1251,20 @@ public class ConversionPipelineTests
             IsDefault = true, IsForced = false, IsHearingImpaired = false, IsCommentary = true
         }] };
 
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
-        Assert.IsFalse(outputs.Any(ConversionPlanner.HasChanges));
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
+        Assert.IsFalse(outputs.Any(TargetDiff.HasChanges));
     }
 
     [TestMethod]
     public void Pipeline_ClearVideoTrackNames_AlreadyNull_NoMetadataChange()
     {
         // End-to-end: a file where the video track name is already null should not
-        // produce a metadata diff when ClearVideoTrackNames is enabled.
+        // produce a metadata diff when ClearVideoTrackNames is enabled. Korean
+        // audio is marked original so the profile pass's IsOriginal auto-set
+        // doesn't introduce a spurious change.
         var file = MakeFile("Korean",
             Video(0),
-            Audio(1, "Korean", "AC-3", 6, trackName: "Korean 5.1"),
+            Audio(1, "Korean", "AC-3", 6, isOriginal: true, trackName: "Korean 5.1"),
             Sub(2, "Korean", forced: true, trackName: "Korean"));
 
         var profile = MakeProfile(
@@ -1179,9 +1286,9 @@ public class ConversionPipelineTests
 
         var before = file.ToMediaSnapshot();
         var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska);
+        var outputs = TestPlan.Diff(before, target, ContainerFamily.Matroska);
 
-        var hasMetadataChanges = outputs.Any(ConversionPlanner.HasChanges);
+        var hasMetadataChanges = outputs.Any(TargetDiff.HasChanges);
 
         Assert.IsFalse(hasMetadataChanges, "File with null video name and ClearVideoTrackNames should be considered optimal");
     }
@@ -1539,12 +1646,15 @@ public class ConversionPipelineTests
 
     // --- Helpers ---
 
-    private static (List<TrackSnapshot> snapshots, List<TrackOutput> outputs) RunPipeline(MediaFile file, Profile profile)
+    private static (List<TrackSnapshot> snapshots, List<TargetTrack> outputs) RunPipeline(MediaFile file, Profile profile)
     {
         file.Profile = profile;
-        var before = file.ToMediaSnapshot();
-        var target = file.BuildTargetSnapshot(profile);
-        var outputs = ConversionPlanner.BuildTrackOutputs(before, target, ContainerFamily.Matroska, diffOnly: false);
-        return (target.Tracks, outputs);
+        // Preview snapshots (what the UI renders) and desired target (what the
+        // pipeline feeds the planner). Both share the same profile mutations
+        // but carry different shapes: TrackSnapshot for display, TargetTrack
+        // for execution (fully populated here, reduced to a delta by the planner).
+        var snapshots = file.BuildTargetSnapshot(profile).Tracks;
+        var outputs = file.BuildTargetFromProfile(profile).Tracks;
+        return (snapshots, outputs);
     }
 }

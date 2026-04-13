@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Muxarr.Core.Api;
 using Muxarr.Core.Config;
+using Muxarr.Core.Models;
 using Muxarr.Data;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -129,7 +130,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
         });
     }
 
-    public async Task<MediaConversion> SeedConversion(MediaFile file, MediaSnapshot target,
+    public async Task<MediaConversion> SeedConversion(MediaFile file, TargetSnapshot target,
         bool custom = false)
     {
         return await WithDbContext(async ctx =>

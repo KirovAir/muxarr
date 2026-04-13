@@ -1,18 +1,15 @@
 using Muxarr.Core.Extensions;
+using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
-using Muxarr.Data.Extensions;
 
 namespace Muxarr.Web.Services;
 
-/// <summary>
-/// Validates a converted file against what we asked the writer to produce.
-/// Catches container flips, track count or ordering drift, and truncation.
-/// </summary>
+// Validates a converted file against what we asked the writer to produce.
+// Catches container flips, track count or ordering drift, and truncation.
 public static class OutputValidator
 {
-    public static void ValidateOrThrow(MediaFile actual, MediaFile source, MediaSnapshot targetSnapshot)
+    public static void ValidateOrThrow(MediaFile actual, MediaFile source, TargetSnapshot target)
     {
-        var expectedTracks = targetSnapshot.Tracks;
         var actualFamily = actual.ContainerType.ToContainerFamily();
         var sourceFamily = source.ContainerType.ToContainerFamily();
         if (actualFamily != sourceFamily)
@@ -22,22 +19,21 @@ public static class OutputValidator
         }
 
         var actualTracks = actual.Tracks.ToList();
-        if (actualTracks.Count != expectedTracks.Count)
+        if (actualTracks.Count != target.Tracks.Count)
         {
             throw new Exception(
-                $"Output has {actualTracks.Count} tracks, expected {expectedTracks.Count}.");
+                $"Output has {actualTracks.Count} tracks, expected {target.Tracks.Count}.");
         }
 
-        for (var i = 0; i < expectedTracks.Count; i++)
+        for (var i = 0; i < target.Tracks.Count; i++)
         {
-            if (actualTracks[i].Type != expectedTracks[i].Type)
+            if (actualTracks[i].Type != target.Tracks[i].Type)
             {
                 throw new Exception(
-                    $"Output track at position {i} is {actualTracks[i].Type}, expected {expectedTracks[i].Type}.");
+                    $"Output track at position {i} is {actualTracks[i].Type}, expected {target.Tracks[i].Type}.");
             }
         }
 
-        // Catches minute-scale truncation; max(500ms, 1%) tolerates framing drift.
         if (source.DurationMs > 0)
         {
             var tolerance = Math.Max(500, source.DurationMs / 100);

@@ -27,12 +27,12 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_CopiesEveryStreamWithoutTranscoding()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack }
+            new() { TrackNumber = 0, Type = MediaTrackType.Video }
         };
 
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", tracks);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(tracks));
 
         StringAssert.Contains(args, "-map 0");
         StringAssert.Contains(args, "-c copy");
@@ -43,7 +43,7 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_IncludesProgressPipe()
     {
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", []);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(new List<TargetTrack>()));
 
         StringAssert.Contains(args, "-progress pipe:1");
     }
@@ -51,7 +51,7 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_InputOutputArePresentAndQuoted()
     {
-        var args = FFmpeg.BuildRemuxArguments("/path with spaces/in.mp4", "/path with spaces/out.muxtmp", []);
+        var args = FFmpeg.BuildRemuxArguments("/path with spaces/in.mp4", "/path with spaces/out.muxtmp", TestPlan.Of(new List<TargetTrack>()));
 
         StringAssert.Contains(args, "-i \"/path with spaces/in.mp4\"");
         StringAssert.Contains(args, "\"/path with spaces/out.muxtmp\"");
@@ -64,7 +64,7 @@ public class FFmpegTests
         // escapes immediately before a double quote, so C:\Users\file.mp4
         // must appear verbatim. Doubling the backslashes would make ffmpeg
         // open the literal path "C:\\Users\\file.mp4" and fail.
-        var args = FFmpeg.BuildRemuxArguments(@"C:\Users\Jesse\in.mp4", @"C:\Users\Jesse\out.muxtmp", []);
+        var args = FFmpeg.BuildRemuxArguments(@"C:\Users\Jesse\in.mp4", @"C:\Users\Jesse\out.muxtmp", TestPlan.Of(new List<TargetTrack>()));
 
         StringAssert.Contains(args, "-i \"C:\\Users\\Jesse\\in.mp4\"");
         StringAssert.Contains(args, "\"C:\\Users\\Jesse\\out.muxtmp\"");
@@ -74,12 +74,12 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_NullFieldsOnTrack_EmitsNothingForThatTrack()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 2, Type = MkvMerge.SubtitlesTrack }
+            new() { TrackNumber = 2, Type = MediaTrackType.Subtitles }
         };
 
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", tracks);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(tracks));
 
         Assert.IsFalse(args.Contains("-metadata:s:2"));
         Assert.IsFalse(args.Contains("-disposition:2"));
@@ -88,18 +88,18 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_SetsTitleAndLanguage()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
             new()
             {
                 TrackNumber = 1,
-                Type = MkvMerge.AudioTrack,
+                Type = MediaTrackType.Audio,
                 Name = "English 5.1 AC-3",
                 LanguageCode = "eng"
             }
         };
 
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", tracks);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(tracks));
 
         // -map refers to the input stream (TrackNumber=1), -metadata and
         // -disposition refer to the output stream index (0 because it's the
@@ -112,12 +112,12 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_EmptyTitleClears()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack, Name = "" }
+            new() { TrackNumber = 0, Type = MediaTrackType.Video, Name = "" }
         };
 
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", tracks);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(tracks));
 
         StringAssert.Contains(args, "-metadata:s:0 title=\"\"");
     }
@@ -125,18 +125,18 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_SetsDisposition()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
             new()
             {
                 TrackNumber = 2,
-                Type = MkvMerge.SubtitlesTrack,
+                Type = MediaTrackType.Subtitles,
                 IsDefault = true,
                 IsForced = false
             }
         };
 
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", tracks);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(tracks));
 
         // Bare absolute stream index - "s:N" in disposition context means
         // "subtitle stream N (relative)" in ffmpeg, which is not what we want.
@@ -148,14 +148,14 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_MultipleTracks_EmitsPerStreamOptions()
     {
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack },
-            new() { TrackNumber = 1, Type = MkvMerge.AudioTrack, LanguageCode = "eng", IsDefault = true },
-            new() { TrackNumber = 2, Type = MkvMerge.SubtitlesTrack, LanguageCode = "dut", Name = "Dutch" }
+            new() { TrackNumber = 0, Type = MediaTrackType.Video },
+            new() { TrackNumber = 1, Type = MediaTrackType.Audio, LanguageCode = "eng", IsDefault = true },
+            new() { TrackNumber = 2, Type = MediaTrackType.Subtitles, LanguageCode = "dut", Name = "Dutch" }
         };
 
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", tracks);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(tracks));
 
         // -map uses input indices, -metadata/-disposition use output indices.
         // Here they coincide because the list is in input order with no gaps.
@@ -174,14 +174,14 @@ public class FFmpegTests
         // Input audio 2, input video 0, input subtitle 3 -> output indices 0, 1, 2.
         // Metadata targets the output indices, so the title on the first
         // track in the list lands on output 0 regardless of its input index.
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 2, Type = MkvMerge.AudioTrack, Name = "First out" },
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack },
-            new() { TrackNumber = 3, Type = MkvMerge.SubtitlesTrack, Name = "Third out" }
+            new() { TrackNumber = 2, Type = MediaTrackType.Audio, Name = "First out" },
+            new() { TrackNumber = 0, Type = MediaTrackType.Video },
+            new() { TrackNumber = 3, Type = MediaTrackType.Subtitles, Name = "Third out" }
         };
 
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", tracks);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(tracks));
 
         StringAssert.Contains(args, "-map 0:2 -map 0:0 -map 0:3");
         StringAssert.Contains(args, "-metadata:s:0 title=\"First out\"");
@@ -192,13 +192,14 @@ public class FFmpegTests
     public async Task RemuxFile_ThrowsOnSameInputOutputPath()
     {
         await Assert.ThrowsExactlyAsync<ArgumentException>(async () =>
-            await FFmpeg.RemuxFile("/same.mp4", "/same.mp4", []));
+            await FFmpeg.Remux("/same.mp4", "/same.mp4", TestPlan.Of(new List<TargetTrack>())));
     }
 
     [TestMethod]
     public void BuildArguments_FaststartFalse_DoesNotAppendFaststartFlag()
     {
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", [], faststart: false);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp",
+            TestPlan.Of(new List<TargetTrack>(), faststart: false));
 
         StringAssert.Contains(args, "-movflags +use_metadata_tags");
         Assert.IsFalse(args.Contains("+faststart"), "faststart must be absent when not requested");
@@ -207,7 +208,8 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_FaststartTrue_AppendsFaststartToMovflags()
     {
-        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", [], faststart: true);
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp",
+            TestPlan.Of(new List<TargetTrack>(), faststart: true));
 
         StringAssert.Contains(args, "-movflags +use_metadata_tags+faststart");
     }
@@ -215,7 +217,8 @@ public class FFmpegTests
     [TestMethod]
     public void BuildArguments_MovMuxer_EmitsDashFMov()
     {
-        var args = FFmpeg.BuildRemuxArguments("/in.mov", "/out.muxtmp", [], muxerFormat: "mov");
+        var args = FFmpeg.BuildRemuxArguments("/in.mov", "/out.muxtmp",
+            TestPlan.Of(new List<TargetTrack>()), muxerFormat: "mov");
 
         StringAssert.Contains(args, "-f mov");
         Assert.IsFalse(args.Contains("-f mp4"));
@@ -275,21 +278,21 @@ public class FFmpegTests
     /// tracks parameter to RemuxFile is the full output set, not a subset to
     /// patch). Caller passes a mutator that applies per-track changes.
     /// </summary>
-    private async Task<List<TrackOutput>> BuildAllTracks(Action<List<TrackOutput>>? mutate = null)
+    private async Task<List<TargetTrack>> BuildAllTracks(Action<List<TargetTrack>>? mutate = null)
     {
         var probe = await FFmpeg.GetStreamInfo(_workingCopy);
         Assert.IsNotNull(probe.Result);
 
         var tracks = probe.Result.Streams
             .Where(s => s.CodecType is "video" or "audio" or "subtitle")
-            .Select(s => new TrackOutput
+            .Select(s => new TargetTrack
             {
                 TrackNumber = s.Index,
                 Type = s.CodecType switch
                 {
-                    "video" => MkvMerge.VideoTrack,
-                    "audio" => MkvMerge.AudioTrack,
-                    _ => MkvMerge.SubtitlesTrack
+                    "video" => MediaTrackType.Video,
+                    "audio" => MediaTrackType.Audio,
+                    _ => MediaTrackType.Subtitles
                 }
             })
             .ToList();
@@ -309,7 +312,7 @@ public class FFmpegTests
             audio.LanguageCode = "eng";
         });
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
         Assert.IsTrue(File.Exists(output));
 
@@ -339,7 +342,7 @@ public class FFmpegTests
             sub.Name = "English (metadata edit)";
         });
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         // Regression: mkvmerge fallback used to translate tx3g to SRT here.
@@ -363,7 +366,7 @@ public class FFmpegTests
             ts.First(t => t.TrackNumber == 2).IsCommentary = false;
         });
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var probe = await FFmpeg.GetStreamInfo(output);
@@ -385,7 +388,7 @@ public class FFmpegTests
             ts.First(t => t.TrackNumber == 3).IsForced = true;
         });
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var probe = await FFmpeg.GetStreamInfo(output);
@@ -413,7 +416,7 @@ public class FFmpegTests
             ts.First(t => t.TrackNumber == 3).IsHearingImpaired = true;
         });
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var file = new MediaFile { Path = output };
@@ -436,7 +439,7 @@ public class FFmpegTests
             ts.First(t => t.TrackNumber == 2).LanguageCode = "fre";
         });
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var info = await MkvMerge.GetFileInfo(output);
@@ -457,7 +460,7 @@ public class FFmpegTests
             ts.First(t => t.TrackNumber == 1).Name = "Touched";
         });
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var outInfo = await MkvMerge.GetFileInfo(output);
@@ -472,14 +475,14 @@ public class FFmpegTests
         // and silently rewrapped the file to MKV. With FFmpeg.RemuxFile
         // handling every MP4 write, track removal stays in MP4.
         var output = _workingCopy + ".muxtmp";
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack },
-            new() { TrackNumber = 1, Type = MkvMerge.AudioTrack }
+            new() { TrackNumber = 0, Type = MediaTrackType.Video },
+            new() { TrackNumber = 1, Type = MediaTrackType.Audio }
             // Intentionally dropping tracks 2, 3, 4.
         };
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var info = await MkvMerge.GetFileInfo(output);
@@ -500,14 +503,14 @@ public class FFmpegTests
         // order specified, not the input order. The output MP4 has audio
         // before video when we ask for it that way.
         var output = _workingCopy + ".muxtmp";
-        var tracks = new List<TrackOutput>
+        var tracks = new List<TargetTrack>
         {
-            new() { TrackNumber = 1, Type = MkvMerge.AudioTrack },
-            new() { TrackNumber = 0, Type = MkvMerge.VideoTrack },
-            new() { TrackNumber = 3, Type = MkvMerge.SubtitlesTrack }
+            new() { TrackNumber = 1, Type = MediaTrackType.Audio },
+            new() { TrackNumber = 0, Type = MediaTrackType.Video },
+            new() { TrackNumber = 3, Type = MediaTrackType.Subtitles }
         };
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var probe = await FFmpeg.GetStreamInfo(output);
@@ -558,25 +561,20 @@ public class FFmpegTests
             // Converter path: run a full remux with a metadata change on the
             // audio track, then validate through the same OutputValidator
             // FinalizeTemporaryOutputAsync calls in production.
-            var tracks = source.Tracks.Select(t => new TrackOutput
+            var tracks = source.Tracks.Select(t => new TargetTrack
             {
                 TrackNumber = t.TrackNumber,
-                Type = t.Type switch
-                {
-                    MediaTrackType.Video => MkvMerge.VideoTrack,
-                    MediaTrackType.Audio => MkvMerge.AudioTrack,
-                    _ => MkvMerge.SubtitlesTrack
-                },
+                Type = t.Type,
                 Name = t.Type == MediaTrackType.Audio ? $"Renamed {extension}" : null
             }).ToList();
 
-            var result = await FFmpeg.RemuxFile(fixture, output, tracks, source.DurationMs);
-            Assert.IsTrue(FFmpeg.IsSuccess(result), $"{extension}: RemuxFile failed: {result.Error}");
+            var result = await FFmpeg.Remux(fixture, output, TestPlan.Of(tracks, faststart: false, durationMs: source.DurationMs));
+            Assert.IsTrue(FFmpeg.IsSuccess(result), $"{extension}: Remux failed: {result.Error}");
 
             var probed = new MediaFile { Path = output };
             await probed.SetFileDataFromFFprobe();
 
-            OutputValidator.ValidateOrThrow(probed, source, source.ToMediaSnapshot());
+            OutputValidator.ValidateOrThrow(probed, source, TestPlan.FromSnapshot(source.ToMediaSnapshot()));
 
             // The audio title change actually landed.
             var audio = probed.Tracks.First(t => t.Type == MediaTrackType.Audio);
@@ -631,7 +629,7 @@ public class FFmpegTests
         var output = _workingCopy + ".muxtmp";
         var tracks = await BuildAllTracks();
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
 
         var source = new MediaFile { Path = _workingCopy };
@@ -641,7 +639,7 @@ public class FFmpegTests
         await probed.SetFileDataFromFFprobe();
 
         // Must not throw.
-        OutputValidator.ValidateOrThrow(probed, source, source.ToMediaSnapshot());
+        OutputValidator.ValidateOrThrow(probed, source, TestPlan.FromSnapshot(source.ToMediaSnapshot()));
     }
 
     [TestMethod]
@@ -686,8 +684,8 @@ public class FFmpegTests
         var output = _workingCopy + ".muxtmp";
         var tracks = await BuildAllTracks();
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks, faststart: true);
-        Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks, faststart: true));
+        Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.Remux failed: {result.Error}");
 
         Assert.IsTrue(FFmpeg.IsFaststartLayout(output),
             "Output must have moov before mdat when faststart was requested.");
@@ -699,8 +697,8 @@ public class FFmpegTests
         var output = _workingCopy + ".muxtmp";
         var tracks = await BuildAllTracks();
 
-        var result = await FFmpeg.RemuxFile(_workingCopy, output, tracks, faststart: false);
-        Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
+        var result = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks, faststart: false));
+        Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.Remux failed: {result.Error}");
 
         Assert.IsFalse(FFmpeg.IsFaststartLayout(output),
             "Output must have moov after mdat when faststart was not requested.");
@@ -718,7 +716,7 @@ public class FFmpegTests
             ts.First(t => t.TrackNumber == 1).Name = "Round Trip Title";
         });
 
-        var editResult = await FFmpeg.RemuxFile(_workingCopy, output, tracks);
+        var editResult = await FFmpeg.Remux(_workingCopy, output, TestPlan.Of(tracks));
         Assert.IsTrue(FFmpeg.IsSuccess(editResult), $"FFmpeg.RemuxFile failed: {editResult.Error}");
 
         var file = new MediaFile { Path = output };
