@@ -22,7 +22,7 @@ public class FFprobeComplexTests : FixtureTestBase
         return Task.CompletedTask;
     }
 
-    // --- SetFileDataFromFFprobe: ffprobe JSON -> MediaTrack entities ---
+    // --- SetFileDataFromFFprobe: ffprobe JSON -> TrackSnapshot entities ---
 
     [TestMethod]
     public async Task SetFileDataFromFFprobe_ParsesAllFlagsFromComplexFile()
@@ -30,8 +30,8 @@ public class FFprobeComplexTests : FixtureTestBase
         var file = new MediaFile { Path = _workingCopy };
         await file.SetFileDataFromFFprobe();
 
-        Assert.AreEqual(9, file.Tracks.Count);
-        var tracks = file.Tracks.OrderBy(t => t.Index).ToList();
+        Assert.AreEqual(9, file.Snapshot.Tracks.Count);
+        var tracks = file.Snapshot.Tracks.OrderBy(t => t.Index).ToList();
 
         // Video
         Assert.AreEqual(MediaTrackType.Video, tracks[0].Type);
@@ -87,7 +87,7 @@ public class FFprobeComplexTests : FixtureTestBase
         var file = new MediaFile { Path = _workingCopy };
         await file.SetFileDataFromFFprobe();
 
-        var tracks = file.Tracks.OrderBy(t => t.Index).ToList();
+        var tracks = file.Snapshot.Tracks.OrderBy(t => t.Index).ToList();
 
         Assert.AreEqual(nameof(VideoCodec.Avc), tracks[0].Codec);
         Assert.AreEqual(nameof(AudioCodec.Aac), tracks[1].Codec);
@@ -100,7 +100,7 @@ public class FFprobeComplexTests : FixtureTestBase
         var file = new MediaFile { Path = _workingCopy };
         await file.SetFileDataFromFFprobe();
 
-        var audio = file.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        var audio = file.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
         Assert.IsTrue(audio.All(t => t.AudioChannels > 0));
     }
 
@@ -110,11 +110,11 @@ public class FFprobeComplexTests : FixtureTestBase
         var file = new MediaFile { Path = _workingCopy };
         await file.SetFileDataFromFFprobe();
 
-        Assert.AreEqual("Matroska", file.ContainerType);
-        Assert.AreEqual(ContainerFamily.Matroska, file.ContainerType.ToContainerFamily());
-        Assert.IsNotNull(file.Resolution);
-        Assert.IsTrue(file.DurationMs > 0);
-        Assert.AreEqual(9, file.TrackCount);
+        Assert.AreEqual("Matroska", file.Snapshot.ContainerType);
+        Assert.AreEqual(ContainerFamily.Matroska, file.Snapshot.ContainerType.ToContainerFamily());
+        Assert.IsNotNull(file.Snapshot.Resolution);
+        Assert.IsTrue(file.Snapshot.DurationMs > 0);
+        Assert.AreEqual(9, file.Snapshot.TrackCount);
     }
 
     // --- End-to-end: ffprobe -> filter -> verify (parity with MkvToolNixComplexTests) ---

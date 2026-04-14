@@ -186,7 +186,8 @@
 
     protected override void OnInitialized()
     {
-        var trackLanguages = File.Tracks
+        var sourceTracks = File.Snapshot.Tracks;
+        var trackLanguages = sourceTracks
             .Where(t => t.Type != MediaTrackType.Video)
             .Select(t => t.LanguageName)
             .Distinct()
@@ -197,7 +198,7 @@
             .ThenBy(l => l.Name)
             .ToList();
 
-        _editableTracks = File.Tracks.Select(t => t.ToSnapshot()).ToList();
+        _editableTracks = sourceTracks.Select(t => t.ToSnapshot()).ToList();
 
         // Start from raw file state: all tracks selected, no mutations applied.
         // User can click "Apply Profile" to filter and mutate based on a profile.
@@ -302,7 +303,7 @@
         // EncodeDubInName returns null when stripping "Dub" emptied the title;
         // we keep that as an explicit clear ("") so the custom-conversion
         // path carries the user's intent rather than treating it as "no opinion".
-        if (File.ContainerType.ToContainerFamily() == ContainerFamily.Matroska)
+        if (File.Snapshot.ContainerType.ToContainerFamily() == ContainerFamily.Matroska)
         {
             track.Name = TrackNameFlags.EncodeDubInName(track.Name, track.IsDub) ?? "";
         }

@@ -140,7 +140,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
             {
                 MediaFileId = file.Id,
                 SizeBefore = file.Size,
-                SnapshotBefore = file.ToMediaSnapshot(),
+                BeforeSnapshotId = file.SnapshotId,
                 ConversionPlan = target,
                 State = ConversionState.New,
                 Name = file.GetName(),

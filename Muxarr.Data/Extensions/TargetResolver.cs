@@ -7,25 +7,17 @@ namespace Muxarr.Data.Extensions;
 
 // Container-specific resolution of a desired target. Run by the builders so
 // the ConversionPlan they hand off is already valid for the output container.
-// The planner, converters, and UI preview all read a resolved target; none
-// of them need to know about quirks.
-//
-// Matroska has no FlagDub on any track type. When IsDub is set on an unlocked
-// target track we rewrite its title to encode the dub state (TrackNameFlags
-// .EncodeDubInName) and null IsDub so mkvmerge/mkvpropedit never see a flag
-// they can't express.
+// Matroska has no FlagDub, so when IsDub is set on an unlocked target track
+// we rewrite its title to encode the dub state and null IsDub out.
 public static class TargetResolver
 {
-    public static void ResolveForContainer(ConversionPlan target, MediaSnapshot source, ContainerFamily family,
-        bool sourceHasFaststart = false)
+    public static void ResolveForContainer(ConversionPlan target, MediaSnapshot source)
     {
-        // Faststart is an MP4-only concern. On Matroska it is meaningless - null it
-        // out so the stored target doesn't carry a stale opinion. On MP4 resolve
-        // "inherit" (null) against the source's current layout so the target leaves
-        // the builder with a concrete decision.
+        var family = source.ContainerType.ToContainerFamily();
+
         if (family == ContainerFamily.Mp4)
         {
-            target.Faststart ??= sourceHasFaststart;
+            target.Faststart ??= source.HasFaststart;
         }
         else
         {

@@ -825,7 +825,7 @@ public class ConversionPipelineTests
             Sub(3, "English", trackName: "English PGS"));
 
         // Override the codec on track 3 since the Sub helper defaults to SRT
-        file.Tracks.First(t => t.Index == 3).Codec = nameof(SubtitleCodec.Pgs);
+        file.Snapshot.Tracks.First(t => t.Index == 3).Codec = nameof(SubtitleCodec.Pgs);
 
         var profile = MakeProfile(
             subtitle: new TrackSettings
@@ -851,7 +851,7 @@ public class ConversionPipelineTests
             Audio(1, "English", nameof(AudioCodec.Aac), 6),
             Sub(2, "English"));
 
-        file.Tracks.First(t => t.Index == 2).Codec = nameof(SubtitleCodec.Pgs);
+        file.Snapshot.Tracks.First(t => t.Index == 2).Codec = nameof(SubtitleCodec.Pgs);
 
         var profile = MakeProfile(
             subtitle: new TrackSettings
@@ -876,7 +876,7 @@ public class ConversionPipelineTests
             Audio(1, "English", nameof(AudioCodec.Aac), 6),
             Sub(2, "English"));
 
-        file.Tracks.First(t => t.Index == 2).Codec = nameof(SubtitleCodec.Pgs);
+        file.Snapshot.Tracks.First(t => t.Index == 2).Codec = nameof(SubtitleCodec.Pgs);
 
         var profile = MakeProfile(
             subtitle: new TrackSettings

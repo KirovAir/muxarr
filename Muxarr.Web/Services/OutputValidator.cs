@@ -10,15 +10,15 @@ public static class OutputValidator
 {
     public static void ValidateOrThrow(MediaFile actual, MediaFile source, ConversionPlan target)
     {
-        var actualFamily = actual.ContainerType.ToContainerFamily();
-        var sourceFamily = source.ContainerType.ToContainerFamily();
+        var actualFamily = actual.Snapshot.ContainerType.ToContainerFamily();
+        var sourceFamily = source.Snapshot.ContainerType.ToContainerFamily();
         if (actualFamily != sourceFamily)
         {
             throw new Exception(
                 $"Output container family is {actualFamily}, expected {sourceFamily}.");
         }
 
-        var actualTracks = actual.Tracks.ToList();
+        var actualTracks = actual.Snapshot.Tracks;
         if (actualTracks.Count != target.Tracks.Count)
         {
             throw new Exception(
@@ -34,13 +34,14 @@ public static class OutputValidator
             }
         }
 
-        if (source.DurationMs > 0)
+        var sourceDuration = source.Snapshot.DurationMs;
+        if (sourceDuration > 0)
         {
-            var tolerance = Math.Max(500, source.DurationMs / 100);
-            if (actual.DurationMs < source.DurationMs - tolerance)
+            var tolerance = Math.Max(500, sourceDuration / 100);
+            if (actual.Snapshot.DurationMs < sourceDuration - tolerance)
             {
                 throw new Exception(
-                    $"Output duration {actual.DurationMs}ms is shorter than source {source.DurationMs}ms " +
+                    $"Output duration {actual.Snapshot.DurationMs}ms is shorter than source {sourceDuration}ms " +
                     $"(tolerance {tolerance}ms). File may be truncated.");
             }
         }

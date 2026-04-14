@@ -32,7 +32,7 @@ public class TrackFilterTests
     public void Subtitles_UnwantedLanguage_DroppedEntirely()
     {
         // "The Deepest Breath" scenario: French subs on an English movie, allowed = English/Dutch
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "French", forced: true),
             Sub(2, "French")
@@ -46,7 +46,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_MixedLanguages_KeepsOnlyAllowed()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "French"),
             Sub(2, "English"),
@@ -62,7 +62,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_OriginalLanguageKept_WhenKeepOriginalEnabled()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "Japanese"),
             Sub(2, "English")
@@ -76,7 +76,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_AllUnwanted_ResultsInEmpty()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "Spanish"),
             Sub(2, "Portuguese"),
@@ -93,7 +93,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_UnwantedLanguage_FallbackKeepsOne()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "French"),
             Audio(2, "German")
@@ -107,7 +107,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_SingleUnwantedTrack_FallbackKeepsIt()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "French")
         };
@@ -122,7 +122,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_NullOriginalLanguage_UnknownTrackNotTreatedAsEnglish()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, IsoLanguage.UnknownName, languageCode: "und"),
             Audio(2, "Dutch")
@@ -143,7 +143,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_NullOriginalLanguage_UnknownSubsDropped()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, IsoLanguage.UnknownName, languageCode: "und"),
             Sub(2, "English")
@@ -163,7 +163,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_NullOriginalLanguage_FallbackKeepsWhenAllUnknown()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, IsoLanguage.UnknownName, languageCode: "und")
         };
@@ -193,34 +193,37 @@ public class TrackFilterTests
                 AudioSettings = EnglishDutchAudio,
                 SubtitleSettings = EnglishDutchSubtitles
             },
-            Tracks =
-            [
-                new MediaTrack
-                {
-                    Type = MediaTrackType.Video, LanguageCode = "und", LanguageName = "Undetermined",
-                    Codec = nameof(VideoCodec.Avc), Index = 0
-                },
-                new MediaTrack
-                {
-                    Type = MediaTrackType.Audio, LanguageCode = "fre", LanguageName = "French",
-                    Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, Index = 1
-                },
-                new MediaTrack
-                {
-                    Type = MediaTrackType.Audio, LanguageCode = "eng", LanguageName = "English",
-                    Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, Index = 2
-                },
-                new MediaTrack
-                {
-                    Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French", IsForced = true,
-                    Codec = nameof(SubtitleCodec.Srt), Index = 3, Name = "French Forced"
-                },
-                new MediaTrack
-                {
-                    Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French",
-                    Codec = nameof(SubtitleCodec.Srt), Index = 4, Name = "French"
-                }
-            ]
+            Snapshot = new MediaSnapshot
+            {
+                Tracks =
+                [
+                    new TrackSnapshot
+                    {
+                        Type = MediaTrackType.Video, LanguageCode = "und", LanguageName = "Undetermined",
+                        Codec = nameof(VideoCodec.Avc), Index = 0
+                    },
+                    new TrackSnapshot
+                    {
+                        Type = MediaTrackType.Audio, LanguageCode = "fre", LanguageName = "French",
+                        Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, Index = 1
+                    },
+                    new TrackSnapshot
+                    {
+                        Type = MediaTrackType.Audio, LanguageCode = "eng", LanguageName = "English",
+                        Codec = nameof(AudioCodec.Eac3), AudioChannels = 6, Index = 2
+                    },
+                    new TrackSnapshot
+                    {
+                        Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French", IsForced = true,
+                        Codec = nameof(SubtitleCodec.Srt), Index = 3, Name = "French Forced"
+                    },
+                    new TrackSnapshot
+                    {
+                        Type = MediaTrackType.Subtitles, LanguageCode = "fre", LanguageName = "French",
+                        Codec = nameof(SubtitleCodec.Srt), Index = 4, Name = "French"
+                    }
+                ]
+            }
         };
 
         var result = file.BuildTargetSnapshot(file.Profile).Tracks;
@@ -238,7 +241,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_AllCommentary_StillDroppedIfWrongLanguage()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "French", commentary: true),
             Sub(2, "French", commentary: true)
@@ -252,7 +255,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_HIOnly_KeptIfAllowedLanguage()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "English", hi: true)
         };
@@ -274,7 +277,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_DisabledSettings_ReturnsAllTracks()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "French"),
             Audio(2, "German"),
@@ -296,7 +299,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_MultipleAllowedLanguages_KeepsAll()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "English"),
             Sub(2, "Dutch"),
@@ -316,7 +319,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_RemoveCommentaryAndHI_KeepsRegular()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English"),
             Audio(2, "English", commentary: true),
@@ -332,7 +335,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_AllCommentary_SafetyKeepsThem()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", commentary: true),
             Audio(2, "English", commentary: true)
@@ -346,7 +349,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_AllHI_SafetyKeepsThem()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", hi: true),
             Audio(2, "English", hi: true)
@@ -362,7 +365,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_OriginalLanguageDropped_WhenKeepOriginalDisabled()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "Japanese"),
             Sub(2, "English")
@@ -385,7 +388,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_OriginalLanguageDropped_FallbackKeepsOne()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "Japanese")
         };
@@ -405,7 +408,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_Fallback_PrefersNonCommentaryNonHI()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "French", commentary: true),
             Audio(2, "French", hi: true),
@@ -423,7 +426,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_UndeterminedRemapped_WhenSingleTrackAndSettingEnabled()
     {
-        var tracks = new List<MediaTrack> { Audio(1, "Undetermined") };
+        var tracks = new List<TrackSnapshot> { Audio(1, "Undetermined") };
         var settings = new TrackSettings
         {
             Enabled = true,
@@ -439,7 +442,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_UndeterminedDropped_WhenSettingDisabled()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "Undetermined"),
             Audio(2, "English")
@@ -460,7 +463,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_UndeterminedNotRemapped_WhenMultipleTracks()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "Undetermined"),
             Audio(2, "English")
@@ -481,7 +484,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_UndeterminedFallback_KeepsTrackWhenOnlyOne()
     {
-        var tracks = new List<MediaTrack> { Audio(1, "Undetermined") };
+        var tracks = new List<TrackSnapshot> { Audio(1, "Undetermined") };
         var settings = new TrackSettings
         {
             Enabled = true,
@@ -497,7 +500,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_UndeterminedRemapped_WhenSettingEnabled()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "Undetermined", languageCode: "und")
         };
@@ -516,7 +519,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_UndeterminedKeptViaKeepOriginalLanguage()
     {
-        var tracks = new List<MediaTrack> { Audio(1, "Undetermined") };
+        var tracks = new List<TrackSnapshot> { Audio(1, "Undetermined") };
         var settings = new TrackSettings
         {
             Enabled = true,
@@ -532,7 +535,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Audio_UndeterminedNotKeptWithoutKeepOriginal_WhenNotInAllowed()
     {
-        var tracks = new List<MediaTrack> { Audio(1, "Undetermined") };
+        var tracks = new List<TrackSnapshot> { Audio(1, "Undetermined") };
         var settings = new TrackSettings
         {
             Enabled = true,
@@ -553,7 +556,7 @@ public class TrackFilterTests
     {
         // Undetermined subs are dropped like any other non-allowed language.
         // Users who want to keep them can add "Undetermined" to their allowed languages.
-        var tracks = new List<MediaTrack> { Sub(1, "Undetermined", languageCode: "und") };
+        var tracks = new List<TrackSnapshot> { Sub(1, "Undetermined", languageCode: "und") };
         var settings = new TrackSettings
         {
             Enabled = true,
@@ -569,7 +572,7 @@ public class TrackFilterTests
     public void Subtitles_UndeterminedKept_WhenExplicitlyAllowed()
     {
         // User adds "Undetermined" to allowed languages to keep unlabeled tracks.
-        var tracks = new List<MediaTrack> { Sub(1, "Undetermined", languageCode: "und") };
+        var tracks = new List<TrackSnapshot> { Sub(1, "Undetermined", languageCode: "und") };
         var settings = new TrackSettings
         {
             Enabled = true,
@@ -586,7 +589,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_EmptyAllowedLanguages_KeepOriginalOnly()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "English"),
             Sub(2, "French")
@@ -606,7 +609,7 @@ public class TrackFilterTests
     [TestMethod]
     public void Subtitles_EmptyAllowedLanguages_NoKeepOriginal_DropsAll()
     {
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Sub(1, "English"),
             Sub(2, "French")

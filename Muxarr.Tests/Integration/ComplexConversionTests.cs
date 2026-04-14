@@ -36,8 +36,8 @@ public class ComplexConversionTests : IntegrationTestBase
         var probed = await FileAssertions.ProbeAsync(path);
         await FileAssertions.AssertContainerFamily(path, ContainerFamily.Matroska);
 
-        var audio = probed.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
-        var subs = probed.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
+        var audio = probed.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        var subs = probed.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
         // Commentary stripped; Spanish sub stripped.
         Assert.AreEqual(2, audio.Count,
@@ -85,8 +85,8 @@ public class ComplexConversionTests : IntegrationTestBase
         var probed = await FileAssertions.ProbeAsync(path);
         await FileAssertions.AssertContainerFamily(path, ContainerFamily.Mp4);
 
-        var audio = probed.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
-        var subs = probed.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
+        var audio = probed.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        var subs = probed.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
         Assert.AreEqual(2, audio.Count, "commentary should be stripped");
         Assert.IsFalse(subs.Any(t => t.LanguageCode == "spa"), "Spanish sub stripped");
@@ -113,15 +113,15 @@ public class ComplexConversionTests : IntegrationTestBase
         // mkvpropedit in place). Flipping each flag to the opposite of
         // what the source carries so every assertion can distinguish.
         var english51 =
-            file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
-        var commentary = file.Tracks.First(t => t.IsCommentary);
-        var frenchDub = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
-        var englishSub = file.Tracks.First(t =>
+            file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
+        var commentary = file.Snapshot.Tracks.First(t => t.IsCommentary);
+        var frenchDub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
+        var englishSub = file.Snapshot.Tracks.First(t =>
             t.Type == MediaTrackType.Subtitles && t.LanguageCode == "eng" && !t.IsHearingImpaired && !t.IsForced);
-        var forcedSub = file.Tracks.First(t => t.IsForced);
-        var sdhSub = file.Tracks.First(t => t.IsHearingImpaired);
+        var forcedSub = file.Snapshot.Tracks.First(t => t.IsForced);
+        var sdhSub = file.Snapshot.Tracks.First(t => t.IsHearingImpaired);
 
-        var snapshots = file.Tracks.ToSnapshots();
+        var snapshots = file.Snapshot.Tracks.ToSnapshots();
         SnapshotFor(english51).IsForced = true; // flag on a track whose title doesn't encode forced
         SnapshotFor(english51).IsOriginal = true;
         SnapshotFor(english51).IsVisualImpaired = true;
@@ -146,7 +146,7 @@ public class ComplexConversionTests : IntegrationTestBase
         SnapshotFor(sdhSub).IsHearingImpaired = false;
         SnapshotFor(sdhSub).Name = "English";
 
-        TrackSnapshot SnapshotFor(MediaTrack t)
+        TrackSnapshot SnapshotFor(TrackSnapshot t)
         {
             return snapshots.First(s => s.Index == t.Index);
         }
@@ -163,31 +163,31 @@ public class ComplexConversionTests : IntegrationTestBase
         await FileAssertions.AssertContainerFamily(path, ContainerFamily.Matroska);
 
         var probed = await FileAssertions.ProbeAsync(path);
-        Assert.AreEqual(9, probed.Tracks.Count, "metadata edit must not add or drop tracks");
+        Assert.AreEqual(9, probed.Snapshot.Tracks.Count, "metadata edit must not add or drop tracks");
 
         // Flag-by-flag read-back. All through ffprobe so it matches what
         // the scanner would see on the next pass.
-        var probeEnglish = probed.Tracks.First(t => t.Index == english51.Index);
+        var probeEnglish = probed.Snapshot.Tracks.First(t => t.Index == english51.Index);
         Assert.IsTrue(probeEnglish.IsForced, "IsForced flip should have landed");
         Assert.IsTrue(probeEnglish.IsOriginal, "IsOriginal flip should have landed");
         Assert.IsTrue(probeEnglish.IsVisualImpaired, "IsVisualImpaired flip should have landed");
 
-        var probeCommentary = probed.Tracks.First(t => t.Index == commentary.Index);
+        var probeCommentary = probed.Snapshot.Tracks.First(t => t.Index == commentary.Index);
         Assert.IsFalse(probeCommentary.IsCommentary, "Commentary flag must clear when user sets false");
         Assert.IsTrue(probeCommentary.IsDefault, "Default flag must be set even on an ex-commentary track");
 
-        var probeFrench = probed.Tracks.First(t => t.Index == frenchDub.Index);
+        var probeFrench = probed.Snapshot.Tracks.First(t => t.Index == frenchDub.Index);
         Assert.IsFalse(probeFrench.IsDub, "IsDub=false -> title must no longer encode dub");
         Assert.IsFalse(TrackNameFlagsContainsDub(probeFrench.Name),
             $"French audio title should no longer contain 'Dub', got '{probeFrench.Name}'");
 
-        var probeEnglishSub = probed.Tracks.First(t => t.Index == englishSub.Index);
+        var probeEnglishSub = probed.Snapshot.Tracks.First(t => t.Index == englishSub.Index);
         Assert.IsTrue(probeEnglishSub.IsHearingImpaired, "HI flag must flip to true on the normal sub");
 
-        var probeForced = probed.Tracks.First(t => t.Index == forcedSub.Index);
+        var probeForced = probed.Snapshot.Tracks.First(t => t.Index == forcedSub.Index);
         Assert.IsFalse(probeForced.IsForced, "Forced flag must clear on the ex-forced sub");
 
-        var probeSdh = probed.Tracks.First(t => t.Index == sdhSub.Index);
+        var probeSdh = probed.Snapshot.Tracks.First(t => t.Index == sdhSub.Index);
         Assert.IsFalse(probeSdh.IsHearingImpaired, "HI flag must clear on the ex-SDH sub");
 
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
@@ -205,10 +205,10 @@ public class ComplexConversionTests : IntegrationTestBase
         var file = await Fixture.ScanAndPersist(path, profile);
 
         var english =
-            file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
+            file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
         Assert.IsFalse(english.IsDub, "fixture precondition: English audio should not already be dub");
 
-        var snapshots = file.Tracks.ToSnapshots();
+        var snapshots = file.Snapshot.Tracks.ToSnapshots();
         var englishSnap = snapshots.First(s => s.Index == english.Index);
         englishSnap.IsDub = true;
         englishSnap.Name = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(englishSnap.Name, true);
@@ -220,7 +220,7 @@ public class ComplexConversionTests : IntegrationTestBase
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
 
         var probed = await FileAssertions.ProbeAsync(path);
-        var probeEnglish = probed.Tracks.First(t => t.Index == english.Index);
+        var probeEnglish = probed.Snapshot.Tracks.First(t => t.Index == english.Index);
         Assert.IsTrue(probeEnglish.IsDub, "title-level dub encoding must round-trip via the scanner");
         StringAssert.Contains(probeEnglish.Name ?? "", "Dub");
     }
@@ -236,10 +236,10 @@ public class ComplexConversionTests : IntegrationTestBase
         var file = await Fixture.ScanAndPersist(path, profile);
 
         var english =
-            file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
-        var anySub = file.Tracks.First(t => t.Type == MediaTrackType.Subtitles && !t.IsHearingImpaired && !t.IsForced);
+            file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng" && !t.IsCommentary);
+        var anySub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles && !t.IsHearingImpaired && !t.IsForced);
 
-        var snapshots = file.Tracks.ToSnapshots();
+        var snapshots = file.Snapshot.Tracks.ToSnapshots();
         var engSnap = snapshots.First(s => s.Index == english.Index);
         engSnap.IsDub = true;
         engSnap.IsVisualImpaired = true;
@@ -261,11 +261,11 @@ public class ComplexConversionTests : IntegrationTestBase
         // forced / comment but drops +original on stream-copy (checked with
         // ffmpeg 6/7 - the atom isn't in the QT spec). Assert only flags
         // that actually round-trip.
-        var probeEng = probed.Tracks.First(t => t.Index == english.Index);
+        var probeEng = probed.Snapshot.Tracks.First(t => t.Index == english.Index);
         Assert.IsTrue(probeEng.IsDub, "MP4 must carry IsDub natively");
         Assert.IsTrue(probeEng.IsVisualImpaired, "MP4 must carry IsVisualImpaired natively");
 
-        var probeSub = probed.Tracks.First(t => t.Index == anySub.Index);
+        var probeSub = probed.Snapshot.Tracks.First(t => t.Index == anySub.Index);
         Assert.IsTrue(probeSub.IsForced);
         Assert.IsTrue(probeSub.IsHearingImpaired);
 
@@ -283,10 +283,10 @@ public class ComplexConversionTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var frenchDub = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
+        var frenchDub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
         Assert.IsTrue(frenchDub.IsDub, "fixture precondition: French audio title should already encode Dub");
 
-        var snapshots = file.Tracks.ToSnapshots();
+        var snapshots = file.Snapshot.Tracks.ToSnapshots();
         var french = snapshots.First(s => s.Index == frenchDub.Index);
         french.IsDub = false;
         french.Name = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(french.Name, false) ?? "";
@@ -302,7 +302,7 @@ public class ComplexConversionTests : IntegrationTestBase
             $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.Log}");
 
         var probed = await FileAssertions.ProbeAsync(path);
-        var probeFrench = probed.Tracks.First(t => t.Index == frenchDub.Index);
+        var probeFrench = probed.Snapshot.Tracks.First(t => t.Index == frenchDub.Index);
         Assert.IsFalse(probeFrench.IsDub, "French audio should no longer be flagged as dub");
         Assert.IsFalse(Core.MkvToolNix.TrackNameFlags.ContainsDub(probeFrench.Name),
             $"French audio title should no longer contain dub; got '{probeFrench.Name}'");
@@ -321,18 +321,18 @@ public class ComplexConversionTests : IntegrationTestBase
 
         // Seed a track with title "Dub" in-place via mkvpropedit so we
         // exercise the strip-to-empty path without creating a whole new fixture.
-        var frenchDub = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
+        var frenchDub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
         await Core.Utilities.ProcessExecutor.ExecuteProcessAsync(
             "mkvpropedit",
             $"\"{path}\" --edit track:{frenchDub.Index + 1} --set name=\"Dub\"",
             TimeSpan.FromSeconds(10));
         file = await Fixture.ScanAndPersist(path, profile);
 
-        frenchDub = file.Tracks.First(t => t.Index == frenchDub.Index);
+        frenchDub = file.Snapshot.Tracks.First(t => t.Index == frenchDub.Index);
         Assert.AreEqual("Dub", frenchDub.Name);
         Assert.IsTrue(frenchDub.IsDub);
 
-        var snapshots = file.Tracks.ToSnapshots();
+        var snapshots = file.Snapshot.Tracks.ToSnapshots();
         var french = snapshots.First(s => s.Index == frenchDub.Index);
         french.IsDub = false;
         french.Name = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(french.Name, false) ?? "";
@@ -347,7 +347,7 @@ public class ComplexConversionTests : IntegrationTestBase
             $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.Log}");
 
         var probed = await FileAssertions.ProbeAsync(path);
-        var probeFrench = probed.Tracks.First(t => t.Index == frenchDub.Index);
+        var probeFrench = probed.Snapshot.Tracks.First(t => t.Index == frenchDub.Index);
         Assert.IsTrue(string.IsNullOrEmpty(probeFrench.Name),
             $"Title should be cleared; got '{probeFrench.Name}'");
     }
@@ -366,10 +366,10 @@ public class ComplexConversionTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var englishSub = file.Tracks.First(t =>
+        var englishSub = file.Snapshot.Tracks.First(t =>
             t.Type == MediaTrackType.Subtitles && t.LanguageCode == "eng" && !t.IsHearingImpaired && !t.IsForced);
 
-        var snapshots = file.Tracks.ToSnapshots();
+        var snapshots = file.Snapshot.Tracks.ToSnapshots();
         var sub = snapshots.First(s => s.Index == englishSub.Index);
         sub.IsDub = true;
         sub.Name = Core.MkvToolNix.TrackNameFlags.EncodeDubInName(sub.Name, true) ?? "";
@@ -383,7 +383,7 @@ public class ComplexConversionTests : IntegrationTestBase
             $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.Log}");
 
         var probed = await FileAssertions.ProbeAsync(path);
-        var probeSub = probed.Tracks.First(t => t.Index == englishSub.Index);
+        var probeSub = probed.Snapshot.Tracks.First(t => t.Index == englishSub.Index);
         Assert.IsTrue(probeSub.IsDub, "subtitle should now be flagged as dub (via title encoding)");
     }
 
@@ -400,7 +400,7 @@ public class ComplexConversionTests : IntegrationTestBase
         // Simulate the bug condition: set FlagOriginal=false on a subtitle
         // track that has no "Dub" in its title.
         var prep = await FileAssertions.ProbeAsync(path);
-        var sub = prep.Tracks.First(t => t.Type == MediaTrackType.Subtitles
+        var sub = prep.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles
                                          && !Core.MkvToolNix.TrackNameFlags.ContainsDub(t.Name));
 
         await Core.Utilities.ProcessExecutor.ExecuteProcessAsync(
@@ -409,7 +409,7 @@ public class ComplexConversionTests : IntegrationTestBase
             TimeSpan.FromSeconds(10));
 
         var scanned = await FileAssertions.ProbeAsync(path);
-        var scannedSub = scanned.Tracks.First(t => t.Index == sub.Index);
+        var scannedSub = scanned.Snapshot.Tracks.First(t => t.Index == sub.Index);
         Assert.IsFalse(scannedSub.IsDub,
             $"Matroska scanner must not infer IsDub from FlagOriginal=0; got title '{scannedSub.Name}'");
     }
@@ -425,17 +425,17 @@ public class ComplexConversionTests : IntegrationTestBase
         var profile = await SeedComplexProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var video = file.Tracks.First(t => t.Type == MediaTrackType.Video);
+        var video = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Video);
         Assert.AreEqual("und", video.LanguageCode, "fixture precondition");
 
-        var target = file.BuildTargetFromCustom(file.Tracks.ToSnapshots());
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.ToSnapshots());
         var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
 
         var probed = await FileAssertions.ProbeAsync(path);
-        var probeVideo = probed.Tracks.First(t => t.Type == MediaTrackType.Video);
+        var probeVideo = probed.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Video);
         Assert.AreEqual("und", probeVideo.LanguageCode,
             "custom conversion must not apply profile's AssumeUndeterminedIsOriginal");
     }

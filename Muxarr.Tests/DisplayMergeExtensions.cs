@@ -22,12 +22,12 @@ internal static class DisplayMergeExtensions
 
     public static MediaSnapshot MergeForDisplay(this ConversionPlan target, MediaFile file)
     {
-        var src = file.Tracks.ToDictionary(t => t.Index);
+        var src = file.Snapshot.Tracks.ToDictionary(t => t.Index);
         return new MediaSnapshot
         {
             Tracks = target.Tracks.Select(t => t.ToDisplay(src.GetValueOrDefault(t.Index))).ToList(),
-            HasChapters = target.HasChapters ?? file.HasChapters,
-            HasAttachments = target.HasAttachments ?? file.HasAttachments
+            HasChapters = target.HasChapters ?? file.Snapshot.HasChapters,
+            HasAttachments = target.HasAttachments ?? file.Snapshot.HasAttachments
         };
     }
 

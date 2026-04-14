@@ -30,8 +30,15 @@ public static class Configurator
 
     public static async Task Initialize(this AppDbContext context, ILogger? logger = null)
     {
-        await BackupBeforeMigration(context, logger);
+        var migrated = await BackupBeforeMigration(context, logger);
         await context.Database.MigrateAsync();
+
+        if (migrated)
+        {
+            logger?.LogInformation("Compacting database after migration.");
+            await context.Database.ExecuteSqlRawAsync("VACUUM");
+        }
+
         await context.Database.ExecuteSqlRawAsync(SqlitePerformanceInterceptor.InitializationPragma);
 
         // Auto-mark setup as complete for existing installs (has profiles or auth configured)
@@ -59,13 +66,14 @@ public static class Configurator
     /// Backs up the SQLite database file before running migrations.
     /// Only creates a backup when there are pending migrations (i.e., an actual schema change).
     /// Keeps the single most recent backup as muxarr.db.bak.
+    /// Returns true if migrations are pending.
     /// </summary>
-    private static async Task BackupBeforeMigration(AppDbContext context, ILogger? logger)
+    private static async Task<bool> BackupBeforeMigration(AppDbContext context, ILogger? logger)
     {
         var pending = (await context.Database.GetPendingMigrationsAsync()).ToList();
         if (pending.Count == 0)
         {
-            return;
+            return false;
         }
 
         logger?.LogInformation("Applying {Count} pending migration(s): {Migrations}",
@@ -74,7 +82,7 @@ public static class Configurator
         var dbPath = context.Database.GetDbConnection().DataSource;
         if (string.IsNullOrEmpty(dbPath) || !File.Exists(dbPath))
         {
-            return;
+            return true;
         }
 
         // Flush WAL to the main database file so the backup is self-contained.
@@ -83,5 +91,6 @@ public static class Configurator
         var backupPath = dbPath + ".bak";
         File.Copy(dbPath, backupPath, true);
         logger?.LogInformation("Database backed up to {BackupPath}", backupPath);
+        return true;
     }
 }

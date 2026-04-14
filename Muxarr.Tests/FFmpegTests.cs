@@ -323,8 +323,8 @@ public class FFmpegTests
         var probed = new MediaFile { Path = output };
         await probed.SetFileDataFromFFprobe();
 
-        Assert.AreEqual(ContainerFamily.Mp4, probed.ContainerType.ToContainerFamily());
-        var audio = probed.Tracks.First(t => t.Index == 1);
+        Assert.AreEqual(ContainerFamily.Mp4, probed.Snapshot.ContainerType.ToContainerFamily());
+        var audio = probed.Snapshot.Tracks.First(t => t.Index == 1);
         Assert.AreEqual("Renamed English 2.0", audio.Name);
     }
 
@@ -407,7 +407,7 @@ public class FFmpegTests
     public async Task RemuxFile_DispositionRoundTripsThroughSetFileDataFromFFprobe()
     {
         // Full loop: set flags via RemuxFile, re-read via SetFileDataFromFFprobe,
-        // confirm the MediaTrack flags reflect what we asked for. This is the
+        // confirm the TrackSnapshot flags reflect what we asked for. This is the
         // path the scanner takes after a conversion finishes.
         var output = _workingCopy + ".muxtmp";
         var tracks = await BuildAllTracks(ts =>
@@ -424,11 +424,11 @@ public class FFmpegTests
         var file = new MediaFile { Path = output };
         await file.SetFileDataFromFFprobe();
 
-        var audio = file.Tracks.First(t => t.Index == 1);
+        var audio = file.Snapshot.Tracks.First(t => t.Index == 1);
         Assert.IsTrue(audio.IsCommentary);
         Assert.IsFalse(audio.IsDefault);
 
-        var sub = file.Tracks.First(t => t.Index == 3);
+        var sub = file.Snapshot.Tracks.First(t => t.Index == 3);
         Assert.IsTrue(sub.IsHearingImpaired);
     }
 
@@ -550,14 +550,14 @@ public class FFmpegTests
             var source = new MediaFile { Path = fixture };
             await source.SetFileDataFromFFprobe();
 
-            Assert.AreEqual(ContainerFamily.Mp4, source.ContainerType.ToContainerFamily(),
-                $"{extension} should classify as Mp4 family, got '{source.ContainerType}'.");
-            Assert.IsTrue(source.Tracks.Count > 0);
+            Assert.AreEqual(ContainerFamily.Mp4, source.Snapshot.ContainerType.ToContainerFamily(),
+                $"{extension} should classify as Mp4 family, got '{source.Snapshot.ContainerType}'.");
+            Assert.IsTrue(source.Snapshot.Tracks.Count > 0);
 
             // Converter path: run a full remux with a metadata change on the
             // audio track, then validate through the same OutputValidator
             // FinalizeTemporaryOutputAsync calls in production.
-            var tracks = source.Tracks.Select(t => new TrackPlan
+            var tracks = source.Snapshot.Tracks.Select(t => new TrackPlan
             {
                 Index = t.Index,
                 Type = t.Type,
@@ -565,7 +565,7 @@ public class FFmpegTests
             }).ToList();
 
             var result = await FFmpeg.Remux(fixture, output,
-                TestPlan.Of(tracks, false), source.DurationMs);
+                TestPlan.Of(tracks, false), source.Snapshot.DurationMs);
             Assert.IsTrue(FFmpeg.IsSuccess(result), $"{extension}: Remux failed: {result.Error}");
 
             var probed = new MediaFile { Path = output };
@@ -574,7 +574,7 @@ public class FFmpegTests
             OutputValidator.ValidateOrThrow(probed, source, TestPlan.FromSnapshot(source.ToMediaSnapshot()));
 
             // The audio title change actually landed.
-            var audio = probed.Tracks.First(t => t.Type == MediaTrackType.Audio);
+            var audio = probed.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio);
             Assert.AreEqual($"Renamed {extension}", audio.Name);
         }
         finally
@@ -606,15 +606,15 @@ public class FFmpegTests
         var file = new MediaFile { Path = _workingCopy };
         await file.SetFileDataFromFFprobe();
 
-        Assert.AreEqual(ContainerFamily.Mp4, file.ContainerType.ToContainerFamily());
-        Assert.AreEqual(5, file.Tracks.Count);
+        Assert.AreEqual(ContainerFamily.Mp4, file.Snapshot.ContainerType.ToContainerFamily());
+        Assert.AreEqual(5, file.Snapshot.Tracks.Count);
 
-        var audio = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.Index == 1);
+        var audio = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.Index == 1);
         Assert.IsFalse(string.IsNullOrEmpty(audio.Name));
         Assert.AreEqual("eng", audio.LanguageCode);
 
         // SDH subtitle should be picked up from ffprobe's hearing_impaired disposition.
-        var sdhSub = file.Tracks.First(t => t.Type == MediaTrackType.Subtitles && t.Index == 3);
+        var sdhSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles && t.Index == 3);
         Assert.IsTrue(sdhSub.IsHearingImpaired);
     }
 
@@ -719,7 +719,7 @@ public class FFmpegTests
         var file = new MediaFile { Path = output };
         await file.SetFileDataFromFFprobe();
 
-        var audio = file.Tracks.First(t => t.Index == 1);
+        var audio = file.Snapshot.Tracks.First(t => t.Index == 1);
         Assert.AreEqual("Round Trip Title", audio.Name);
     }
 }

@@ -20,8 +20,8 @@ public class LibraryStatsService(IDbContextFactory<AppDbContext> contextFactory,
         {
             TotalFiles = await context.MediaFiles.CountAsync(),
             TotalSizeBytes = await context.MediaFiles.SumAsync(f => f.Size),
-            TotalDurationMs = await context.MediaFiles.SumAsync(f => f.DurationMs),
-            TotalTracks = await context.MediaTracks.CountAsync(),
+            TotalDurationMs = await context.MediaFiles.SumAsync(f => f.Snapshot.DurationMs),
+            TotalTracks = await context.MediaFiles.SelectMany(f => f.Snapshot.Tracks).CountAsync(),
             ProfileCount = await context.Profiles.CountAsync(),
             SpaceSavedBytes = await context.MediaConversions
                 .Where(c => c.State == ConversionState.Completed)
@@ -41,22 +41,22 @@ public class LibraryStatsService(IDbContextFactory<AppDbContext> contextFactory,
 
         // File-level distributions — SQL GROUP BY on scalar columns
         stats.Containers = await context.MediaFiles
-            .Where(f => f.ContainerType != null && f.ContainerType != "")
-            .GroupBy(f => f.ContainerType!)
+            .Where(f => f.Snapshot.ContainerType != null && f.Snapshot.ContainerType != "")
+            .GroupBy(f => f.Snapshot.ContainerType!)
             .Select(g => new DistributionEntry { Label = g.Key, Count = g.Count() })
             .OrderByDescending(e => e.Count)
             .ToListAsync();
 
         stats.Resolutions = await context.MediaFiles
-            .Where(f => f.Resolution != null && f.Resolution != "")
-            .GroupBy(f => f.Resolution!)
+            .Where(f => f.Snapshot.Resolution != null && f.Snapshot.Resolution != "")
+            .GroupBy(f => f.Snapshot.Resolution!)
             .Select(g => new DistributionEntry { Label = g.Key, Count = g.Count() })
             .OrderByDescending(e => e.Count)
             .ToListAsync();
 
         stats.VideoBitDepths = await context.MediaFiles
-            .Where(f => f.VideoBitDepth > 0)
-            .GroupBy(f => f.VideoBitDepth)
+            .Where(f => f.Snapshot.VideoBitDepth > 0)
+            .GroupBy(f => f.Snapshot.VideoBitDepth)
             .Select(g => new DistributionEntry { Label = g.Key + "-bit", Count = g.Count() })
             .OrderByDescending(e => e.Count)
             .ToListAsync();
@@ -89,7 +89,7 @@ public class LibraryStatsService(IDbContextFactory<AppDbContext> contextFactory,
 
     private static async Task<List<DistributionEntry>> GroupByCodec(AppDbContext context, MediaTrackType type)
     {
-        var entries = await context.MediaTracks
+        var entries = await context.MediaFiles.SelectMany(f => f.Snapshot.Tracks)
             .Where(t => t.Type == type && t.Codec != "")
             .GroupBy(t => t.Codec)
             .Select(g => new DistributionEntry { Value = g.Key, Label = g.Key, Count = g.Count() })
@@ -106,7 +106,7 @@ public class LibraryStatsService(IDbContextFactory<AppDbContext> contextFactory,
 
     private static async Task<List<DistributionEntry>> GroupByLanguage(AppDbContext context, MediaTrackType type)
     {
-        return await context.MediaTracks
+        return await context.MediaFiles.SelectMany(f => f.Snapshot.Tracks)
             .Where(t => t.Type == type && t.LanguageName != "")
             .GroupBy(t => t.LanguageName)
             .Select(g => new DistributionEntry { Label = g.Key, Count = g.Count() })
@@ -116,7 +116,7 @@ public class LibraryStatsService(IDbContextFactory<AppDbContext> contextFactory,
 
     private static async Task<List<DistributionEntry>> GroupByChannelLayout(AppDbContext context)
     {
-        var channelGroups = await context.MediaTracks
+        var channelGroups = await context.MediaFiles.SelectMany(f => f.Snapshot.Tracks)
             .Where(t => t.Type == MediaTrackType.Audio && t.AudioChannels > 0)
             .GroupBy(t => t.AudioChannels)
             .Select(g => new { Channels = g.Key, Count = g.Count() })

@@ -142,10 +142,10 @@ public class ExtensionTests
     [TestMethod]
     public void GetDisplayLanguage_PrefersNameOverCode()
     {
-        var track = new MediaTrack { LanguageName = "English", LanguageCode = "eng" };
+        var track = new TrackSnapshot { LanguageName = "English", LanguageCode = "eng" };
         Assert.AreEqual("English", track.GetDisplayLanguage());
 
-        var codeOnly = new MediaTrack { LanguageName = "", LanguageCode = "eng" };
+        var codeOnly = new TrackSnapshot { LanguageName = "", LanguageCode = "eng" };
         Assert.AreEqual("eng", codeOnly.GetDisplayLanguage());
     }
 
@@ -157,8 +157,11 @@ public class ExtensionTests
         {
             var file = new MediaFile
             {
-                Tracks = [new MediaTrack { Type = MediaTrackType.Video }],
-                Resolution = null,
+                Snapshot = new MediaSnapshot
+                {
+                    Resolution = null,
+                    Tracks = [new TrackSnapshot { Type = MediaTrackType.Video }]
+                },
                 Size = new FileInfo(tempFile).Length,
                 UpdatedDate = DateTime.UtcNow.AddMinutes(1) // future to avoid timestamp trigger
             };
@@ -180,8 +183,11 @@ public class ExtensionTests
             var fileInfo = new FileInfo(tempFile);
             var file = new MediaFile
             {
-                Tracks = [new MediaTrack { Type = MediaTrackType.Video }],
-                Resolution = "1920x1080",
+                Snapshot = new MediaSnapshot
+                {
+                    Resolution = "1920x1080",
+                    Tracks = [new TrackSnapshot { Type = MediaTrackType.Video }]
+                },
                 Size = fileInfo.Length,
                 UpdatedDate = DateTime.UtcNow.AddMinutes(1)
             };
@@ -299,7 +305,7 @@ public class ExtensionTests
     public void ShouldResolveUndetermined(
         bool settingEnabled, string langCode, int trackCount, string originalLang, bool expected)
     {
-        var track = new MediaTrack
+        var track = new TrackSnapshot
         {
             LanguageCode = langCode, LanguageName = langCode == "und" ? "Undetermined" : "English",
             Type = MediaTrackType.Audio
@@ -312,7 +318,7 @@ public class ExtensionTests
     [TestMethod]
     public void ShouldResolveUndetermined_FalseWhenNullSettings()
     {
-        var track = new MediaTrack { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
+        var track = new TrackSnapshot { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
         Assert.IsFalse(track.ShouldResolveUndetermined(null, 1, "English"));
     }
 
@@ -441,7 +447,7 @@ public class ExtensionTests
     [TestMethod]
     public void ToSnapshot_CopiesAllFlags()
     {
-        var track = new MediaTrack
+        var track = new TrackSnapshot
         {
             Type = MediaTrackType.Audio, LanguageName = "English", LanguageCode = "eng",
             Codec = nameof(AudioCodec.Aac), Index = 1,
@@ -461,8 +467,8 @@ public class ExtensionTests
 
     // --- Helpers ---
 
-    private static MediaTrack MakeAudioTrack(int channels)
+    private static TrackSnapshot MakeAudioTrack(int channels)
     {
-        return new MediaTrack { Type = MediaTrackType.Audio, AudioChannels = channels };
+        return new TrackSnapshot { Type = MediaTrackType.Audio, AudioChannels = channels };
     }
 }

@@ -6,14 +6,14 @@ using Muxarr.Data.Entities;
 namespace Muxarr.Tests;
 
 /// <summary>
-/// Shared test builders for creating MediaTrack, MediaFile, and Profile instances.
+/// Shared test builders for creating TrackSnapshot, MediaFile, and Profile instances.
 /// Language codes are auto-resolved from the language name via IsoLanguage.Find.
 /// </summary>
 public static class TestData
 {
-    public static MediaTrack Video(int trackNumber = 0, string? trackName = null)
+    public static TrackSnapshot Video(int trackNumber = 0, string? trackName = null)
     {
-        return new MediaTrack
+        return new TrackSnapshot
         {
             Type = MediaTrackType.Video,
             Index = trackNumber,
@@ -24,13 +24,13 @@ public static class TestData
         };
     }
 
-    public static MediaTrack Audio(int trackNumber = 0, string language = "English",
+    public static TrackSnapshot Audio(int trackNumber = 0, string language = "English",
         string codec = nameof(AudioCodec.Aac), int channels = 6,
         bool commentary = false, bool hi = false, bool isDefault = false,
         bool dub = false, bool isOriginal = false, string? trackName = null, string? languageCode = null)
     {
         var iso = IsoLanguage.Find(language);
-        return new MediaTrack
+        return new TrackSnapshot
         {
             Type = MediaTrackType.Audio,
             Index = trackNumber,
@@ -47,13 +47,13 @@ public static class TestData
         };
     }
 
-    public static MediaTrack Sub(int trackNumber = 0, string language = "English",
+    public static TrackSnapshot Sub(int trackNumber = 0, string language = "English",
         string codec = nameof(SubtitleCodec.Srt),
         bool forced = false, bool hi = false, bool commentary = false,
         bool dub = false, bool isOriginal = false, string? trackName = null, string? languageCode = null)
     {
         var iso = IsoLanguage.Find(language);
-        return new MediaTrack
+        return new TrackSnapshot
         {
             Type = MediaTrackType.Subtitles,
             Index = trackNumber,
@@ -69,15 +69,19 @@ public static class TestData
         };
     }
 
-    public static MediaFile MakeFile(string? originalLanguage, params MediaTrack[] tracks)
+    public static MediaFile MakeFile(string? originalLanguage, params TrackSnapshot[] tracks)
     {
-        var file = new MediaFile
+        var snapshot = new MediaSnapshot
         {
-            OriginalLanguage = originalLanguage,
+            CapturedAt = DateTime.UtcNow,
+            TrackCount = tracks.Length,
             Tracks = tracks.ToList()
         };
-        file.TrackCount = file.Tracks.Count;
-        return file;
+        return new MediaFile
+        {
+            OriginalLanguage = originalLanguage,
+            Snapshot = snapshot
+        };
     }
 
     public static Profile MakeProfile(TrackSettings? audio = null, TrackSettings? subtitle = null,

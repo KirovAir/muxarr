@@ -136,9 +136,9 @@
                     }
                 </div>
                 <div class="table-responsive">
-                    @if (File.Tracks.Any())
+                    @if (File.Snapshot.Tracks.Any())
                     {
-                        <MediaTrackDetailTable Tracks="File.Tracks"
+                        <MediaTrackDetailTable Tracks="File.Snapshot.Tracks"
                                                PreviewTracks="_showPreview ? Preview?.Tracks : null"
                                                OriginalLanguage="@File.OriginalLanguage"/>
                     }
@@ -254,7 +254,7 @@
             if (e.Conversion is { State: ConversionState.Completed, MediaFile: not null })
             {
                 conversion.SizeAfter = e.Conversion.MediaFile.Size;
-                conversion.SnapshotAfter = e.Conversion.MediaFile.ToMediaSnapshot();
+                conversion.AfterSnapshot = e.Conversion.MediaFile.Snapshot;
                 conversion.SizeDifference = e.Conversion.SizeDifference;
                 ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
 

@@ -191,7 +191,7 @@
                             <TimeAgo DateTime="@file.FileCreationTime"/>
                         </td>
                         <td>
-                            <MediaTrackLabels Tracks="file.Tracks.Where(x => x.Type != MediaTrackType.Video).ToList()"/>
+                            <MediaTrackLabels Tracks="file.Snapshot.Tracks.Where(x => x.Type != MediaTrackType.Video).ToList()"/>
                         </td>
                     </tr>
                 }
@@ -462,15 +462,16 @@
             _ => query
         };
 
-        // Scalar column filters (SQL WHERE, case-insensitive)
+        // Scalar column filters. Values come from dropdowns populated by
+        // LibraryStatsService from the same rows, so exact match is safe.
         if (!string.IsNullOrEmpty(_resolutionFilter))
         {
-            query = query.Where(f => EF.Functions.Collate(f.Resolution!, "NOCASE") == _resolutionFilter);
+            query = query.Where(f => f.Snapshot.Resolution == _resolutionFilter);
         }
 
         if (!string.IsNullOrEmpty(_containerFilter))
         {
-            query = query.Where(f => EF.Functions.Collate(f.ContainerType!, "NOCASE") == _containerFilter);
+            query = query.Where(f => f.Snapshot.ContainerType == _containerFilter);
         }
 
         if (!string.IsNullOrEmpty(_profileFilter) && int.TryParse(_profileFilter, out var profileId))
@@ -480,38 +481,38 @@
 
         if (!string.IsNullOrEmpty(_bitDepthFilter) && int.TryParse(_bitDepthFilter.Replace("-bit", ""), out var depth))
         {
-            query = query.Where(f => f.VideoBitDepth == depth);
+            query = query.Where(f => f.Snapshot.VideoBitDepth == depth);
         }
 
-        // Track-level filters (SQL WHERE EXISTS via navigation property, case-insensitive)
+        // Track-level filters (SQL WHERE EXISTS via navigation property).
         if (!string.IsNullOrEmpty(_videoCodecFilter))
         {
-            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Video &&
+            query = query.Where(f => f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Video &&
                                                        t.Codec == _videoCodecFilter));
         }
 
         if (!string.IsNullOrEmpty(_audioCodecFilter))
         {
-            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Audio &&
+            query = query.Where(f => f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Audio &&
                                                        t.Codec == _audioCodecFilter));
         }
 
         if (!string.IsNullOrEmpty(_subtitleCodecFilter))
         {
-            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Subtitles &&
+            query = query.Where(f => f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Subtitles &&
                                                        t.Codec == _subtitleCodecFilter));
         }
 
         if (!string.IsNullOrEmpty(_audioLanguageFilter))
         {
-            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Audio &&
-                                                       EF.Functions.Collate(t.LanguageName, "NOCASE") == _audioLanguageFilter));
+            query = query.Where(f => f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Audio &&
+                                                       t.LanguageName == _audioLanguageFilter));
         }
 
         if (!string.IsNullOrEmpty(_subtitleLanguageFilter))
         {
-            query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Subtitles &&
-                                                       EF.Functions.Collate(t.LanguageName, "NOCASE") == _subtitleLanguageFilter));
+            query = query.Where(f => f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Subtitles &&
+                                                       t.LanguageName == _subtitleLanguageFilter));
         }
 
         if (!string.IsNullOrEmpty(_channelLayoutFilter))
@@ -523,7 +524,7 @@
             };
             if (channels > 0)
             {
-                query = query.Where(f => f.Tracks.Any(t => t.Type == MediaTrackType.Audio && t.AudioChannels == channels));
+                query = query.Where(f => f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Audio && t.AudioChannels == channels));
             }
         }
 

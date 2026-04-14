@@ -14,9 +14,12 @@ public class OutputValidatorTests
     {
         return new MediaFile
         {
-            ContainerType = containerType,
-            DurationMs = durationMs,
-            Tracks = trackTypes.Select(t => new MediaTrack { Type = t }).ToList()
+            Snapshot = new MediaSnapshot
+            {
+                ContainerType = containerType,
+                DurationMs = durationMs,
+                Tracks = trackTypes.Select(t => new TrackSnapshot { Type = t }).ToList()
+            }
         };
     }
 

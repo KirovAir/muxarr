@@ -167,7 +167,7 @@
                     <h5 class="mb-0">Tracks Before</h5>
                 </div>
                 <div class="table-responsive">
-                    <MediaTrackDetailTable Tracks="Conversion.SnapshotBefore.Tracks"
+                    <MediaTrackDetailTable Tracks="Conversion.BeforeSnapshot?.Tracks ?? []"
                                            OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
                 </div>
             </div>
@@ -179,10 +179,10 @@
                     <i class="bi bi-collection-fill text-primary me-2"></i>
                     <h5 class="mb-0">Tracks After</h5>
                 </div>
-                @if (Conversion.SnapshotAfter.Tracks.Count > 0)
+                @if (Conversion.AfterSnapshot is { Tracks.Count: > 0 })
                 {
                     <div class="table-responsive">
-                        <MediaTrackDetailTable Tracks="Conversion.SnapshotAfter.Tracks"
+                        <MediaTrackDetailTable Tracks="Conversion.AfterSnapshot.Tracks"
                                                OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
                     </div>
                 }
@@ -229,6 +229,10 @@
         Conversion = await context.MediaConversions
             .AsNoTracking()
             .Include(x => x.MediaFile)
+            .Include(x => x.BeforeSnapshot)
+            .ThenInclude(s => s!.Tracks)
+            .Include(x => x.AfterSnapshot)
+            .ThenInclude(s => s!.Tracks)
             .FirstOrDefaultAsync(f => f.Id == Id);
     }
 
@@ -272,7 +276,7 @@
             if (e.Conversion is { State: ConversionState.Completed, MediaFile: not null })
             {
                 Conversion.SizeAfter = e.Conversion.MediaFile.Size;
-                Conversion.SnapshotAfter = e.Conversion.MediaFile.ToMediaSnapshot();
+                Conversion.AfterSnapshot = e.Conversion.MediaFile.Snapshot;
                 Conversion.SizeDifference = e.Conversion.SizeDifference;
                 ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
             }

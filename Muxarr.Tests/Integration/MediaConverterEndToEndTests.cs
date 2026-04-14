@@ -23,7 +23,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var hashBefore = FileAssertions.Sha256(path);
         var sizeBefore = new FileInfo(path).Length;
 
-        var target = file.BuildTargetFromCustom(file.Tracks.ToSnapshots());
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.ToSnapshots());
         var conversion = await Fixture.SeedConversion(file, target, true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
@@ -44,10 +44,10 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var currentDefault = file.Tracks.First(t => t.Type == MediaTrackType.Audio && t.IsDefault);
-        var newDefault = file.Tracks.First(t => t.Type == MediaTrackType.Audio && !t.IsDefault);
+        var currentDefault = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.IsDefault);
+        var newDefault = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && !t.IsDefault);
 
-        var targetTracks = file.Tracks.ToSnapshots();
+        var targetTracks = file.Snapshot.Tracks.ToSnapshots();
         targetTracks.First(t => t.Index == currentDefault.Index).IsDefault = false;
         targetTracks.First(t => t.Index == newDefault.Index).IsDefault = true;
         var target = file.BuildTargetFromCustom(targetTracks);
@@ -60,11 +60,11 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
 
         // Re-probe the real file; the flags must actually have changed.
         var probed = await FileAssertions.ProbeAsync(path);
-        var promoted = probed.Tracks.First(t => t.Index == newDefault.Index);
-        var demoted = probed.Tracks.First(t => t.Index == currentDefault.Index);
+        var promoted = probed.Snapshot.Tracks.First(t => t.Index == newDefault.Index);
+        var demoted = probed.Snapshot.Tracks.First(t => t.Index == currentDefault.Index);
         Assert.IsTrue(promoted.IsDefault, $"track #{newDefault.Index} should be default after mkvpropedit");
         Assert.IsFalse(demoted.IsDefault, $"track #{currentDefault.Index} should no longer be default");
-        Assert.AreEqual(9, probed.Tracks.Count, "metadata edit must not change track count");
+        Assert.AreEqual(9, probed.Snapshot.Tracks.Count, "metadata edit must not change track count");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
@@ -75,11 +75,11 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var originalTrackCount = file.Tracks.Count;
-        var originalSubCount = file.Tracks.Count(t => t.Type == MediaTrackType.Subtitles);
-        var droppedSub = file.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
+        var originalTrackCount = file.Snapshot.Tracks.Count;
+        var originalSubCount = file.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Subtitles);
+        var droppedSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
 
-        var keptTracks = file.Tracks
+        var keptTracks = file.Snapshot.Tracks
             .Where(t => t.Index != droppedSub.Index)
             .ToSnapshots();
         var target = file.BuildTargetFromCustom(keptTracks);
@@ -93,10 +93,10 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
 
         // mkvmerge renumbers remaining tracks from 0, so assert on counts per type.
         var probed = await FileAssertions.ProbeAsync(path);
-        Assert.AreEqual(originalTrackCount - 1, probed.Tracks.Count,
+        Assert.AreEqual(originalTrackCount - 1, probed.Snapshot.Tracks.Count,
             "remux must reduce track count by exactly one");
         Assert.AreEqual(originalSubCount - 1,
-            probed.Tracks.Count(t => t.Type == MediaTrackType.Subtitles),
+            probed.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Subtitles),
             "subtitle track count must drop by one");
         await FileAssertions.AssertContainerFamily(path, ContainerFamily.Matroska);
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
@@ -109,13 +109,13 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var originalTrackCount = file.Tracks.Count;
-        var originalAudioCount = file.Tracks.Count(t => t.Type == MediaTrackType.Audio);
+        var originalTrackCount = file.Snapshot.Tracks.Count;
+        var originalAudioCount = file.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Audio);
         Assert.IsTrue(originalAudioCount >= 2,
             $"test_complex.mp4 should have >=2 audio tracks to drop one; got {originalAudioCount}");
 
-        var droppedAudio = file.Tracks.Last(t => t.Type == MediaTrackType.Audio);
-        var keptTracks = file.Tracks
+        var droppedAudio = file.Snapshot.Tracks.Last(t => t.Type == MediaTrackType.Audio);
+        var keptTracks = file.Snapshot.Tracks
             .Where(t => t.Index != droppedAudio.Index)
             .ToSnapshots();
         var target = file.BuildTargetFromCustom(keptTracks);
@@ -127,9 +127,9 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
 
         var probed = await FileAssertions.ProbeAsync(path);
-        Assert.AreEqual(originalTrackCount - 1, probed.Tracks.Count);
+        Assert.AreEqual(originalTrackCount - 1, probed.Snapshot.Tracks.Count);
         Assert.AreEqual(originalAudioCount - 1,
-            probed.Tracks.Count(t => t.Type == MediaTrackType.Audio));
+            probed.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Audio));
         await FileAssertions.AssertContainerFamily(path, ContainerFamily.Mp4);
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
@@ -144,13 +144,13 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        Assert.IsTrue(file.DurationMs >= 9000,
-            $"asymmetric fixture should report >=9s container duration, got {file.DurationMs}ms");
+        Assert.IsTrue(file.Snapshot.DurationMs >= 9000,
+            $"asymmetric fixture should report >=9s container duration, got {file.Snapshot.DurationMs}ms");
 
         var hashBefore = FileAssertions.Sha256(path);
         var sizeBefore = new FileInfo(path).Length;
 
-        var videoOnly = file.Tracks
+        var videoOnly = file.Snapshot.Tracks
             .Where(t => t.Type == MediaTrackType.Video)
             .ToSnapshots();
         var target = file.BuildTargetFromCustom(videoOnly);
@@ -181,7 +181,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        var tracks = file.Tracks.ToSnapshots();
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
         tracks.Add(new TrackSnapshot
         {
             Type = MediaTrackType.Audio,

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Muxarr.Core.Models;
 using Muxarr.Data.Extensions;
@@ -16,8 +16,10 @@ public class MediaConversion : AuditableEntity
     public long SizeBefore { get; set; }
     public long SizeAfter { get; set; }
     public long SizeDifference { get; set; }
-    public MediaSnapshot SnapshotBefore { get; set; } = new();
-    public MediaSnapshot SnapshotAfter { get; set; } = new();
+    public int? BeforeSnapshotId { get; set; }
+    public MediaSnapshot? BeforeSnapshot { get; set; }
+    public int? AfterSnapshotId { get; set; }
+    public MediaSnapshot? AfterSnapshot { get; set; }
     public ConversionPlan ConversionPlan { get; set; } = new();
     public bool IsCustomConversion { get; set; }
     public DateTime? StartedDate { get; set; }
@@ -73,12 +75,6 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
         builder.Property(e => e.SizeDifference)
             .IsRequired();
 
-        builder.Property(e => e.SnapshotBefore)
-            .HasJsonConversion();
-
-        builder.Property(e => e.SnapshotAfter)
-            .HasJsonConversion();
-
         builder.Property(e => e.ConversionPlan)
             .HasJsonConversion();
 
@@ -92,5 +88,15 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
             .WithMany(f => f.Conversions)
             .HasForeignKey(m => m.MediaFileId)
             .OnDelete(DeleteBehavior.SetNull); // Keeps conversion record when media file is deleted
+
+        builder.HasOne(m => m.BeforeSnapshot)
+            .WithMany()
+            .HasForeignKey(m => m.BeforeSnapshotId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasOne(m => m.AfterSnapshot)
+            .WithMany()
+            .HasForeignKey(m => m.AfterSnapshotId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

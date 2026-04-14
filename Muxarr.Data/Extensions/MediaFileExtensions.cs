@@ -15,17 +15,18 @@ public static class MediaFileExtensions
 {
     public static IQueryable<MediaFile> WithTracks(this IQueryable<MediaFile> query)
     {
-        return query.Include(f => f.Tracks);
+        return query.Include(f => f.Snapshot.Tracks);
     }
 
     public static IQueryable<MediaFile> WithTracksAndProfile(this IQueryable<MediaFile> query)
     {
-        return query.Include(f => f.Tracks).Include(f => f.Profile);
+        return query.Include(f => f.Snapshot.Tracks).Include(f => f.Profile);
     }
 
     public static bool NeedsFileProbe(this MediaFile file, FileInfo fileInfo)
     {
-        return file.Tracks.Count == 0 || file.Resolution == null || file.UpdatedDate < fileInfo.LastWriteTimeUtc ||
+        return file.Snapshot is null || file.Snapshot.Tracks.Count == 0 || file.Snapshot.Resolution == null ||
+               file.UpdatedDate < fileInfo.LastWriteTimeUtc ||
                file.UpdatedDate < fileInfo.CreationTimeUtc || file.Size != fileInfo.Length;
     }
 
@@ -38,8 +39,6 @@ public static class MediaFileExtensions
     {
         return string.IsNullOrEmpty(file.Title) ? Path.GetFileNameWithoutExtension(file.Path) : file.Title;
     }
-
-    // Track list helpers — generic to work on both MediaTrack and TrackSnapshot
 
     public static List<T> GetVideoTracks<T>(this IEnumerable<T> tracks) where T : IMediaTrack
     {
@@ -56,24 +55,18 @@ public static class MediaFileExtensions
         return tracks.Where(x => x.Type == MediaTrackType.Subtitles).ToList();
     }
 
-    // SetFileData — populates MediaTrack entities from mkvmerge output
-
     public static void SetFileData(this MediaFile file, MkvMergeInfo? mkvInfo)
     {
         if (mkvInfo == null)
         {
-            file.Tracks.Clear();
-            file.ContainerType = null;
-            file.HasChapters = false;
-            file.HasAttachments = false;
+            file.AttachSnapshot(new MediaSnapshot { CapturedAt = DateTime.UtcNow });
             return;
         }
 
-        file.ContainerType = mkvInfo.Container?.Type;
-        file.Tracks.Clear();
+        var tracks = new List<TrackSnapshot>();
         foreach (var x in mkvInfo.Tracks)
         {
-            var track = new MediaTrack
+            var track = new TrackSnapshot
             {
                 Type = x.Type.ToMediaTrackType(),
                 IsCommentary = x.IsCommentary(),
@@ -103,17 +96,83 @@ public static class MediaFileExtensions
                 }
             }
 
-            file.Tracks.Add(track);
+            tracks.Add(track);
         }
 
-        file.TrackCount = file.Tracks.Count;
-        file.HasChapters = mkvInfo.Chapters.Sum(c => c.NumEntries) > 0;
-        file.HasAttachments = mkvInfo.Attachments.Count > 0;
-
+        var containerType = mkvInfo.Container?.Type;
         var firstVideoTrack = mkvInfo.Tracks.FirstOrDefault(t => t.Type == "video");
-        file.Resolution = firstVideoTrack?.Properties.PixelDimensions;
-        file.VideoBitDepth = firstVideoTrack?.Properties.ColorBitsPerChannel ?? 0;
-        file.DurationMs = (mkvInfo.Container?.Properties?.Duration ?? 0) / 1_000_000;
+
+        file.AttachSnapshot(new MediaSnapshot
+        {
+            CapturedAt = DateTime.UtcNow,
+            ContainerType = containerType,
+            Resolution = firstVideoTrack?.Properties.PixelDimensions,
+            VideoBitDepth = firstVideoTrack?.Properties.ColorBitsPerChannel ?? 0,
+            DurationMs = (mkvInfo.Container?.Properties?.Duration ?? 0) / 1_000_000,
+            TrackCount = tracks.Count,
+            HasChapters = mkvInfo.Chapters.Sum(c => c.NumEntries) > 0,
+            HasAttachments = mkvInfo.Attachments.Count > 0,
+            HasFaststart = containerType.ToContainerFamily() == ContainerFamily.Mp4
+                           && FFmpeg.IsFaststartLayout(file.Path),
+            Tracks = tracks
+        });
+    }
+
+    // Reuse the existing snapshot when the new probe is byte-identical, so
+    // unchanged re-scans don't grow the table and MediaConversion FKs stay stable.
+    public static void AttachSnapshot(this MediaFile file, MediaSnapshot snapshot)
+    {
+        if (file.Snapshot is not null && SnapshotsEquivalent(file.Snapshot, snapshot))
+        {
+            return;
+        }
+
+        file.Snapshot = snapshot;
+    }
+
+    private static bool SnapshotsEquivalent(MediaSnapshot a, MediaSnapshot b)
+    {
+        if (a.ContainerType != b.ContainerType
+            || a.Resolution != b.Resolution
+            || a.DurationMs != b.DurationMs
+            || a.VideoBitDepth != b.VideoBitDepth
+            || a.TrackCount != b.TrackCount
+            || a.HasChapters != b.HasChapters
+            || a.HasAttachments != b.HasAttachments
+            || a.HasFaststart != b.HasFaststart
+            || a.Tracks.Count != b.Tracks.Count)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < a.Tracks.Count; i++)
+        {
+            if (!TracksEquivalent(a.Tracks[i], b.Tracks[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TracksEquivalent(TrackSnapshot a, TrackSnapshot b)
+    {
+        return a.Index == b.Index
+               && a.Type == b.Type
+               && a.Codec == b.Codec
+               && a.AudioChannels == b.AudioChannels
+               && a.LanguageCode == b.LanguageCode
+               && a.LanguageName == b.LanguageName
+               && a.Name == b.Name
+               && a.DurationMs == b.DurationMs
+               && a.IsDefault == b.IsDefault
+               && a.IsForced == b.IsForced
+               && a.IsCommentary == b.IsCommentary
+               && a.IsHearingImpaired == b.IsHearingImpaired
+               && a.IsVisualImpaired == b.IsVisualImpaired
+               && a.IsOriginal == b.IsOriginal
+               && a.IsDub == b.IsDub;
     }
 
     /// <summary>
@@ -132,10 +191,7 @@ public static class MediaFileExtensions
         var probe = probeResult.Result;
         if (probe == null)
         {
-            file.Tracks.Clear();
-            file.ContainerType = null;
-            file.HasChapters = false;
-            file.HasAttachments = false;
+            file.AttachSnapshot(new MediaSnapshot { CapturedAt = DateTime.UtcNow });
             return probeResult;
         }
 
@@ -143,14 +199,14 @@ public static class MediaFileExtensions
         // means the file scanned but the demuxer flagged a problem.
         file.HasScanWarning = !string.IsNullOrEmpty(probeResult.Error);
 
-        file.ContainerType = NormalizeFFprobeContainer(probe.Format?.FormatName);
-        file.Tracks.Clear();
+        var containerType = NormalizeFFprobeContainer(probe.Format?.FormatName);
+        var tracks = new List<TrackSnapshot>();
 
         // ffprobe's disposition.dub is only trustworthy for containers that
         // carry a real dub atom. On Matroska, ffmpeg infers dub=1 from
         // FlagOriginal=0, so any track our profile marks as not-original
         // gets a bogus dub flag. MKV has no FlagDub; the title is authoritative.
-        var trustDispositionDub = file.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
+        var trustDispositionDub = containerType.ToContainerFamily() != ContainerFamily.Matroska;
 
         foreach (var stream in probe.Streams)
         {
@@ -176,7 +232,7 @@ public static class MediaFileExtensions
             var trackName = PickTrackName(tags);
             var language = tags != null && tags.TryGetValue("language", out var l) ? l : "und";
 
-            var track = new MediaTrack
+            var track = new TrackSnapshot
             {
                 Type = type,
                 Index = stream.Index,
@@ -213,26 +269,39 @@ public static class MediaFileExtensions
                 }
             }
 
-            file.Tracks.Add(track);
+            tracks.Add(track);
         }
-
-        file.TrackCount = file.Tracks.Count;
-        file.HasChapters = probe.Chapters.Count > 0;
-        file.HasAttachments = probe.Streams.Any(s => s.CodecType == "attachment");
 
         var video = probe.Streams.FirstOrDefault(s => s.CodecType == "video");
+        string? resolution = null;
         if (video is { Width: > 0, Height: > 0 })
         {
-            file.Resolution = $"{video.Width}x{video.Height}";
+            resolution = $"{video.Width}x{video.Height}";
         }
 
-        file.VideoBitDepth = int.TryParse(video?.BitsPerRawSample, out var depth) ? depth : 0;
+        var videoBitDepth = int.TryParse(video?.BitsPerRawSample, out var depth) ? depth : 0;
 
+        long durationMs = 0;
         if (double.TryParse(probe.Format?.Duration, NumberStyles.Any, CultureInfo.InvariantCulture,
                 out var durationSec))
         {
-            file.DurationMs = (long)(durationSec * 1000);
+            durationMs = (long)(durationSec * 1000);
         }
+
+        file.AttachSnapshot(new MediaSnapshot
+        {
+            CapturedAt = DateTime.UtcNow,
+            ContainerType = containerType,
+            Resolution = resolution,
+            VideoBitDepth = videoBitDepth,
+            DurationMs = durationMs,
+            TrackCount = tracks.Count,
+            HasChapters = probe.Chapters.Count > 0,
+            HasAttachments = probe.Streams.Any(s => s.CodecType == "attachment"),
+            HasFaststart = containerType.ToContainerFamily() == ContainerFamily.Mp4
+                           && FFmpeg.IsFaststartLayout(file.Path),
+            Tracks = tracks
+        });
 
         return probeResult;
     }
@@ -314,18 +383,19 @@ public static class MediaFileExtensions
 
     // Allowed tracks filtering
 
-    private static List<MediaTrack> GetAllowedTracks(MediaFile file, Profile? profile = null)
+    private static List<TrackSnapshot> GetAllowedTracks(MediaFile file, Profile? profile = null)
     {
         var p = profile ?? file.Profile;
-        if (file.Tracks.Count == 0 || p == null)
+        var sourceTracks = file.Snapshot.Tracks;
+        if (sourceTracks.Count == 0 || p == null)
         {
-            return file.Tracks.ToList();
+            return sourceTracks.ToList();
         }
 
-        var result = new List<MediaTrack>();
-        result.AddRange(file.Tracks.GetVideoTracks());
-        result.AddRange(GetAllowedTracks(file.Tracks.GetAudioTracks(), p.AudioSettings, file.OriginalLanguage));
-        result.AddRange(GetAllowedTracks(file.Tracks.GetSubtitleTracks(), p.SubtitleSettings, file.OriginalLanguage));
+        var result = new List<TrackSnapshot>();
+        result.AddRange(sourceTracks.GetVideoTracks());
+        result.AddRange(GetAllowedTracks(sourceTracks.GetAudioTracks(), p.AudioSettings, file.OriginalLanguage));
+        result.AddRange(GetAllowedTracks(sourceTracks.GetSubtitleTracks(), p.SubtitleSettings, file.OriginalLanguage));
 
         return result;
     }
@@ -557,7 +627,7 @@ public static class MediaFileExtensions
         }
 
         var target = prebuiltTarget ?? file.BuildTargetFromProfile(profile);
-        var originals = file.Tracks.ToDictionary(t => t.Index);
+        var originals = (file.Snapshot.Tracks).ToDictionary(t => t.Index);
 
         foreach (var preview in target.Tracks)
         {
@@ -827,23 +897,16 @@ public static class MediaFileExtensions
         return tracks.Select(t => t.ToSnapshot()).ToList();
     }
 
-    public static MediaSnapshot ToMediaSnapshot(this MediaFile file)
-    {
-        return new MediaSnapshot
-        {
-            Tracks = file.Tracks.ToSnapshots(),
-            HasChapters = file.HasChapters,
-            HasAttachments = file.HasAttachments
-        };
-    }
+    public static MediaSnapshot ToMediaSnapshot(this MediaFile file) => file.Snapshot;
 
     public static MediaSnapshot ToMediaSnapshot(this MediaFile file, List<TrackSnapshot> tracks)
     {
         return new MediaSnapshot
         {
-            Tracks = tracks,
-            HasChapters = file.HasChapters,
-            HasAttachments = file.HasAttachments
+            CapturedAt = DateTime.UtcNow,
+            HasChapters = file.Snapshot.HasChapters,
+            HasAttachments = file.Snapshot.HasAttachments,
+            Tracks = tracks
         };
     }
 
@@ -858,10 +921,11 @@ public static class MediaFileExtensions
             return file.ToTargetSnapshotFromSource();
         }
 
+        var sourceTracks = file.Snapshot.Tracks;
         var allowed = GetAllowedTracks(file, profile).ToSnapshots();
         ApplyProfileMutations(allowed, profile,
-            file.Tracks.Count(t => t.Type == MediaTrackType.Audio),
-            file.Tracks.Count(t => t.Type == MediaTrackType.Subtitles),
+            sourceTracks.Count(t => t.Type == MediaTrackType.Audio),
+            sourceTracks.Count(t => t.Type == MediaTrackType.Subtitles),
             file.OriginalLanguage);
 
         var target = new ConversionPlan
@@ -884,8 +948,7 @@ public static class MediaFileExtensions
             }).ToList()
         };
 
-        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
-            file.ContainerType.ToContainerFamily(), file.HasFaststart);
+        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot());
         return target;
     }
 
@@ -919,8 +982,7 @@ public static class MediaFileExtensions
         }
 
         var target = new ConversionPlan { Tracks = tracks };
-        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
-            file.ContainerType.ToContainerFamily(), file.HasFaststart);
+        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot());
         return target;
     }
 
@@ -928,9 +990,10 @@ public static class MediaFileExtensions
     // state is the desired state. NameLocked so the resolver leaves titles alone.
     public static ConversionPlan ToTargetSnapshotFromSource(this MediaFile file)
     {
+        var sourceTracks = file.Snapshot.Tracks;
         var target = new ConversionPlan
         {
-            Tracks = file.Tracks.Select(t => new TrackPlan
+            Tracks = sourceTracks.Select(t => new TrackPlan
             {
                 Index = t.Index,
                 Type = t.Type,
@@ -947,8 +1010,7 @@ public static class MediaFileExtensions
             }).ToList()
         };
 
-        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot(),
-            file.ContainerType.ToContainerFamily(), file.HasFaststart);
+        TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot());
         return target;
     }
 

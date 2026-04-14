@@ -11,8 +11,8 @@ using Muxarr.Data;
 namespace Muxarr.Data.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260412154508_AddIsDubToMediaTrack")]
-    partial class AddIsDubToMediaTrack
+    [Migration("20260414114838_SnapshotNormalization")]
+    partial class SnapshotNormalization
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -135,7 +135,13 @@ namespace Muxarr.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("AllowedTracks")
+                    b.Property<int?>("AfterSnapshotId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("BeforeSnapshotId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ConversionPlan")
                         .IsRequired()
                         .IsUnicode(true)
                         .HasColumnType("TEXT");
@@ -185,20 +191,14 @@ namespace Muxarr.Data.Migrations
                         .HasMaxLength(4096)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("TracksAfter")
-                        .IsRequired()
-                        .IsUnicode(true)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TracksBefore")
-                        .IsRequired()
-                        .IsUnicode(true)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("AfterSnapshotId");
+
+                    b.HasIndex("BeforeSnapshotId");
 
                     b.HasIndex("MediaFileId");
 
@@ -213,24 +213,14 @@ namespace Muxarr.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("ContainerType")
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("TEXT");
-
-                    b.Property<long>("DurationMs")
-                        .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("FileCreationTime")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("FileLastWriteTime")
                         .HasColumnType("TEXT");
-
-                    b.Property<bool>("HasFaststart")
-                        .HasColumnType("INTEGER");
 
                     b.Property<bool>("HasNonStandardMetadata")
                         .HasColumnType("INTEGER");
@@ -256,35 +246,28 @@ namespace Muxarr.Data.Migrations
                     b.Property<int>("ProfileId")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("Resolution")
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
-
                     b.Property<long>("Size")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("SnapshotId")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Title")
                         .HasMaxLength(4096)
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("TrackCount")
-                        .HasColumnType("INTEGER");
-
                     b.Property<DateTime>("UpdatedDate")
                         .HasColumnType("TEXT");
 
-                    b.Property<int>("VideoBitDepth")
-                        .HasColumnType("INTEGER");
-
                     b.HasKey("Id");
 
-                    b.HasIndex("ContainerType");
+                    b.HasIndex("FileCreationTime");
 
                     b.HasIndex("Path");
 
                     b.HasIndex("ProfileId");
 
-                    b.HasIndex("Resolution");
+                    b.HasIndex("SnapshotId");
 
                     b.ToTable("MediaFile", (string)null);
                 });
@@ -337,78 +320,48 @@ namespace Muxarr.Data.Migrations
                     b.ToTable("MediaInfo", (string)null);
                 });
 
-            modelBuilder.Entity("Muxarr.Data.Entities.MediaTrack", b =>
+            modelBuilder.Entity("Muxarr.Data.Entities.MediaSnapshot", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
-                    b.Property<int>("AudioChannels")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("Codec")
-                        .IsRequired()
-                        .HasMaxLength(100)
+                    b.Property<DateTime>("CapturedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<bool>("IsCommentary")
+                    b.Property<string>("ContainerType")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("DurationMs")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsDefault")
+                    b.Property<bool>("HasAttachments")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsDub")
+                    b.Property<bool>("HasChapters")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsForced")
+                    b.Property<bool>("HasFaststart")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("IsHearingImpaired")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsOriginal")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsVisualImpaired")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("LanguageCode")
-                        .IsRequired()
+                    b.Property<string>("Resolution")
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("LanguageName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("MediaFileId")
+                    b.Property<int>("TrackCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("TrackName")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("TrackNumber")
+                    b.Property<int>("VideoBitDepth")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("MediaFileId", "TrackNumber")
-                        .IsUnique();
+                    b.HasIndex("ContainerType");
 
-                    b.HasIndex("MediaFileId", "Type", "AudioChannels");
+                    b.HasIndex("Resolution");
 
-                    b.HasIndex("MediaFileId", "Type", "Codec");
-
-                    b.HasIndex("MediaFileId", "Type", "LanguageName");
-
-                    b.ToTable("MediaTrack", (string)null);
+                    b.ToTable("MediaSnapshot", (string)null);
                 });
 
             modelBuilder.Entity("Muxarr.Data.Entities.Profile", b =>
@@ -456,12 +409,103 @@ namespace Muxarr.Data.Migrations
                     b.ToTable("Profile", (string)null);
                 });
 
+            modelBuilder.Entity("Muxarr.Data.Entities.TrackSnapshot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AudioChannels")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Codec")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Index")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsCommentary")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDub")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsForced")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsHearingImpaired")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsOriginal")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsVisualImpaired")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LanguageName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SnapshotId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnapshotId", "Index")
+                        .IsUnique();
+
+                    b.HasIndex("SnapshotId", "Type", "AudioChannels");
+
+                    b.HasIndex("SnapshotId", "Type", "Codec");
+
+                    b.HasIndex("SnapshotId", "Type", "LanguageName");
+
+                    b.ToTable("TrackSnapshot", (string)null);
+                });
+
             modelBuilder.Entity("Muxarr.Data.Entities.MediaConversion", b =>
                 {
+                    b.HasOne("Muxarr.Data.Entities.MediaSnapshot", "AfterSnapshot")
+                        .WithMany()
+                        .HasForeignKey("AfterSnapshotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Muxarr.Data.Entities.MediaSnapshot", "BeforeSnapshot")
+                        .WithMany()
+                        .HasForeignKey("BeforeSnapshotId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Muxarr.Data.Entities.MediaFile", "MediaFile")
                         .WithMany("Conversions")
                         .HasForeignKey("MediaFileId")
                         .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("AfterSnapshot");
+
+                    b.Navigation("BeforeSnapshot");
 
                     b.Navigation("MediaFile");
                 });
@@ -474,7 +518,14 @@ namespace Muxarr.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Muxarr.Data.Entities.MediaSnapshot", "Snapshot")
+                        .WithMany()
+                        .HasForeignKey("SnapshotId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Profile");
+
+                    b.Navigation("Snapshot");
                 });
 
             modelBuilder.Entity("Muxarr.Data.Entities.MediaInfo", b =>
@@ -487,15 +538,15 @@ namespace Muxarr.Data.Migrations
                     b.Navigation("Integration");
                 });
 
-            modelBuilder.Entity("Muxarr.Data.Entities.MediaTrack", b =>
+            modelBuilder.Entity("Muxarr.Data.Entities.TrackSnapshot", b =>
                 {
-                    b.HasOne("Muxarr.Data.Entities.MediaFile", "MediaFile")
+                    b.HasOne("Muxarr.Data.Entities.MediaSnapshot", "Snapshot")
                         .WithMany("Tracks")
-                        .HasForeignKey("MediaFileId")
+                        .HasForeignKey("SnapshotId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("MediaFile");
+                    b.Navigation("Snapshot");
                 });
 
             modelBuilder.Entity("Muxarr.Data.Entities.Integration", b =>
@@ -506,7 +557,10 @@ namespace Muxarr.Data.Migrations
             modelBuilder.Entity("Muxarr.Data.Entities.MediaFile", b =>
                 {
                     b.Navigation("Conversions");
+                });
 
+            modelBuilder.Entity("Muxarr.Data.Entities.MediaSnapshot", b =>
+                {
                     b.Navigation("Tracks");
                 });
 

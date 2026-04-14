@@ -76,7 +76,7 @@ public class TrackPriorityTests
             ]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "English", "TrueHd", 8),
@@ -105,7 +105,7 @@ public class TrackPriorityTests
             ]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "TrueHd", 8),
             Audio(2, "English", "Aac", 2)
@@ -129,7 +129,7 @@ public class TrackPriorityTests
             ]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "English", "TrueHd", 8),
@@ -153,7 +153,7 @@ public class TrackPriorityTests
             AllowedLanguages = [IsoLanguage.Find("English")]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "English", "TrueHd", 8),
@@ -178,7 +178,7 @@ public class TrackPriorityTests
             ]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "TrueHd", 8),
             Audio(2, "English", "Aac", 2),
@@ -206,7 +206,7 @@ public class TrackPriorityTests
             AllowedLanguages = [IsoLanguage.Find("Japanese"), IsoLanguage.Find("English")]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "Japanese", "Aac", 2)
@@ -228,7 +228,7 @@ public class TrackPriorityTests
             AllowedLanguages = [IsoLanguage.Find("English")]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "TrueHd", 8),
             Audio(2, "English", "Aac", 2),
@@ -253,7 +253,7 @@ public class TrackPriorityTests
             AllowedLanguages = [IsoLanguage.Find("Japanese"), IsoLanguage.Find("English")]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "Japanese", "Aac", 2)
@@ -279,7 +279,7 @@ public class TrackPriorityTests
             ]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "Japanese", "Aac", 2)
@@ -509,7 +509,7 @@ public class TrackPriorityTests
             ReorderStrategy = TrackReorderStrategy.Alphabetical
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "Japanese", "Aac", 2),
             Audio(2, "English", "Aac", 2),
@@ -591,7 +591,7 @@ public class TrackPriorityTests
             ReorderStrategy = TrackReorderStrategy.Alphabetical
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
             Audio(2, "English", "TrueHd", 8),
@@ -622,7 +622,7 @@ public class TrackPriorityTests
             ]
         };
 
-        var tracks = new List<MediaTrack>
+        var tracks = new List<TrackSnapshot>
         {
             Audio(1, "Japanese", "TrueHd", 8),
             Audio(2, "Japanese", "Aac", 2),

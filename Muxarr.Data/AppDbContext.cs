@@ -10,7 +10,8 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
     public DbSet<Config> Configs { get; set; }
     public DbSet<Profile> Profiles { get; set; }
     public DbSet<MediaFile> MediaFiles { get; set; }
-    public DbSet<MediaTrack> MediaTracks { get; set; }
+    public DbSet<MediaSnapshot> MediaSnapshots { get; set; }
+    public DbSet<TrackSnapshot> TrackSnapshots { get; set; }
     public DbSet<MediaConversion> MediaConversions { get; set; }
     public DbSet<MediaInfo> MediaInfos { get; set; }
     public DbSet<Integration> Integrations { get; set; }

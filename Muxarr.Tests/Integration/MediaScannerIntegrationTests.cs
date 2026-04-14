@@ -16,14 +16,14 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
 
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        Assert.AreEqual("Matroska", file.ContainerType);
-        Assert.AreEqual(ContainerFamily.Matroska, file.ContainerType.ToContainerFamily());
-        Assert.IsTrue(file.DurationMs > 0, "duration should be populated");
+        Assert.AreEqual("Matroska", file.Snapshot.ContainerType);
+        Assert.AreEqual(ContainerFamily.Matroska, file.Snapshot.ContainerType.ToContainerFamily());
+        Assert.IsTrue(file.Snapshot.DurationMs > 0, "duration should be populated");
         Assert.IsTrue(file.Size > 0, "size should be populated");
-        Assert.AreEqual(9, file.Tracks.Count);
-        Assert.AreEqual(9, file.TrackCount);
+        Assert.AreEqual(9, file.Snapshot.Tracks.Count);
+        Assert.AreEqual(9, file.Snapshot.TrackCount);
 
-        var tracks = file.Tracks.OrderBy(t => t.Index).ToList();
+        var tracks = file.Snapshot.Tracks.OrderBy(t => t.Index).ToList();
         Assert.AreEqual(MediaTrackType.Video, tracks[0].Type);
         Assert.AreEqual(3, tracks.Count(t => t.Type == MediaTrackType.Audio));
         Assert.AreEqual(5, tracks.Count(t => t.Type == MediaTrackType.Subtitles));
@@ -43,9 +43,9 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
 
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        Assert.AreEqual(ContainerFamily.Mp4, file.ContainerType.ToContainerFamily(),
-            $"expected Mp4 family, container was: {file.ContainerType}");
-        Assert.IsTrue(file.Tracks.Any(t => t.Type == MediaTrackType.Video));
-        Assert.IsTrue(file.Tracks.Any(t => t.Type == MediaTrackType.Audio));
+        Assert.AreEqual(ContainerFamily.Mp4, file.Snapshot.ContainerType.ToContainerFamily(),
+            $"expected Mp4 family, container was: {file.Snapshot.ContainerType}");
+        Assert.IsTrue(file.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Video));
+        Assert.IsTrue(file.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Audio));
     }
 }

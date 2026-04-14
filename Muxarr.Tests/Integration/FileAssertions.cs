@@ -42,9 +42,9 @@ public static class FileAssertions
     public static async Task AssertContainerFamily(string path, ContainerFamily expected)
     {
         var file = await ProbeAsync(path);
-        var actual = file.ContainerType.ToContainerFamily();
+        var actual = file.Snapshot.ContainerType.ToContainerFamily();
         Assert.AreEqual(expected, actual,
-            $"Container family mismatch for {path}. ContainerType was: {file.ContainerType}");
+            $"Container family mismatch for {path}. ContainerType was: {file.Snapshot.ContainerType}");
     }
 
     public static void AssertNoStrayArtifacts(string directory, string originalFileName)

@@ -111,7 +111,8 @@ public class MediaConverterService(
 
         var conversion = await context.MediaConversions
             .Include(x => x.MediaFile)
-            .ThenInclude(x => x!.Tracks)
+            .ThenInclude(f => f!.Snapshot)
+            .ThenInclude(s => s!.Tracks)
             .Include(x => x.MediaFile)
             .ThenInclude(x => x!.Profile)
             .Where(x => x.State == ConversionState.New)
@@ -170,7 +171,7 @@ public class MediaConverterService(
             MediaFileId = media.Id,
             SizeBefore = media.Size,
             ConversionPlan = media.BuildTargetFromProfile(profile),
-            SnapshotBefore = media.ToMediaSnapshot(),
+            BeforeSnapshotId = media.SnapshotId,
             State = ConversionState.New,
             Name = media.GetName()
         };
@@ -204,7 +205,7 @@ public class MediaConverterService(
             MediaFileId = media.Id,
             SizeBefore = media.Size,
             ConversionPlan = customTarget,
-            SnapshotBefore = media.ToMediaSnapshot(),
+            BeforeSnapshotId = media.SnapshotId,
             State = ConversionState.New,
             Name = media.GetName(),
             IsCustomConversion = true
@@ -260,7 +261,7 @@ public class MediaConverterService(
             // mutations applied here (flag-from-title correction,
             // und-resolution, name standardization). Only rejects targets
             // whose tracks no longer exist on the rescanned source.
-            var availableTrackNumbers = conversion.MediaFile.Tracks.Select(t => t.Index).ToHashSet();
+            var availableTrackNumbers = conversion.MediaFile.Snapshot.Tracks.Select(t => t.Index).ToHashSet();
             var missingTracks = conversion.ConversionPlan.Tracks
                 .Where(t => !availableTrackNumbers.Contains(t.Index))
                 .Select(t => t.Index)
@@ -280,7 +281,7 @@ public class MediaConverterService(
             }
         }
 
-        conversion.SnapshotBefore = conversion.MediaFile.ToMediaSnapshot();
+        conversion.BeforeSnapshot = conversion.MediaFile.Snapshot;
         conversion.SizeBefore = conversion.MediaFile.Size;
 
         if (conversion.ConversionPlan.Tracks.Count == 0)
@@ -294,8 +295,7 @@ public class MediaConverterService(
 
         // Plan once, reuse its cached outputs - running the planner twice
         // against shifting snapshots risks strategy/output disagreement.
-        var result = ConversionPlanner.Plan(
-            conversion.MediaFile, conversion.SnapshotBefore, conversion.ConversionPlan);
+        var result = ConversionPlanner.Plan(conversion.BeforeSnapshot!, conversion.ConversionPlan);
         var delta = result.Delta;
 
         if (result.Strategy == ConversionPlanner.ConversionStrategy.Skip)
@@ -303,7 +303,7 @@ public class MediaConverterService(
             conversion.StartedDate ??= DateTime.UtcNow;
             conversion.Log("File already optimized, skipping.", logger);
             conversion.SizeAfter = conversion.SizeBefore;
-            conversion.SnapshotAfter = conversion.MediaFile.ToMediaSnapshot();
+            conversion.AfterSnapshot = conversion.MediaFile.Snapshot;
             conversion.SizeDifference = 0;
             conversion.State = ConversionState.Completed;
         }
@@ -324,7 +324,7 @@ public class MediaConverterService(
         // Matroska writes go through mkvmerge. Everything else goes through
         // ffmpeg stream-copy so the container and every codec survive
         // byte-identical.
-        var useFFmpeg = conversion.MediaFile.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
+        var useFFmpeg = conversion.MediaFile.Snapshot.ContainerType.ToContainerFamily() != ContainerFamily.Matroska;
         var conversionTimeout = Config.ConversionTimeoutMinutes > 0
             ? TimeSpan.FromMinutes(Config.ConversionTimeoutMinutes)
             : (TimeSpan?)null;
@@ -415,7 +415,7 @@ public class MediaConverterService(
 
         await scanner.ScanMediaFile(mediaFile, true, context, mediaFile.Profile);
 
-        var verify = ConversionPlanner.Plan(mediaFile, mediaFile.ToMediaSnapshot(), conversion.ConversionPlan);
+        var verify = ConversionPlanner.Plan(mediaFile.Snapshot, conversion.ConversionPlan);
         if (verify.Strategy != ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.Log("mkvpropedit reported success but some changes did not apply. Falling through to remux.",
@@ -425,7 +425,7 @@ public class MediaConverterService(
 
         conversion.Log("Metadata updated successfully.", logger);
         conversion.SizeAfter = mediaFile.Size;
-        conversion.SnapshotAfter = mediaFile.ToMediaSnapshot();
+        conversion.AfterSnapshot = mediaFile.Snapshot;
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
         conversion.State = ConversionState.Completed;
     }
@@ -480,7 +480,7 @@ public class MediaConverterService(
         await context.SaveChangesAsync(token);
 
         var reportProgress = BuildProgressReporter(conversion);
-        var result = await FFmpeg.Remux(mediaFile.Path, tmp, delta, mediaFile.DurationMs,
+        var result = await FFmpeg.Remux(mediaFile.Path, tmp, delta, mediaFile.Snapshot.DurationMs,
             (line, progress) =>
             {
                 // ffmpeg -progress pipe:1 lines start with key=value; everything
@@ -600,7 +600,7 @@ public class MediaConverterService(
 
         await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
         conversion.SizeAfter = conversion.MediaFile.Size;
-        conversion.SnapshotAfter = conversion.MediaFile.ToMediaSnapshot();
+        conversion.AfterSnapshot = conversion.MediaFile.Snapshot;
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
 
         await RunPostProcessing(conversion);

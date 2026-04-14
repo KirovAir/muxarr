@@ -241,7 +241,8 @@ public class MediaScannerService(
                 }
 
                 var target = dbFile.BuildTargetFromProfile(profile);
-                dbFile.HasRedundantTracks = profile != null && target.Tracks.Count < dbFile.TrackCount;
+                var trackCount = dbFile.Snapshot.TrackCount;
+                dbFile.HasRedundantTracks = profile != null && target.Tracks.Count < trackCount;
                 dbFile.HasNonStandardMetadata = dbFile.CheckHasNonStandardMetadata(profile, target);
             }
 
@@ -250,16 +251,6 @@ public class MediaScannerService(
             dbFile.FileLastWriteTime = fileInfo.LastWriteTime.ToUniversalTime();
             dbFile.FileCreationTime = fileInfo.CreationTime.ToUniversalTime();
 
-            await context.SaveChangesAsync();
-        }
-
-        // Runs on every scan, not just when the probe is due, so unchanged
-        // files still pick up the flag after upgrades.
-        var expectedFaststart = dbFile.ContainerType.ToContainerFamily() == ContainerFamily.Mp4
-                                && FFmpeg.IsFaststartLayout(dbFile.Path);
-        if (dbFile.HasFaststart != expectedFaststart)
-        {
-            dbFile.HasFaststart = expectedFaststart;
             await context.SaveChangesAsync();
         }
     }

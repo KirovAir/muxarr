@@ -76,7 +76,7 @@ public class MediaConverterRecoveryTests : IntegrationTestBase
             {
                 MediaFileId = file.Id,
                 SizeBefore = file.Size,
-                SnapshotBefore = new MediaSnapshot(),
+                BeforeSnapshotId = file.SnapshotId,
                 ConversionPlan = new ConversionPlan(),
                 State = ConversionState.Processing,
                 TempFilePath = tempPath,

@@ -217,10 +217,10 @@
                             }
                         </td>
                         <td>
-                            <MediaTrackLabels Tracks="conversion.SnapshotBefore.Tracks"></MediaTrackLabels>
+                            <MediaTrackLabels Tracks="conversion.BeforeSnapshot?.Tracks ?? []"></MediaTrackLabels>
                         </td>
                         <td>
-                            <MediaTrackLabels Tracks="conversion.SnapshotAfter.Tracks"></MediaTrackLabels>
+                            <MediaTrackLabels Tracks="conversion.AfterSnapshot?.Tracks ?? []"></MediaTrackLabels>
                         </td>
                     </tr>
                 }
@@ -281,6 +281,10 @@
         // Paginated history
         var query = context.MediaConversions
             .Include(c => c.MediaFile)
+            .Include(c => c.BeforeSnapshot)
+            .ThenInclude(s => s!.Tracks)
+            .Include(c => c.AfterSnapshot)
+            .ThenInclude(s => s!.Tracks)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(SearchTerm))

@@ -19,9 +19,9 @@ public static class ConversionPlanner
 
     public sealed record PlanResult(ConversionStrategy Strategy, ConversionPlan Delta);
 
-    public static PlanResult Plan(MediaFile file, MediaSnapshot source, ConversionPlan desired)
+    public static PlanResult Plan(MediaSnapshot source, ConversionPlan desired)
     {
-        var family = file.ContainerType.ToContainerFamily();
+        var family = source.ContainerType.ToContainerFamily();
         var delta = ConversionPlanExtensions.Delta(source, desired);
         var hasStructuralChanges = HasStructuralChanges(source, desired);
         var hasFieldChanges = ConversionPlanExtensions.HasChanges(delta);

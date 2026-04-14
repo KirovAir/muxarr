@@ -26,7 +26,7 @@ public class ConversionPlannerTests
         var before = file.ToMediaSnapshot();
         var target = TargetFromSnapshot(before);
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
     }
@@ -40,7 +40,7 @@ public class ConversionPlannerTests
     {
         var (file, beforeSnap, target) = MakeWithModifiedAudio("Matroska", field, before, after);
 
-        var result = ConversionPlanner.Plan(file, beforeSnap, target);
+        var result = ConversionPlanner.Plan(beforeSnap, target);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
     }
@@ -52,7 +52,7 @@ public class ConversionPlannerTests
     {
         var (file, beforeSnap, target) = MakeWithModifiedAudio("MP4/QuickTime", field, before, after);
 
-        var result = ConversionPlanner.Plan(file, beforeSnap, target);
+        var result = ConversionPlanner.Plan(beforeSnap, target);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
     }
@@ -69,9 +69,9 @@ public class ConversionPlannerTests
             Audio(1, "English"),
             Audio(2, "French"));
         var before = file.ToMediaSnapshot();
-        var target = TargetFromSnapshot(file.ToMediaSnapshot(file.Tracks.Take(2).ToSnapshots()));
+        var target = TargetFromSnapshot(file.ToMediaSnapshot(file.Snapshot.Tracks.Take(2).ToSnapshots()));
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
     }
@@ -88,13 +88,13 @@ public class ConversionPlannerTests
         var before = file.ToMediaSnapshot();
         var reordered = new List<TrackSnapshot>
         {
-            file.Tracks.First(t => t.Type == MediaTrackType.Video).ToSnapshot(),
-            file.Tracks.First(t => t.Index == 2).ToSnapshot(),
-            file.Tracks.First(t => t.Index == 1).ToSnapshot()
+            file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Video).ToSnapshot(),
+            file.Snapshot.Tracks.First(t => t.Index == 2).ToSnapshot(),
+            file.Snapshot.Tracks.First(t => t.Index == 1).ToSnapshot()
         };
         var target = TargetFromSnapshot(file.ToMediaSnapshot(reordered));
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
     }
@@ -113,9 +113,9 @@ public class ConversionPlannerTests
         var audio = target.Tracks.First(t => t.Type == MediaTrackType.Audio);
         audio.IsDub = true;
         audio.NameLocked = false;
-        TargetResolver.ResolveForContainer(target, before, ContainerFamily.Matroska);
+        TargetResolver.ResolveForContainer(target, before);
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
         var audioDelta = result.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
@@ -135,9 +135,9 @@ public class ConversionPlannerTests
         var audio = target.Tracks.First(t => t.Type == MediaTrackType.Audio);
         audio.IsDub = true;
         audio.NameLocked = true;
-        TargetResolver.ResolveForContainer(target, before, ContainerFamily.Matroska);
+        TargetResolver.ResolveForContainer(target, before);
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
         var audioDelta = result.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
 
         Assert.IsNull(audioDelta.Name, "NameLocked=true blocks the resolver from rewriting the title");
@@ -155,7 +155,7 @@ public class ConversionPlannerTests
         var target = TargetFromSnapshot(before);
         target.Tracks.First(t => t.Type == MediaTrackType.Audio).IsDub = true;
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
         var audioDelta = result.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
@@ -171,7 +171,7 @@ public class ConversionPlannerTests
         var before = file.ToMediaSnapshot();
         var target = TargetFromSnapshot(before);
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
         var audioDelta = result.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
@@ -191,7 +191,7 @@ public class ConversionPlannerTests
         var target = TargetFromSnapshot(before);
         SetFlag(target.Tracks.First(t => t.Type == MediaTrackType.Audio), flagName, true);
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
     }
@@ -209,7 +209,7 @@ public class ConversionPlannerTests
         var video = target.Tracks.First(t => t.Type == MediaTrackType.Video);
         video.Name = "";
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
         var videoDelta = result.Delta.Tracks.First(t => t.Type == MediaTrackType.Video);
 
         Assert.AreEqual("", videoDelta.Name);
@@ -230,7 +230,7 @@ public class ConversionPlannerTests
         var target = TargetFromSnapshot(before);
         target.Tracks.First(t => t.Type == MediaTrackType.Audio).Name = "Renamed";
 
-        var result = ConversionPlanner.Plan(file, before, target);
+        var result = ConversionPlanner.Plan(before, target);
 
         Assert.AreNotEqual(ConversionPlanner.ConversionStrategy.MetadataEdit, result.Strategy);
     }
@@ -253,10 +253,10 @@ public class ConversionPlannerTests
     // --- Helpers ---
 
     private static MediaFile MakeFileWithContainer(string? containerType, string? originalLanguage,
-        params MediaTrack[] tracks)
+        params TrackSnapshot[] tracks)
     {
         var file = MakeFile(originalLanguage, tracks);
-        file.ContainerType = containerType;
+        file.Snapshot.ContainerType = containerType;
         return file;
     }
 

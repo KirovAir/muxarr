@@ -40,19 +40,16 @@ internal static class TestPlan
     // requested container family and returns the delta tracks.
     public static List<TrackPlan> Diff(MediaSnapshot before, MediaSnapshot target, ContainerFamily family)
     {
-        var file = new MediaFile
+        before.ContainerType = family switch
         {
-            Path = "/tmp/synthetic",
-            ContainerType = family switch
-            {
-                ContainerFamily.Matroska => "Matroska",
-                ContainerFamily.Mp4 => "MP4/QuickTime",
-                _ => null
-            },
-            TrackCount = before.Tracks.Count
+            ContainerFamily.Matroska => "Matroska",
+            ContainerFamily.Mp4 => "MP4/QuickTime",
+            _ => null
         };
+        before.TrackCount = before.Tracks.Count;
+        var file = new MediaFile { Path = "/tmp/synthetic", Snapshot = before };
         var desired = FromSnapshot(target);
-        var result = ConversionPlanner.Plan(file, before, desired);
+        var result = ConversionPlanner.Plan(before, desired);
         return result.Delta.Tracks;
     }
 }

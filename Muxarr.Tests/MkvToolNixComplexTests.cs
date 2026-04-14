@@ -363,7 +363,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
         Assert.IsTrue(track.Properties.DefaultTrack);
     }
 
-    // --- SetFileData integration: mkvmerge JSON -> MediaTrack entities ---
+    // --- SetFileData integration: mkvmerge JSON -> TrackSnapshot entities ---
 
     [TestMethod]
     public async Task SetFileData_ParsesAllFlagsFromComplexFile()
@@ -372,8 +372,8 @@ public class MkvToolNixComplexTests : FixtureTestBase
         var file = new MediaFile();
         file.SetFileData(info.Result);
 
-        Assert.AreEqual(9, file.Tracks.Count);
-        var tracks = file.Tracks.OrderBy(t => t.Index).ToList();
+        Assert.AreEqual(9, file.Snapshot.Tracks.Count);
+        var tracks = file.Snapshot.Tracks.OrderBy(t => t.Index).ToList();
 
         // Video
         Assert.AreEqual(MediaTrackType.Video, tracks[0].Type);
@@ -430,10 +430,10 @@ public class MkvToolNixComplexTests : FixtureTestBase
         var file = new MediaFile();
         file.SetFileData(info.Result);
 
-        Assert.AreEqual("Matroska", file.ContainerType);
-        Assert.IsNotNull(file.Resolution);
-        Assert.IsTrue(file.DurationMs > 0);
-        Assert.AreEqual(9, file.TrackCount);
+        Assert.AreEqual("Matroska", file.Snapshot.ContainerType);
+        Assert.IsNotNull(file.Snapshot.Resolution);
+        Assert.IsTrue(file.Snapshot.DurationMs > 0);
+        Assert.AreEqual(9, file.Snapshot.TrackCount);
     }
 
     // --- End-to-end: parse -> filter -> verify ---
@@ -877,7 +877,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
         var trackOutputs = TestPlan.Diff(file.ToMediaSnapshot(), target, ContainerFamily.Matroska);
 
         // All 9 tracks should be kept (metadata-only path)
-        Assert.AreEqual(file.TrackCount, target.Tracks.Count, "All tracks should be allowed");
+        Assert.AreEqual(file.Snapshot.TrackCount, target.Tracks.Count, "All tracks should be allowed");
 
         // Apply via mkvpropedit (in-place, no remux)
         var result = await MkvPropEdit.Apply(_workingCopy, _workingCopy, TestPlan.Of(trackOutputs));
