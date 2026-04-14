@@ -35,10 +35,7 @@ internal static class TestPlan
         };
     }
 
-    // Replicates the old BuildTrackOutputs(before, target, family) shape for
-    // legacy tests: runs the planner against a synthetic MediaFile with the
-    // requested container family and returns the delta tracks.
-    public static List<TrackPlan> Diff(MediaSnapshot before, MediaSnapshot target, ContainerFamily family)
+    public static List<TrackPlan> Diff(MediaSnapshot before, ConversionPlan desired, ContainerFamily family)
     {
         before.ContainerType = family switch
         {
@@ -47,9 +44,11 @@ internal static class TestPlan
             _ => null
         };
         before.TrackCount = before.Tracks.Count;
-        var file = new MediaFile { Path = "/tmp/synthetic", Snapshot = before };
-        var desired = FromSnapshot(target);
-        var result = ConversionPlanner.Plan(before, desired);
-        return result.Delta.Tracks;
+        return ConversionPlanner.Plan(before, desired).Delta.Tracks;
+    }
+
+    public static List<TrackPlan> Diff(MediaSnapshot before, MediaSnapshot target, ContainerFamily family)
+    {
+        return Diff(before, FromSnapshot(target), family);
     }
 }

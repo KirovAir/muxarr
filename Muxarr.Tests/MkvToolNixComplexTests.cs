@@ -463,22 +463,22 @@ public class MkvToolNixComplexTests : FixtureTestBase
             }
         };
 
-        var allowed = file.BuildTargetSnapshot(profile).Tracks;
+        var allowed = file.BuildTargetFromProfile(profile).Tracks;
 
         // Video always kept
         Assert.AreEqual(1, allowed.Count(t => t.Type == MediaTrackType.Video));
         // Audio: English 5.1 (original) kept, Commentary removed, French removed
         Assert.AreEqual(1, allowed.Count(t => t.Type == MediaTrackType.Audio));
-        Assert.AreEqual("English", allowed.First(t => t.Type == MediaTrackType.Audio).LanguageName);
-        Assert.IsFalse(allowed.First(t => t.Type == MediaTrackType.Audio).IsCommentary);
+        Assert.AreEqual("eng", allowed.First(t => t.Type == MediaTrackType.Audio).LanguageCode);
+        Assert.AreEqual(false, allowed.First(t => t.Type == MediaTrackType.Audio).IsCommentary);
         // Subtitles: English regular + English Forced kept, SDH removed (RemoveImpaired),
         // French + Spanish removed
         var subs = allowed.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
         Assert.AreEqual(2, subs.Count,
             $"Expected 2 subs, got: {string.Join(", ", subs.Select(s => $"{s.Name}"))}");
-        Assert.IsTrue(subs.Any(s => !s.IsHearingImpaired && !s.IsForced), "Regular English sub should be kept");
-        Assert.IsTrue(subs.Any(s => s.IsForced), "Forced English sub should be kept");
-        Assert.IsFalse(subs.Any(s => s.IsHearingImpaired), "SDH should be removed");
+        Assert.IsTrue(subs.Any(s => s.IsHearingImpaired == false && s.IsForced == false), "Regular English sub should be kept");
+        Assert.IsTrue(subs.Any(s => s.IsForced == true), "Forced English sub should be kept");
+        Assert.IsFalse(subs.Any(s => s.IsHearingImpaired == true), "SDH should be removed");
     }
 
     [TestMethod]
@@ -507,13 +507,13 @@ public class MkvToolNixComplexTests : FixtureTestBase
             }
         };
 
-        var allowed = file.BuildTargetSnapshot(profile).Tracks;
+        var allowed = file.BuildTargetFromProfile(profile).Tracks;
         var subs = allowed.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
         // With RemoveImpaired=false, all 3 English subs should be kept
         Assert.AreEqual(3, subs.Count, "All 3 English subs (regular, forced, SDH) should be kept");
-        Assert.IsTrue(subs.Any(s => s.IsHearingImpaired), "SDH sub should be kept");
-        Assert.IsTrue(subs.Any(s => s.IsForced), "Forced sub should be kept");
+        Assert.IsTrue(subs.Any(s => s.IsHearingImpaired == true), "SDH sub should be kept");
+        Assert.IsTrue(subs.Any(s => s.IsForced == true), "Forced sub should be kept");
     }
 
     [TestMethod]
@@ -543,7 +543,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
             }
         };
 
-        var previews = file.BuildTargetSnapshot(profile).Tracks;
+        var previews = file.BuildTargetFromProfile(profile).Tracks;
         var audioPreview = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
         var subPreview = previews.Where(p => p.Type == MediaTrackType.Subtitles).ToList();
 
@@ -737,8 +737,8 @@ public class MkvToolNixComplexTests : FixtureTestBase
         };
 
         // Run pipeline
-        var target = file.BuildTargetSnapshot(profile);
-        var trackOutputs = TestPlan.Diff(file.ToMediaSnapshot(), target, ContainerFamily.Matroska);
+        var target = file.BuildTargetFromProfile(profile);
+        var trackOutputs = TestPlan.Diff(file.Snapshot, target, ContainerFamily.Matroska);
 
         // Remux with the pipeline output
         var output = _workingCopy + ".pipeline.mkv";
@@ -873,8 +873,8 @@ public class MkvToolNixComplexTests : FixtureTestBase
             }
         };
 
-        var target = file.BuildTargetSnapshot(profile);
-        var trackOutputs = TestPlan.Diff(file.ToMediaSnapshot(), target, ContainerFamily.Matroska);
+        var target = file.BuildTargetFromProfile(profile);
+        var trackOutputs = TestPlan.Diff(file.Snapshot, target, ContainerFamily.Matroska);
 
         // All 9 tracks should be kept (metadata-only path)
         Assert.AreEqual(file.Snapshot.TrackCount, target.Tracks.Count, "All tracks should be allowed");

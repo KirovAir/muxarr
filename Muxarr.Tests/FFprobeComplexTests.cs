@@ -143,18 +143,18 @@ public class FFprobeComplexTests : FixtureTestBase
             }
         };
 
-        var allowed = file.BuildTargetSnapshot(profile).Tracks;
+        var allowed = file.BuildTargetFromProfile(profile).Tracks;
 
         Assert.AreEqual(1, allowed.Count(t => t.Type == MediaTrackType.Video));
         Assert.AreEqual(1, allowed.Count(t => t.Type == MediaTrackType.Audio));
-        Assert.AreEqual("English", allowed.First(t => t.Type == MediaTrackType.Audio).LanguageName);
-        Assert.IsFalse(allowed.First(t => t.Type == MediaTrackType.Audio).IsCommentary);
+        Assert.AreEqual("eng", allowed.First(t => t.Type == MediaTrackType.Audio).LanguageCode);
+        Assert.AreEqual(false, allowed.First(t => t.Type == MediaTrackType.Audio).IsCommentary);
 
         var subs = allowed.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
         Assert.AreEqual(2, subs.Count);
-        Assert.IsTrue(subs.Any(s => !s.IsHearingImpaired && !s.IsForced));
-        Assert.IsTrue(subs.Any(s => s.IsForced));
-        Assert.IsFalse(subs.Any(s => s.IsHearingImpaired));
+        Assert.IsTrue(subs.Any(s => s.IsHearingImpaired == false && s.IsForced == false));
+        Assert.IsTrue(subs.Any(s => s.IsForced == true));
+        Assert.IsFalse(subs.Any(s => s.IsHearingImpaired == true));
     }
 
     [TestMethod]
@@ -181,11 +181,11 @@ public class FFprobeComplexTests : FixtureTestBase
             }
         };
 
-        var allowed = file.BuildTargetSnapshot(profile).Tracks;
+        var allowed = file.BuildTargetFromProfile(profile).Tracks;
         var subs = allowed.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
         Assert.AreEqual(3, subs.Count);
-        Assert.IsTrue(subs.Any(s => s.IsHearingImpaired));
-        Assert.IsTrue(subs.Any(s => s.IsForced));
+        Assert.IsTrue(subs.Any(s => s.IsHearingImpaired == true));
+        Assert.IsTrue(subs.Any(s => s.IsForced == true));
     }
 }

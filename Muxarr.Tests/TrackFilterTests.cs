@@ -226,14 +226,14 @@ public class TrackFilterTests
             }
         };
 
-        var result = file.BuildTargetSnapshot(file.Profile).Tracks;
+        var result = file.BuildTargetFromProfile(file.Profile).Tracks;
 
         // Should keep: video + English audio. No French anything.
         Assert.AreEqual(2, result.Count,
-            $"Expected video + English audio only, got: {string.Join(", ", result.Select(t => $"{t.Type}:{t.LanguageName}"))}");
+            $"Expected video + English audio only, got: {string.Join(", ", result.Select(t => $"{t.Type}:{t.LanguageCode}"))}");
         Assert.IsTrue(result.Any(t => t.Type == MediaTrackType.Video));
-        Assert.IsTrue(result.Any(t => t.Type == MediaTrackType.Audio && t.LanguageName == "English"));
-        Assert.IsFalse(result.Any(t => t.LanguageName == "French"), "No French tracks should be kept");
+        Assert.IsTrue(result.Any(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "eng"));
+        Assert.IsFalse(result.Any(t => t.LanguageCode == "fre"), "No French tracks should be kept");
     }
 
     // --- Commentary / HI edge cases with subtitle fallback ---

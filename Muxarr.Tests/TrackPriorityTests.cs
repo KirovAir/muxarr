@@ -416,8 +416,10 @@ public class TrackPriorityTests
             Audio(2, "Spanish", "Aac", 2, isDefault: true)
         );
 
-        var allowed = file.BuildTargetSnapshot(profile).Tracks;
-        var outputs = file.BuildTargetFromCustom(allowed).Tracks;
+        // Custom path: user-edited snapshots are authoritative. Both source tracks
+        // pass the profile filter anyway, so we can hand the source tracks straight
+        // to BuildTargetFromCustom.
+        var outputs = file.BuildTargetFromCustom(file.Snapshot.Tracks).Tracks;
 
         var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.AreEqual(false, audioOutputs[0].IsDefault); // Custom: flags passed through verbatim
@@ -446,13 +448,13 @@ public class TrackPriorityTests
             Audio(2, "Japanese", "Aac", 2, isDefault: false)
         );
 
-        var previews = file.BuildTargetSnapshot(profile).Tracks;
+        var previews = file.BuildTargetFromProfile(profile).Tracks;
         var audioPreviews = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
 
-        Assert.AreEqual("Japanese", audioPreviews[0].LanguageName);
-        Assert.IsTrue(audioPreviews[0].IsDefault);
-        Assert.AreEqual("English", audioPreviews[1].LanguageName);
-        Assert.IsFalse(audioPreviews[1].IsDefault);
+        Assert.AreEqual("jpn", audioPreviews[0].LanguageCode);
+        Assert.AreEqual(true, audioPreviews[0].IsDefault);
+        Assert.AreEqual("eng", audioPreviews[1].LanguageCode);
+        Assert.AreEqual(false, audioPreviews[1].IsDefault);
     }
 
     // --- Combined: MaxTracks + Priority + Default ---
@@ -482,18 +484,16 @@ public class TrackPriorityTests
             Audio(3, "English", "Aac", 2)
         );
 
-        var target = file.BuildTargetSnapshot(profile);
+        var target = file.BuildTargetFromProfile(profile);
         var allowed = target.Tracks;
 
         // English deduped to 1 (TrueHD best), Spanish kept, reordered English first
         Assert.AreEqual(2, allowed.Count);
-        Assert.AreEqual("English", allowed[0].LanguageName);
-        Assert.AreEqual("TrueHd", allowed[0].Codec);
-        Assert.AreEqual("Spanish", allowed[1].LanguageName);
+        Assert.AreEqual("eng", allowed[0].LanguageCode);
+        Assert.AreEqual(2, allowed[0].Index, "TrueHD (index 2) should survive, not AAC (index 3)");
+        Assert.AreEqual("spa", allowed[1].LanguageCode);
 
-        var outputs = file.BuildTargetFromProfile(profile).Tracks;
-        var audioOutputs = outputs.Where(o => o.Type == MediaTrackType.Audio).ToList();
-
+        var audioOutputs = allowed.Where(o => o.Type == MediaTrackType.Audio).ToList();
         Assert.AreEqual(true, audioOutputs[0].IsDefault); // English = default
         Assert.AreEqual(false, audioOutputs[1].IsDefault); // Spanish = not default
     }
@@ -569,12 +569,12 @@ public class TrackPriorityTests
             Audio(2, "English", "Aac", 2, true, isDefault: true)
         );
 
-        var previews = file.BuildTargetSnapshot(profile).Tracks;
+        var previews = file.BuildTargetFromProfile(profile).Tracks;
         var audioPreviews = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
 
         Assert.AreEqual(2, audioPreviews.Count, "No tracks should be removed when Enabled=false");
-        Assert.IsTrue(audioPreviews[0].IsDefault, "Normal track should stay default-eligible");
-        Assert.IsFalse(audioPreviews[1].IsDefault, "Commentary track should be marked non-default");
+        Assert.AreEqual(true, audioPreviews[0].IsDefault, "Normal track should stay default-eligible");
+        Assert.AreEqual(false, audioPreviews[1].IsDefault, "Commentary track should be marked non-default");
     }
 
     [TestMethod]
@@ -691,13 +691,13 @@ public class TrackPriorityTests
             Audio(2, "Japanese", "Aac", 6, isDefault: false)
         );
 
-        var previews = file.BuildTargetSnapshot(profile).Tracks;
+        var previews = file.BuildTargetFromProfile(profile).Tracks;
         var audioPreviews = previews.Where(p => p.Type == MediaTrackType.Audio).ToList();
 
         Assert.AreEqual(2, audioPreviews.Count, "No tracks should be removed when Enabled=false");
-        Assert.IsTrue(audioPreviews.First(p => p.Index == 2).IsDefault,
+        Assert.AreEqual(true, audioPreviews.First(p => p.Index == 2).IsDefault,
             "Japanese (priority 0) should become default");
-        Assert.IsFalse(audioPreviews.First(p => p.Index == 1).IsDefault,
+        Assert.AreEqual(false, audioPreviews.First(p => p.Index == 1).IsDefault,
             "English (priority 1) should lose default");
     }
 
@@ -721,11 +721,11 @@ public class TrackPriorityTests
             Sub(2, "English", trackName: "English SDH") // IsHearingImpaired=false but name says SDH
         );
 
-        var previews = file.BuildTargetSnapshot(profile).Tracks;
+        var previews = file.BuildTargetFromProfile(profile).Tracks;
         var subPreviews = previews.Where(p => p.Type == MediaTrackType.Subtitles).ToList();
 
-        Assert.IsTrue(subPreviews[0].IsDefault, "Regular sub should be default-eligible");
-        Assert.IsTrue(subPreviews[1].IsHearingImpaired, "SDH flag should be corrected from track name");
-        Assert.IsFalse(subPreviews[1].IsDefault, "SDH sub should be marked non-default by SpecCompliant");
+        Assert.AreEqual(true, subPreviews[0].IsDefault, "Regular sub should be default-eligible");
+        Assert.AreEqual(true, subPreviews[1].IsHearingImpaired, "SDH flag should be corrected from track name");
+        Assert.AreEqual(false, subPreviews[1].IsDefault, "SDH sub should be marked non-default by SpecCompliant");
     }
 }
