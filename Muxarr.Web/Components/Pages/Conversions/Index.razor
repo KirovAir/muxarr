@@ -310,7 +310,6 @@
     private async Task FilterByState(string state)
     {
         _stateFilter = state;
-        Page = 1;
         await UpdateList();
     }
 
@@ -338,7 +337,7 @@
         }
 
         await MediaConverter.CancelQueuedConversion(conversion.Id);
-        await UpdateList();
+        await UpdateList(false);
     }
 
     private async Task OnClearQueue()
@@ -349,7 +348,7 @@
         }
 
         await MediaConverter.ClearQueue();
-        await UpdateList();
+        await UpdateList(false);
     }
 
     private async Task OnDeleteSelected()
@@ -370,7 +369,7 @@
         await using var context = await ContextFactory.CreateDbContextAsync();
         await context.MediaConversions.Where(c => ids.Contains(c.Id)).ExecuteDeleteAsync();
         SelectedItems.Clear();
-        await UpdateList();
+        await UpdateList(false);
         ToastService.ShowSuccess($"Deleted {deletable.Count} conversion(s).");
     }
 
@@ -400,7 +399,7 @@
             }
 
             // State transition (started, completed, failed): refresh from DB
-            await UpdateList();
+            await UpdateList(false);
             StateHasChanged();
         });
     }
