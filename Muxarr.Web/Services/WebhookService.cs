@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Api.Models;
 using Muxarr.Core.Config;
+using Muxarr.Core.Utilities;
 using Muxarr.Data;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -86,6 +87,12 @@ public class WebhookService(
             if (!MediaScannerService.SupportedExtensions.Contains(ext))
             {
                 logger.LogDebug("Webhook ignoring non-supported-media file: {Path}", item.FilePath);
+                return;
+            }
+
+            if (PathFilter.ShouldIgnore(item.FilePath))
+            {
+                logger.LogInformation("Webhook ignoring filtered media file: {Path}", item.FilePath);
                 return;
             }
 
