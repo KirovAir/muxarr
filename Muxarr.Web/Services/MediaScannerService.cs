@@ -26,6 +26,7 @@ public class MediaScannerService(
     };
 
     private readonly ConcurrentQueue<ScanDirectory> _directoryQueue = new();
+    private readonly SemaphoreSlim _libraryMutationSemaphore = new(1, 1);
     private DateTime _lastScanUpdate = DateTime.MinValue;
     private CancellationTokenSource? _scanCts;
 
@@ -52,12 +53,17 @@ public class MediaScannerService(
 
     protected override async Task ExecuteAsync(CancellationToken token)
     {
-        var oldCts = Interlocked.Exchange(ref _scanCts, CancellationTokenSource.CreateLinkedTokenSource(token));
-        oldCts?.Dispose();
-        var linked = _scanCts!.Token;
+        var lockTaken = false;
 
         try
         {
+            await _libraryMutationSemaphore.WaitAsync(token);
+            lockTaken = true;
+
+            var oldCts = Interlocked.Exchange(ref _scanCts, CancellationTokenSource.CreateLinkedTokenSource(token));
+            oldCts?.Dispose();
+            var linked = _scanCts!.Token;
+
             IsScanning = true;
             logger.LogInformation("Scan started ({Count} director(ies) queued)", _directoryQueue.Count);
 
@@ -84,6 +90,10 @@ public class MediaScannerService(
         finally
         {
             IsScanning = false;
+            if (lockTaken)
+            {
+                _libraryMutationSemaphore.Release();
+            }
         }
     }
 
@@ -95,6 +105,39 @@ public class MediaScannerService(
         }
         catch (ObjectDisposedException)
         {
+        }
+    }
+
+    public async Task ClearLibraryFiles()
+    {
+        await _libraryMutationSemaphore.WaitAsync();
+        try
+        {
+            await MediaLibraryLocks.QueueMutation.WaitAsync();
+            try
+            {
+                using var scope = ServiceScopeFactory.CreateScope();
+                var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                var activeConversions = await context.MediaConversions
+                    .CountAsync(x => x.State == ConversionState.New || x.State == ConversionState.Processing);
+                if (activeConversions > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Cannot clear the library while {activeConversions} conversion(s) are queued or processing.");
+                }
+
+                var deleted = await context.MediaFiles.ExecuteDeleteAsync();
+                logger.LogInformation("Cleared {Count} file(s) from library", deleted);
+            }
+            finally
+            {
+                MediaLibraryLocks.QueueMutation.Release();
+            }
+        }
+        finally
+        {
+            _libraryMutationSemaphore.Release();
         }
     }
 
@@ -161,15 +204,25 @@ public class MediaScannerService(
             return;
         }
 
-        using var scope = ServiceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await ScanFileCore(filePath, forceRescan, profile, context, webhookTitle, webhookOriginalLanguage);
+        await _libraryMutationSemaphore.WaitAsync();
+        try
+        {
+            using var scope = ServiceScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await ScanFileCore(filePath, forceRescan, profile, context, webhookTitle, webhookOriginalLanguage);
+        }
+        finally
+        {
+            _libraryMutationSemaphore.Release();
+        }
     }
 
     private async Task ScanFileCore(string filePath, bool forceRescan, Profile profile,
         AppDbContext context, string? webhookTitle = null, string? webhookOriginalLanguage = null)
     {
-        if (profile.SkipHardlinkedFiles && HardLinkHelper.IsHardlinked(filePath))
+        var isHardlinked = HardLinkHelper.IsHardlinked(filePath);
+
+        if (profile.SkipHardlinkedFiles && isHardlinked)
         {
             var stale = await context.MediaFiles.FirstOrDefaultAsync(x => x.Path == filePath);
             if (stale != null)
@@ -193,6 +246,7 @@ public class MediaScannerService(
             context.Add(dbFile);
         }
 
+        dbFile.IsHardlinked = isHardlinked;
         await ScanMediaFile(dbFile, forceRescan, context, profile, webhookTitle, webhookOriginalLanguage);
     }
 

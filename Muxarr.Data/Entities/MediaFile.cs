@@ -15,6 +15,7 @@ public class MediaFile : AuditableEntity
     public bool HasScanWarning { get; set; }
     public bool HasRedundantTracks { get; set; }
     public bool HasNonStandardMetadata { get; set; }
+    public bool IsHardlinked { get; set; }
     public DateTime FileLastWriteTime { get; set; }
     public DateTime FileCreationTime { get; set; }
 
@@ -60,6 +61,10 @@ public class MediaFileConfiguration : AuditEntityConfiguration<MediaFile>
 
         builder.Property(e => e.HasNonStandardMetadata)
             .IsRequired();
+
+        builder.Property(e => e.IsHardlinked)
+            .IsRequired()
+            .HasDefaultValue(false);
 
         builder.HasOne(m => m.Snapshot)
             .WithMany()

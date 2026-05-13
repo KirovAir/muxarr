@@ -12,22 +12,31 @@
         <h2 class="mb-0">
             <i class="bi bi-collection me-2"></i>Library
         </h2>
-        <div class="btn-group btn-group-sm">
-            @if (MediaScanner.IsScanning)
+        <div class="d-flex gap-2 align-items-center">
+            <div class="btn-group btn-group-sm">
+                @if (MediaScanner.IsScanning)
+                {
+                    <button @onclick="CancelRefresh" class="btn btn-danger" type="button">
+                        <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                        Cancel scan
+                    </button>
+                }
+                else
+                {
+                    <button @onclick="Refresh" class="btn btn-outline-primary" type="button">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                    </button>
+                    <button @onclick="ForceRefresh" class="btn btn-outline-primary" type="button"
+                            title="Force rescan all files">
+                        <i class="bi bi-arrow-repeat me-1"></i>Force
+                    </button>
+                }
+            </div>
+            @if (!MediaScanner.IsScanning)
             {
-                <button @onclick="CancelRefresh" class="btn btn-danger" type="button">
-                    <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                    Cancel scan
-                </button>
-            }
-            else
-            {
-                <button @onclick="Refresh" class="btn btn-outline-primary" type="button">
-                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
-                </button>
-                <button @onclick="ForceRefresh" class="btn btn-outline-primary" type="button"
-                        title="Force rescan all files">
-                    <i class="bi bi-arrow-repeat me-1"></i>Force
+                <button @onclick="ClearLibrary" class="btn btn-sm btn-outline-danger" type="button"
+                        title="Remove all library records and trigger a fresh scan">
+                    <i class="bi bi-trash me-1"></i>Clear
                 </button>
             }
         </div>
@@ -179,10 +188,12 @@
                         </td>
                         <td>
                             <a href="/library/@file.Id">
-                        <span class="small">
-                            @file.GetName()
-                        </span>
+                                <span class="small">@file.GetName()</span>
                             </a>
+                            @if (file.IsHardlinked)
+                            {
+                                <i class="bi bi-link-45deg text-secondary ms-1" title="Hardlinked file"></i>
+                            }
                         </td>
                         <td>
                             <FileSize SizeInBytes="file.Size"></FileSize>
@@ -209,6 +220,7 @@
     [Inject] public required MediaConverterService MediaConverter { get; set; }
     [Inject] public required NavigationManager NavigationManager { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required IModalService ModalService { get; set; }
 
     // Basic filter
     [Filter] private string _fileFilter = "";
@@ -585,17 +597,26 @@
     private async Task QueueFiles(IEnumerable<MediaFile> files)
     {
         var queued = 0;
-        var skipped = 0;
+        var skippedHardlinked = 0;
+        var skippedInaccessible = 0;
+
         foreach (var file in files)
         {
+            if (!File.Exists(file.Path))
+            {
+                skippedInaccessible++;
+                continue;
+            }
+
             if (await MediaConverter.AddMediaToQueue(file))
             {
                 queued++;
             }
-            else
+            else if (file.IsHardlinked)
             {
-                skipped++;
+                skippedHardlinked++;
             }
+            // else: already queued or no profile — silently ignored
         }
 
         if (queued > 0)
@@ -603,9 +624,35 @@
             ToastService.ShowSuccess($"Added {queued} file(s) to the conversion queue.");
         }
 
-        if (skipped > 0)
+        if (skippedHardlinked > 0)
         {
-            ToastService.ShowWarning($"{skipped} file(s) skipped — not accessible (mount may be offline).");
+            ToastService.ShowInfo($"{skippedHardlinked} file(s) skipped — hardlink protection is enabled in the profile.");
+        }
+
+        if (skippedInaccessible > 0)
+        {
+            ToastService.ShowWarning($"{skippedInaccessible} file(s) skipped — not accessible (mount may be offline).");
+        }
+    }
+
+    private async Task ClearLibrary()
+    {
+        if (!await ModalService.ShowConfirm(
+                "Remove all library records and trigger a fresh scan? Your media files on disk are never touched.",
+                "Clear Library"))
+        {
+            return;
+        }
+
+        try
+        {
+            await MediaScanner.ClearLibraryFiles();
+            ToastService.ShowInfo("Library cleared. Starting fresh scan...");
+            _ = MediaScanner.ScanAll(false);
+        }
+        catch (InvalidOperationException ex)
+        {
+            ToastService.ShowError(ex.Message);
         }
     }
 

@@ -149,8 +149,27 @@ public class MediaConverterService(
             return false;
         }
 
+        await MediaLibraryLocks.QueueMutation.WaitAsync();
+        try
+        {
+            return await AddMediaToQueueCore(media, profileOverride);
+        }
+        finally
+        {
+            MediaLibraryLocks.QueueMutation.Release();
+        }
+    }
+
+    private async Task<bool> AddMediaToQueueCore(MediaFile media, Profile? profileOverride)
+    {
         using var scope = ServiceScopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (!await context.MediaFiles.AnyAsync(x => x.Id == media.Id))
+        {
+            logger.LogWarning("Media file '{Path}' is no longer in the library. Cannot queue for conversion.", media.Path);
+            return false;
+        }
 
         var profile = profileOverride ?? media.Profile ?? context.Profiles.ToList().GetBestCandidate(media.Path);
 
@@ -163,6 +182,12 @@ public class MediaConverterService(
         if (profile.SkipHardlinkedFiles && HardLinkHelper.IsHardlinked(media.Path))
         {
             logger.LogInformation("Skipping hardlinked file: {Path}", media.Path);
+            return false;
+        }
+
+        if (await HasActiveConversion(context, media.Id))
+        {
+            logger.LogInformation("File {Path} is already in the conversion queue", media.Path);
             return false;
         }
 
@@ -190,13 +215,38 @@ public class MediaConverterService(
             return false;
         }
 
+        await MediaLibraryLocks.QueueMutation.WaitAsync();
+        try
+        {
+            return await AddMediaToQueueCore(media, customTarget);
+        }
+        finally
+        {
+            MediaLibraryLocks.QueueMutation.Release();
+        }
+    }
+
+    private async Task<bool> AddMediaToQueueCore(MediaFile media, ConversionPlan customTarget)
+    {
         using var scope = ServiceScopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        if (!await context.MediaFiles.AnyAsync(x => x.Id == media.Id))
+        {
+            logger.LogWarning("Media file '{Path}' is no longer in the library. Cannot queue for conversion.", media.Path);
+            return false;
+        }
 
         var profile = media.Profile ?? context.Profiles.ToList().GetBestCandidate(media.Path);
         if (profile is { SkipHardlinkedFiles: true } && HardLinkHelper.IsHardlinked(media.Path))
         {
             logger.LogInformation("Skipping hardlinked file: {Path}", media.Path);
+            return false;
+        }
+
+        if (await HasActiveConversion(context, media.Id))
+        {
+            logger.LogInformation("File {Path} is already in the conversion queue", media.Path);
             return false;
         }
 
@@ -215,6 +265,13 @@ public class MediaConverterService(
 
         _ = RunAsync(CancellationToken.None);
         return true;
+    }
+
+    private static Task<bool> HasActiveConversion(AppDbContext context, int mediaFileId)
+    {
+        return context.MediaConversions
+            .AnyAsync(x => x.MediaFileId == mediaFileId &&
+                           (x.State == ConversionState.New || x.State == ConversionState.Processing));
     }
 
     private async Task HandleConversion(MediaConversion conversion, AppDbContext context, IServiceScope scope,
