@@ -41,20 +41,18 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
     public async Task ChangePageSize(int pageSize)
     {
         PageSize = pageSize;
-        Page = 1;
         await UpdateList();
     }
 
     public async Task ChangePage(int newPage)
     {
         Page = newPage;
-        await UpdateList();
+        await UpdateList(false);
     }
 
     public async Task Search(string term)
     {
         SearchTerm = term;
-        Page = 1;
         await UpdateList();
     }
 
@@ -64,8 +62,11 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
         await UpdateList();
     }
 
-    protected virtual async Task UpdateList()
+    protected virtual async Task UpdateList(bool resetPage = true)
     {
+        if (resetPage)
+            Page = 1;
+        
         IsLoading = true;
         await InvokeStateHasChanged();
 
@@ -194,7 +195,7 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
             }
         }
 
-        await UpdateList();
+        await UpdateList(false);
     }
 }
 
