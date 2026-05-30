@@ -888,8 +888,65 @@ public static class MediaFileExtensions
             }).ToList()
         };
 
+        AppendExternalSubtitles(file, profile, allowed, target);
         TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot());
         return target;
+    }
+
+    // Appends qualifying external subtitle files to the target plan. Runs only
+    // for Matroska targets when the profile opts in. Dedup is language-only
+    // against the kept internal subtitle tracks; survivors then pass through the
+    // same keep-list / priority / limit logic as internal subs.
+    private static void AppendExternalSubtitles(MediaFile file, Profile profile,
+        List<TrackSnapshot> keptInternal, ConversionPlan target)
+    {
+        if (!profile.ImportExternalSubtitles
+            || file.ExternalSubtitles.Count == 0
+            || file.Snapshot.ContainerType.ToContainerFamily() != ContainerFamily.Matroska)
+        {
+            return;
+        }
+
+        var keptSubLanguages = keptInternal
+            .GetSubtitleTracks()
+            .Select(t => t.LanguageName)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var candidates = file.ExternalSubtitles
+            .Where(e => !keptSubLanguages.Contains(e.LanguageName))
+            .ToList();
+
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+
+        // Same keep-list / RemoveImpaired / ExcludeCodecs / MaxTracks / reorder
+        // path as internal subs. ExternalSubtitle implements IMediaTrack, so the
+        // returned list is the surviving ExternalSubtitle references (Path intact).
+        var kept = candidates.GetAllowedTracks(profile.SubtitleSettings, file.OriginalLanguage);
+        if (kept.Count == 0)
+        {
+            return;
+        }
+
+        var nextIndex = file.Snapshot.Tracks.Count == 0
+            ? 0
+            : file.Snapshot.Tracks.Max(t => t.Index) + 1;
+
+        foreach (var external in kept)
+        {
+            var snapshot = external.ToSnapshot();
+            snapshot.ApplyTrackMutations(profile.SubtitleSettings, kept.Count, file.OriginalLanguage,
+                profile.SubtitleSettings.StandardizeTrackNames);
+
+            var plan = snapshot.ToTargetTrack(nameLocked: false);
+            plan.Index = nextIndex++;
+            plan.SourcePath = external.Path;
+            // External subs are never the default track; the container keeps its own.
+            plan.IsDefault = false;
+            target.Tracks.Add(plan);
+        }
     }
 
     // Custom-conversion desired state. User input is authoritative. The UI's
