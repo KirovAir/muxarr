@@ -124,6 +124,12 @@ public static class MkvMerge
         foreach (var path in externalPaths)
         {
             var external = tracks.Where(t => t.SourcePath == path).ToList();
+            if (external.Count > 1)
+            {
+                throw new ArgumentException(
+                    $"External input '{path}' maps to {external.Count} tracks; only single-track external " +
+                    "subtitle files are supported.", nameof(delta));
+            }
             command += BuildTrackFlags(external, _ => 0);
             command += $" \"{path}\"";
         }
