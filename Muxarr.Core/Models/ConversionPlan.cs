@@ -28,6 +28,10 @@ public class TrackPlan : IMediaTrack
     public int Index { get; set; }
     public MediaTrackType Type { get; set; }
 
+    // Non-null = this planned track is sourced from an external file (mkvmerge
+    // additional input), not the container. Null = container track.
+    public string? SourcePath { get; set; }
+
     public string? Name { get; set; }
     public string? LanguageCode { get; set; }
     public bool? IsDefault { get; set; }

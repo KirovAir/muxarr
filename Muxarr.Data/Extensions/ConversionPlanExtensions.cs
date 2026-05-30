@@ -39,6 +39,7 @@ public static class ConversionPlanExtensions
             Index = desired.Index,
             Type = desired.Type,
             NameLocked = desired.NameLocked,
+            SourcePath = desired.SourcePath,
 
             Name = DiffString(source?.Name, desired.Name),
             LanguageCode = DiffString(source?.LanguageCode, desired.LanguageCode),

@@ -65,10 +65,35 @@ public class ConversionPlanExtensionsTests
         }
     }
 
+    [TestMethod]
+    public void Delta_PreservesSourcePathOnExternalTrack()
+    {
+        var source = new MediaSnapshot { Tracks = new List<TrackSnapshot>() };
+        var desired = new ConversionPlan
+        {
+            Tracks = new List<TrackPlan>
+            {
+                new()
+                {
+                    Index = 100,
+                    Type = MediaTrackType.Subtitles,
+                    LanguageCode = "eng",
+                    SourcePath = "/media/Elemental.eng.srt"
+                }
+            }
+        };
+
+        var delta = ConversionPlanExtensions.Delta(source, desired);
+
+        Assert.AreEqual("/media/Elemental.eng.srt", delta.Tracks[0].SourcePath);
+        Assert.AreEqual(100, delta.Tracks[0].Index);
+    }
+
     private static IEnumerable<PropertyInfo> DiffableFields => typeof(TrackPlan)
         .GetProperties(BindingFlags.Public | BindingFlags.Instance)
         .Where(p => p.CanWrite && (Nullable.GetUnderlyingType(p.PropertyType) is not null
-                                   || p.PropertyType == typeof(string)));
+                                   || p.PropertyType == typeof(string))
+                               && p.Name != nameof(TrackPlan.SourcePath));
 
     private static object Distinct(Type type, object? current)
     {
