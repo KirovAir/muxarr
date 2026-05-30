@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Config;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.FFmpeg;
+using Muxarr.Core.Models;
 using Muxarr.Core.Utilities;
 using Muxarr.Data;
 using Muxarr.Data.Entities;
@@ -295,10 +296,15 @@ public class MediaScannerService(
                     logger.LogInformation("ffprobe warning for '{Path}': {Warning}", dbFile.Path, probe.Error);
                 }
 
+                dbFile.ExternalSubtitles = ExternalSubtitleDetector.Detect(dbFile.Path).ToList();
+
                 var target = dbFile.BuildTargetFromProfile(profile);
                 var trackCount = dbFile.Snapshot.TrackCount;
                 dbFile.HasRedundantTracks = profile != null && target.Tracks.Count < trackCount;
                 dbFile.HasNonStandardMetadata = dbFile.CheckHasNonStandardMetadata(profile, target);
+                dbFile.HasExternalSubtitles = profile != null
+                                              && profile.ImportExternalSubtitles
+                                              && target.Tracks.Any(t => t.SourcePath != null);
             }
 
             dbFile.Size = fileInfo.Length;
