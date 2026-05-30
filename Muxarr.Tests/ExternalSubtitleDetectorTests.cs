@@ -74,4 +74,50 @@ public class ExternalSubtitleDetectorTests
         var sub = ExternalSubtitleDetector.ParseFromFileName("Elemental", "Elemental.eng.txt");
         Assert.IsNull(sub);
     }
+
+    [TestMethod]
+    public void Detect_FindsMatchingSiblingsOnly()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "muxarr-extsub-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var video = Path.Combine(dir, "Elemental.mkv");
+            File.WriteAllText(video, "x");
+            File.WriteAllText(Path.Combine(dir, "Elemental.eng.srt"), "x");
+            File.WriteAllText(Path.Combine(dir, "Elemental.ro.srt"), "x");
+            File.WriteAllText(Path.Combine(dir, "OtherMovie.eng.srt"), "x");
+            File.WriteAllText(Path.Combine(dir, "Elemental.nfo"), "x");
+
+            var subs = ExternalSubtitleDetector.Detect(video);
+
+            CollectionAssert.AreEquivalent(
+                new[] { "English", "Romanian" },
+                subs.Select(s => s.LanguageName).ToList());
+            Assert.IsTrue(subs.All(s => Path.GetFileName(s.Path).StartsWith("Elemental.")));
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
+
+    [TestMethod]
+    public void Detect_NonMkvVideo_ReturnsEmpty()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "muxarr-extsub-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var video = Path.Combine(dir, "Elemental.mp4");
+            File.WriteAllText(video, "x");
+            File.WriteAllText(Path.Combine(dir, "Elemental.eng.srt"), "x");
+
+            Assert.AreEqual(0, ExternalSubtitleDetector.Detect(video).Count);
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
+    }
 }

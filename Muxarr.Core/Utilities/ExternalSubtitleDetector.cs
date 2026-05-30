@@ -16,6 +16,39 @@ public static class ExternalSubtitleDetector
         [".vtt"] = "WebVtt"
     };
 
+    // Only .mkv targets get external subs (webm subtitle support is constrained
+    // to WebVTT; MP4 needs mov_text re-encoding) — see the design doc.
+    public static IReadOnlyList<ExternalSubtitle> Detect(string videoPath)
+    {
+        if (!Path.GetExtension(videoPath).Equals(".mkv", StringComparison.OrdinalIgnoreCase))
+        {
+            return Array.Empty<ExternalSubtitle>();
+        }
+
+        var dir = Path.GetDirectoryName(videoPath);
+        if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+        {
+            return Array.Empty<ExternalSubtitle>();
+        }
+
+        var stem = Path.GetFileNameWithoutExtension(videoPath);
+        var result = new List<ExternalSubtitle>();
+
+        foreach (var file in Directory.EnumerateFiles(dir))
+        {
+            var sub = ParseFromFileName(stem, Path.GetFileName(file));
+            if (sub == null)
+            {
+                continue;
+            }
+
+            sub.Path = file;
+            result.Add(sub);
+        }
+
+        return result;
+    }
+
     /// <summary>
     /// Parses one sibling file against a video stem. Returns null when the file
     /// is not a subtitle for this video (wrong stem or wrong extension).
