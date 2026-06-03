@@ -100,6 +100,9 @@ namespace Muxarr.Data.Migrations
                 ALTER TABLE MediaSnapshot ADD COLUMN _TempFileId INTEGER;
                 ALTER TABLE MediaSnapshot ADD COLUMN _TempConvBeforeId INTEGER;
                 ALTER TABLE MediaSnapshot ADD COLUMN _TempConvAfterId INTEGER;
+                CREATE INDEX _IX_MediaSnapshot_TempFileId ON MediaSnapshot(_TempFileId);
+                CREATE INDEX _IX_MediaSnapshot_TempConvBeforeId ON MediaSnapshot(_TempConvBeforeId);
+                CREATE INDEX _IX_MediaSnapshot_TempConvAfterId ON MediaSnapshot(_TempConvAfterId);
 
                 -- One current snapshot per MediaFile, carrying its probe metadata forward.
                 INSERT INTO MediaSnapshot
@@ -239,6 +242,9 @@ namespace Muxarr.Data.Migrations
                   AND json_valid(AllowedTracks)
                   AND json_type(AllowedTracks) = 'array';
 
+                DROP INDEX _IX_MediaSnapshot_TempFileId;
+                DROP INDEX _IX_MediaSnapshot_TempConvBeforeId;
+                DROP INDEX _IX_MediaSnapshot_TempConvAfterId;
                 ALTER TABLE MediaSnapshot DROP COLUMN _TempFileId;
                 ALTER TABLE MediaSnapshot DROP COLUMN _TempConvBeforeId;
                 ALTER TABLE MediaSnapshot DROP COLUMN _TempConvAfterId;
