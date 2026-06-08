@@ -1,4 +1,5 @@
 using System.Data.Common;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,6 +31,7 @@ public static class Configurator
 
     public static async Task Initialize(this AppDbContext context, ILogger? logger = null)
     {
+        await MigrateLegacyDatabaseLocation(context, logger);
         var migrated = await BackupBeforeMigration(context, logger);
         await context.Database.MigrateAsync();
 
@@ -59,6 +61,126 @@ public static class Configurator
             webhookConfig.ApiKey = Guid.NewGuid().ToString("N");
             context.Configs.Set(webhookConfig);
             await context.SaveChangesAsync();
+        }
+    }
+
+    /// <summary>
+    /// Copies legacy container app data from /data to /config on first startup,
+    /// then archives the old database next to the new one for rollback.
+    /// The new location wins if it already exists.
+    /// </summary>
+    private static async Task MigrateLegacyDatabaseLocation(AppDbContext context, ILogger? logger)
+    {
+        var dbPath = context.Database.GetDbConnection().DataSource;
+        if (string.IsNullOrWhiteSpace(dbPath))
+        {
+            return;
+        }
+
+        var fullDbPath = Path.GetFullPath(dbPath);
+        var dbDirectory = Path.GetDirectoryName(fullDbPath);
+        if (string.IsNullOrWhiteSpace(dbDirectory))
+        {
+            return;
+        }
+
+        var parentDirectory = Directory.GetParent(dbDirectory)?.FullName;
+        if (string.IsNullOrWhiteSpace(parentDirectory))
+        {
+            return;
+        }
+
+        if (!string.Equals(Path.GetFileName(dbDirectory), "config", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (File.Exists(fullDbPath))
+        {
+            return;
+        }
+
+        var legacyDbPath = Path.Combine(parentDirectory, "data", Path.GetFileName(fullDbPath));
+        if (!File.Exists(legacyDbPath))
+        {
+            return;
+        }
+
+        Directory.CreateDirectory(dbDirectory);
+        try
+        {
+            await CopySqliteDatabase(legacyDbPath, fullDbPath);
+            await ValidateDatabaseCopy(fullDbPath);
+        }
+        catch
+        {
+            if (File.Exists(fullDbPath))
+            {
+                File.Delete(fullDbPath);
+            }
+
+            throw;
+        }
+
+        logger?.LogInformation("Copied legacy database from {LegacyDbPath} to {DbPath}",
+            legacyDbPath, fullDbPath);
+
+        ArchiveLegacyDatabase(legacyDbPath, GetPreviousDatabasePath(fullDbPath), logger);
+    }
+
+    private static string BuildSqliteConnectionString(string dbPath)
+    {
+        return new SqliteConnectionStringBuilder { DataSource = dbPath }.ToString();
+    }
+
+    private static async Task CopySqliteDatabase(string sourceDbPath, string targetDbPath)
+    {
+        await using var sourceConnection = new SqliteConnection(BuildSqliteConnectionString(sourceDbPath));
+        await using var targetConnection = new SqliteConnection(BuildSqliteConnectionString(targetDbPath));
+        await sourceConnection.OpenAsync();
+        await targetConnection.OpenAsync();
+
+        await using var checkpoint = sourceConnection.CreateCommand();
+        checkpoint.CommandText = SqlitePerformanceInterceptor.FlushWalPragma;
+        await checkpoint.ExecuteNonQueryAsync();
+
+        sourceConnection.BackupDatabase(targetConnection);
+    }
+
+    private static async Task ValidateDatabaseCopy(string dbPath)
+    {
+        await using var connection = new SqliteConnection(BuildSqliteConnectionString(dbPath));
+        await connection.OpenAsync();
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = "PRAGMA quick_check;";
+        var result = await cmd.ExecuteScalarAsync();
+        if (!string.Equals(result?.ToString(), "ok", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Copied database failed SQLite quick_check: {result}");
+        }
+    }
+
+    private static string GetPreviousDatabasePath(string dbPath)
+    {
+        var directory = Path.GetDirectoryName(dbPath) ?? string.Empty;
+        var fileName = Path.GetFileNameWithoutExtension(dbPath);
+        var extension = Path.GetExtension(dbPath);
+        return Path.Combine(directory, $"{fileName}-previous{extension}");
+    }
+
+    private static void ArchiveLegacyDatabase(string legacyDbPath, string previousDbPath, ILogger? logger)
+    {
+        try
+        {
+            File.Move(legacyDbPath, previousDbPath, true);
+            logger?.LogInformation("Moved legacy database from {LegacyDbPath} to {PreviousDbPath}",
+                legacyDbPath, previousDbPath);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex,
+                "Copied legacy database but could not move {LegacyDbPath} to {PreviousDbPath}",
+                legacyDbPath, previousDbPath);
         }
     }
 

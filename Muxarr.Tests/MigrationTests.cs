@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Muxarr.Core.Config;
 using Muxarr.Core.Models;
 using Muxarr.Data;
+using Muxarr.Data.Extensions;
 using Muxarr.Data.Entities;
 
 namespace Muxarr.Tests;
@@ -68,6 +70,50 @@ public class MigrationTests : FixtureTestBase
                  '2026-04-01 00:00:00', '2026-04-01 00:00:00',
                  '2026-04-01 00:00:00', '2026-04-01 00:00:00')
             """);
+    }
+
+    [TestMethod]
+    public async Task Initialize_CopiesLegacyDatabaseToConfigAndArchivesOriginal()
+    {
+        var configDbPath = TempPath("config/muxarr.db");
+        var previousDbPath = TempPath("config/muxarr-previous.db");
+        var legacyDbPath = TempPath("data/muxarr.db");
+
+        Directory.CreateDirectory(Path.GetDirectoryName(configDbPath)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(legacyDbPath)!);
+
+        await using (var legacyContext = CreateContext(legacyDbPath))
+        {
+            await legacyContext.Database.MigrateAsync();
+            legacyContext.Configs.Set(new SetupConfig
+            {
+                CompletedAt = new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc)
+            });
+            await legacyContext.SaveChangesAsync();
+        }
+
+        await using (var newContext = CreateContext(configDbPath))
+        {
+            await newContext.Initialize();
+        }
+
+        Assert.IsTrue(File.Exists(configDbPath));
+        Assert.IsTrue(File.Exists(previousDbPath));
+        Assert.IsFalse(File.Exists(legacyDbPath));
+
+        await using (var verifyContext = CreateContext(configDbPath))
+        {
+            var setup = await verifyContext.Configs.GetAsync<SetupConfig>();
+            Assert.IsNotNull(setup);
+            Assert.AreEqual(new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), setup.CompletedAt);
+        }
+
+        await using (var previousContext = CreateContext(previousDbPath))
+        {
+            var setup = await previousContext.Configs.GetAsync<SetupConfig>();
+            Assert.IsNotNull(setup);
+            Assert.AreEqual(new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), setup.CompletedAt);
+        }
     }
 
     [TestMethod]

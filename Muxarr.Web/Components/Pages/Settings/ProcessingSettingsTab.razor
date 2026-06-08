@@ -120,8 +120,11 @@
             <div class="mb-3">
                 <label class="form-label text-muted">Preview</label>
                 <div class="bg-dark text-light p-2 rounded font-monospace small">
-                    @ProcessingConfig.ResolveCommand("/media/movies/Example Movie (2024)/Example.Movie.2024.1080p.mkv")
+                    @ProcessingConfig.ResolveCommand("/data/movies/Example Movie (2024)/Example.Movie.2024.1080p.mkv")
                 </div>
+                <small class="form-text text-muted">
+                    This preview assumes your media library is mounted at <code>/data</code> inside the container.
+                </small>
             </div>
         }
     </div>

@@ -68,7 +68,7 @@
                             <label class="form-label">Monitored Directories</label>
                             <DirectoryEditor @bind-Directories="_profile.Directories"/>
                             <small class="form-text text-muted">Directories to scan for media files using this
-                                profile.</small>
+                                profile. In the container, these should resolve under <code>/data</code>.</small>
                         </div>
                         <div class="mb-3 form-check form-switch">
                             <InputCheckbox id="skipHardlinked" class="form-check-input"
