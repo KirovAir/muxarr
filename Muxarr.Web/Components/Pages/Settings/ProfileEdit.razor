@@ -98,6 +98,23 @@
                     {
                         <h5 class="mb-3"><i class="bi bi-chat-text text-primary me-2"></i>Subtitle Settings</h5>
                         <TrackSettingsEditor Settings="_profile.SubtitleSettings" TrackType="MediaTrackType.Subtitles"/>
+                        <div class="mb-3 form-check form-switch mt-3">
+                            <InputCheckbox id="importExternalSubs" class="form-check-input"
+                                           @bind-Value="_profile.ImportExternalSubtitles"/>
+                            <label class="form-check-label" for="importExternalSubs">Import external subtitle files</label>
+                            <small class="form-text text-muted d-block">Mux matching sibling subtitle files
+                                (e.g. <code>Movie.eng.srt</code>) into the MKV during processing. MKV only.</small>
+                        </div>
+                        @if (_profile.ImportExternalSubtitles)
+                        {
+                            <div class="mb-3 form-check form-switch ms-4">
+                                <InputCheckbox id="deleteExternalSubs" class="form-check-input"
+                                               @bind-Value="_profile.DeleteExternalSubtitleSource"/>
+                                <label class="form-check-label" for="deleteExternalSubs">Delete subtitle file after muxing</label>
+                                <small class="form-text text-muted d-block">Remove the original subtitle file once it has
+                                    been muxed in and the output validated.</small>
+                            </div>
+                        }
                     }
                 </div>
             </div>
@@ -181,6 +198,8 @@
                 existing.Directories = _profile.Directories;
                 existing.ClearVideoTrackNames = _profile.ClearVideoTrackNames;
                 existing.SkipHardlinkedFiles = _profile.SkipHardlinkedFiles;
+                existing.ImportExternalSubtitles = _profile.ImportExternalSubtitles;
+                existing.DeleteExternalSubtitleSource = _profile.DeleteExternalSubtitleSource;
                 existing.AudioSettings = _profile.AudioSettings;
                 existing.SubtitleSettings = _profile.SubtitleSettings;
                 context.Update(existing);

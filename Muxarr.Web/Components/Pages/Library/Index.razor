@@ -97,6 +97,7 @@
                 <option value="tracks">Needs Track Removal</option>
                 <option value="metadata">Needs Metadata Fix</option>
                 <option value="any">Needs Any Work</option>
+                <option value="external">External Subs Available</option>
                 <option value="warnings">Has Scan Warning</option>
             </select>
             <button class="btn btn-sm @(_showAdvanced || HasAdvancedFilters ? "btn-primary" : "btn-outline-primary")"
@@ -471,6 +472,7 @@
             "tracks" => query.Where(x => x.HasRedundantTracks),
             "metadata" => query.Where(x => x.HasNonStandardMetadata),
             "any" => query.Where(x => x.HasRedundantTracks || x.HasNonStandardMetadata),
+            "external" => query.Where(x => x.HasExternalSubtitles),
             "warnings" => query.Where(x => x.HasScanWarning),
             _ => query
         };

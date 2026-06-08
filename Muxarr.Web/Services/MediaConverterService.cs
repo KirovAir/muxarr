@@ -661,6 +661,7 @@ public class MediaConverterService(
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
 
         await RunPostProcessing(conversion);
+        DeleteMuxedExternalSubtitles(conversion);
 
         conversion.State = ConversionState.Completed;
         conversion.Progress = 100;
@@ -675,6 +676,39 @@ public class MediaConverterService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to update conversion stats");
+        }
+    }
+
+    // Deletes the external subtitle files that were just muxed in, but only when
+    // the profile opts in. Called after the output is validated and the original
+    // replaced, so a failure earlier leaves the .srt files untouched. Deletion
+    // failures are logged, never fatal.
+    private void DeleteMuxedExternalSubtitles(MediaConversion conversion)
+    {
+        if (conversion.MediaFile?.Profile?.DeleteExternalSubtitleSource != true)
+        {
+            return;
+        }
+
+        var sources = conversion.ConversionPlan.Tracks
+            .Where(t => t.SourcePath != null)
+            .Select(t => t.SourcePath!)
+            .Distinct();
+
+        foreach (var path in sources)
+        {
+            try
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                    conversion.Log($"Deleted muxed subtitle source: {Path.GetFileName(path)}", logger);
+                }
+            }
+            catch (Exception ex)
+            {
+                conversion.LogError($"Could not delete subtitle source {Path.GetFileName(path)}: {ex.Message}", logger);
+            }
         }
     }
 

@@ -11,6 +11,23 @@ namespace Muxarr.Tests;
 public class ExtensionTests
 {
     [TestMethod]
+    public void ProfileClone_CopiesExternalSubtitleFlags()
+    {
+        var profile = new Profile
+        {
+            Id = 7,
+            Name = "Test",
+            ImportExternalSubtitles = true,
+            DeleteExternalSubtitleSource = true
+        };
+
+        var clone = profile.Clone();
+
+        Assert.IsTrue(clone.ImportExternalSubtitles);
+        Assert.IsTrue(clone.DeleteExternalSubtitleSource);
+    }
+
+    [TestMethod]
     public void ParseCodec_MapsKnownCodecs()
     {
         Assert.AreEqual(nameof(VideoCodec.Hevc), CodecExtensions.ParseCodec("HEVC"));

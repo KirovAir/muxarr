@@ -87,6 +87,8 @@ public class Profile : AuditableEntity
     public List<string> Directories { get; set; } = new();
     public bool ClearVideoTrackNames { get; set; }
     public bool SkipHardlinkedFiles { get; set; }
+    public bool ImportExternalSubtitles { get; set; }
+    public bool DeleteExternalSubtitleSource { get; set; }
     public TrackSettings AudioSettings { get; set; } = new();
     public TrackSettings SubtitleSettings { get; set; } = new();
     public ICollection<MediaFile> MediaFiles { get; set; } = new List<MediaFile>();
@@ -165,6 +167,14 @@ public class ProfileConfiguration : AuditEntityConfiguration<Profile>
             .HasDefaultValue(false);
 
         builder.Property(e => e.SkipHardlinkedFiles)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(e => e.ImportExternalSubtitles)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(e => e.DeleteExternalSubtitleSource)
             .IsRequired()
             .HasDefaultValue(false);
 

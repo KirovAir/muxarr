@@ -38,12 +38,18 @@
             <ToolTip Tip="Default - player will auto-select this track"><i class="bi bi-play-circle ms-1"></i></ToolTip>
         }
     }
+    @if (IsExternal)
+    {
+        <span class="badge bg-info ms-1" title="Will be muxed in from an external file">external</span>
+    }
 </span>
 
 @code {
     [Parameter] [EditorRequired] public required IMediaTrack Track { get; set; }
 
     [Parameter] public bool ShowAllFlags { get; set; }
+
+    [Parameter] public bool IsExternal { get; set; }
 
     private static string GetTrackTypeIcon(MediaTrackType trackType)
     {

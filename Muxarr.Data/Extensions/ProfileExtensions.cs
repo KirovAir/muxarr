@@ -21,6 +21,8 @@ public static class ProfileExtensions
         clone.Id = profile.Id;
         clone.ClearVideoTrackNames = profile.ClearVideoTrackNames;
         clone.SkipHardlinkedFiles = profile.SkipHardlinkedFiles;
+        clone.ImportExternalSubtitles = profile.ImportExternalSubtitles;
+        clone.DeleteExternalSubtitleSource = profile.DeleteExternalSubtitleSource;
         return clone;
     }
 }

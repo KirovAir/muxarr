@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Muxarr.Core.Models;
+using Muxarr.Data.Extensions;
 
 namespace Muxarr.Data.Entities;
 
@@ -15,6 +17,8 @@ public class MediaFile : AuditableEntity
     public bool HasScanWarning { get; set; }
     public bool HasRedundantTracks { get; set; }
     public bool HasNonStandardMetadata { get; set; }
+    public bool HasExternalSubtitles { get; set; }
+    public List<ExternalSubtitle> ExternalSubtitles { get; set; } = new();
     public bool IsHardlinked { get; set; }
     public DateTime FileLastWriteTime { get; set; }
     public DateTime FileCreationTime { get; set; }
@@ -61,6 +65,13 @@ public class MediaFileConfiguration : AuditEntityConfiguration<MediaFile>
 
         builder.Property(e => e.HasNonStandardMetadata)
             .IsRequired();
+
+        builder.Property(e => e.HasExternalSubtitles)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(e => e.ExternalSubtitles)
+            .HasJsonConversion();
 
         builder.Property(e => e.IsHardlinked)
             .IsRequired()

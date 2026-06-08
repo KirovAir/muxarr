@@ -26,6 +26,17 @@
             <td><i class="bi bi-x-circle-fill text-danger"></i> will be removed</td>
         </tr>
     }
+    @foreach (var preview in ExternalTracks)
+    {
+        <tr>
+            <td>@preview.Index</td>
+            <td>
+                <MediaTrackLabel Track="preview" ShowAllFlags="true" IsExternal="true"/>
+            </td>
+            <td><code>@(((IMediaTrack)preview).Codec.FormatCodec())</code></td>
+            <td><i class="bi bi-plus-circle-fill text-success"></i> will be muxed in from external file</td>
+        </tr>
+    }
     </tbody>
 </table>
 
@@ -38,6 +49,7 @@
 
     private List<TrackWithPreview> KeptTracks { get; set; } = [];
     private List<IMediaTrack> RemovedTracks { get; set; } = [];
+    private List<TrackPlan> ExternalTracks { get; set; } = [];
 
     protected override void OnParametersSet()
     {
@@ -45,6 +57,7 @@
         {
             KeptTracks = Tracks.Select(t => new TrackWithPreview(t, null, null)).ToList();
             RemovedTracks = [];
+            ExternalTracks = [];
             return;
         }
 
@@ -72,6 +85,7 @@
         }
 
         RemovedTracks = Tracks.Where(t => !previewByNumber.ContainsKey(t.Index)).ToList();
+        ExternalTracks = PreviewTracks.Where(p => p.SourcePath != null && Tracks.All(t => t.Index != p.Index)).ToList();
     }
 
 }
