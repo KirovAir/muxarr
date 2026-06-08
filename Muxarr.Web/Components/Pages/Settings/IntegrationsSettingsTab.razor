@@ -46,15 +46,16 @@
         <h5 class="mb-3"><i class="bi bi-signpost-split me-2"></i>Path Mappings</h5>
         <p class="text-muted small">
             Optional. Translate the paths Sonarr/Radarr report into the paths Muxarr sees, for when their
-            Docker volume mounts differ (e.g. Sonarr serves media under <code>/data</code> but Muxarr mounts
-            the same files at <code>/media</code>). The most specific match is used. Leave empty when
-            every service mounts media at the same path.
+            Docker volume mounts differ (e.g. Sonarr reports files under <code>/tv</code> but Muxarr mounts
+            the same files at <code>/media</code>). Add one row per shared root. The destination must be a
+            path Muxarr can reach, so it should match one of your profile directories. The most specific
+            match is used. Leave empty when every service mounts media at the same path.
         </p>
         @foreach (var mapping in PathMappingConfig.Mappings)
         {
-            <div class="input-group mb-2">
+            <div class="input-group mb-1">
                 <span class="input-group-text">Sonarr/Radarr</span>
-                <input class="form-control" placeholder="/data" @bind="mapping.From"/>
+                <input class="form-control" placeholder="/tv" @bind="mapping.From"/>
                 <span class="input-group-text"><i class="bi bi-arrow-right"></i></span>
                 <span class="input-group-text">Muxarr</span>
                 <input class="form-control" placeholder="/media" @bind="mapping.To"/>
@@ -63,6 +64,14 @@
                     <i class="bi bi-trash"></i>
                 </button>
             </div>
+            @if (!string.IsNullOrWhiteSpace(mapping.To) && !IsDestinationMounted(mapping.To))
+            {
+                <div class="form-text text-warning small mb-2">
+                    <i class="bi bi-exclamation-triangle me-1"></i>
+                    No profile directory matches <code>@mapping.To</code>. Muxarr only processes files under
+                    directories it scans.
+                </div>
+            }
         }
         <button type="button" class="btn btn-outline-primary btn-sm"
                 @onclick="() => PathMappingConfig.Mappings.Add(new PathMapping())">
@@ -105,6 +114,7 @@
     private List<Integration> Services { get; set; } = [];
     private WebhookConfig WebhookConfig { get; set; } = new();
     private PathMappingConfig PathMappingConfig { get; set; } = new();
+    private List<string> _profileDirectories = [];
 
     private string WebhookUrl
     {
@@ -166,6 +176,32 @@
 
         WebhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
         PathMappingConfig = context.Configs.GetOrDefault<PathMappingConfig>();
+
+        var profiles = await context.Profiles.ToListAsync();
+        _profileDirectories = profiles.SelectMany(p => p.Directories).ToList();
+    }
+
+    // Covered when destination and a profile directory share a prefix either way (/media covers /media/tv).
+    private bool IsDestinationMounted(string to)
+    {
+        if (_profileDirectories.Count == 0)
+        {
+            return true;
+        }
+
+        var dest = Normalize(to);
+        return _profileDirectories.Any(dir =>
+        {
+            var d = Normalize(dir);
+            return string.Equals(dest, d, StringComparison.OrdinalIgnoreCase) ||
+                   dest.StartsWith(d + "/", StringComparison.OrdinalIgnoreCase) ||
+                   d.StartsWith(dest + "/", StringComparison.OrdinalIgnoreCase);
+        });
+
+        static string Normalize(string path)
+        {
+            return path.Trim().Replace('\\', '/').TrimEnd('/');
+        }
     }
 
     private void AddService(IntegrationType type)
