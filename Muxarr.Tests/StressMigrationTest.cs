@@ -33,7 +33,7 @@ public class StressMigrationTest : FixtureTestBase
         Console.WriteLine($"DB: {dbPath}");
 
         var totalConversions = CompletedConversions + FailedConversions
-            + QueuedNonCustom + QueuedCustom + ProcessingMixed;
+                                                    + QueuedNonCustom + QueuedCustom + ProcessingMixed;
 
         // Phase 1: seed at the pre-migration schema.
         var seedSw = Stopwatch.StartNew();
@@ -42,9 +42,10 @@ public class StressMigrationTest : FixtureTestBase
             await Migrate(context, PreSnapshotMigration);
             await SeedAsync(context);
         }
+
         seedSw.Stop();
         Console.WriteLine($"Seed: {seedSw.Elapsed.TotalSeconds:F1}s "
-            + $"({FileCount:N0} files, {FileCount * TracksPerFile:N0} tracks, {totalConversions:N0} conversions)");
+                          + $"({FileCount:N0} files, {FileCount * TracksPerFile:N0} tracks, {totalConversions:N0} conversions)");
 
         var dbBytesBefore = new FileInfo(dbPath).Length;
         Console.WriteLine($"DB size before migration: {dbBytesBefore / 1024.0 / 1024.0:F1} MB");
@@ -55,6 +56,7 @@ public class StressMigrationTest : FixtureTestBase
         {
             await Migrate(context, null);
         }
+
         migrateSw.Stop();
         Console.WriteLine($"Migration: {migrateSw.Elapsed.TotalSeconds:F1}s");
 
@@ -70,7 +72,7 @@ public class StressMigrationTest : FixtureTestBase
             var conversionCount = await context.MediaConversions.CountAsync();
 
             Console.WriteLine($"After: {fileCount:N0} files, {snapshotCount:N0} snapshots, "
-                + $"{trackSnapshotCount:N0} track snapshots, {conversionCount:N0} conversions");
+                              + $"{trackSnapshotCount:N0} track snapshots, {conversionCount:N0} conversions");
 
             Assert.AreEqual(FileCount, fileCount);
             Assert.AreEqual(totalConversions, conversionCount);
@@ -79,9 +81,9 @@ public class StressMigrationTest : FixtureTestBase
             // Failed conversions in this seed have a before but no after.
             // Processing conversions have both.
             var expectedConvSnapshots =
-                (CompletedConversions * 2) +
-                (FailedConversions * 1) +
-                (ProcessingMixed * 2);
+                CompletedConversions * 2 +
+                FailedConversions * 1 +
+                ProcessingMixed * 2;
             Assert.AreEqual(FileCount + expectedConvSnapshots, snapshotCount,
                 "snapshot count off (file snapshots + before/after snapshots)");
 
@@ -119,24 +121,24 @@ public class StressMigrationTest : FixtureTestBase
 
         // Write a summary to /tmp/muxarr-stress for posterity.
         var summary = $"""
-            Stress migration run
-            DB path: {dbPath}
-            Files:               {FileCount:N0}
-            Tracks per file:     {TracksPerFile}
-            Total conversions:   {totalConversions:N0}
-              completed:         {CompletedConversions:N0}
-              failed:            {FailedConversions:N0}
-              queued non-custom: {QueuedNonCustom:N0}
-              queued custom:     {QueuedCustom:N0}
-              processing mixed:  {ProcessingMixed:N0}
+                       Stress migration run
+                       DB path: {dbPath}
+                       Files:               {FileCount:N0}
+                       Tracks per file:     {TracksPerFile}
+                       Total conversions:   {totalConversions:N0}
+                         completed:         {CompletedConversions:N0}
+                         failed:            {FailedConversions:N0}
+                         queued non-custom: {QueuedNonCustom:N0}
+                         queued custom:     {QueuedCustom:N0}
+                         processing mixed:  {ProcessingMixed:N0}
 
-            DB size before:      {dbBytesBefore / 1024.0 / 1024.0:F1} MB
-            DB size after:       {dbBytesAfter / 1024.0 / 1024.0:F1} MB
-            Seed time:           {seedSw.Elapsed.TotalSeconds:F1}s
-            Migration time:      {migrateSw.Elapsed.TotalSeconds:F1}s
+                       DB size before:      {dbBytesBefore / 1024.0 / 1024.0:F1} MB
+                       DB size after:       {dbBytesAfter / 1024.0 / 1024.0:F1} MB
+                       Seed time:           {seedSw.Elapsed.TotalSeconds:F1}s
+                       Migration time:      {migrateSw.Elapsed.TotalSeconds:F1}s
 
-            All assertions passed.
-            """;
+                       All assertions passed.
+                       """;
         try
         {
             Directory.CreateDirectory("/tmp/muxarr-stress");
@@ -183,12 +185,12 @@ public class StressMigrationTest : FixtureTestBase
         {
             cmd.Transaction = tx;
             cmd.CommandText = """
-                INSERT INTO Profile
-                    (Id, Name, Directories, ClearVideoTrackNames, AudioSettings, SubtitleSettings,
-                     SkipHardlinkedFiles, CreatedDate, UpdatedDate)
-                VALUES
-                    (1, 'stress', '[]', 0, '{}', '{}', 0, '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-                """;
+                              INSERT INTO Profile
+                                  (Id, Name, Directories, ClearVideoTrackNames, AudioSettings, SubtitleSettings,
+                                   SkipHardlinkedFiles, CreatedDate, UpdatedDate)
+                              VALUES
+                                  (1, 'stress', '[]', 0, '{}', '{}', 0, '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                              """;
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -198,17 +200,17 @@ public class StressMigrationTest : FixtureTestBase
         {
             fileCmd.Transaction = tx;
             fileCmd.CommandText = """
-                INSERT INTO MediaFile
-                    (Id, ProfileId, Path, Size, ProbeOutput, TrackCount,
-                     HasRedundantTracks, HasNonStandardMetadata, HasScanWarning,
-                     ContainerType, Resolution, DurationMs, VideoBitDepth, HasFaststart,
-                     FileLastWriteTime, FileCreationTime, CreatedDate, UpdatedDate)
-                VALUES
-                    ($id, 1, $path, $size, '', $trackCount, 0, 0, 0,
-                     $container, $resolution, $duration, 10, 0,
-                     '2026-04-01 00:00:00', '2026-04-01 00:00:00',
-                     '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-                """;
+                                  INSERT INTO MediaFile
+                                      (Id, ProfileId, Path, Size, ProbeOutput, TrackCount,
+                                       HasRedundantTracks, HasNonStandardMetadata, HasScanWarning,
+                                       ContainerType, Resolution, DurationMs, VideoBitDepth, HasFaststart,
+                                       FileLastWriteTime, FileCreationTime, CreatedDate, UpdatedDate)
+                                  VALUES
+                                      ($id, 1, $path, $size, '', $trackCount, 0, 0, 0,
+                                       $container, $resolution, $duration, 10, 0,
+                                       '2026-04-01 00:00:00', '2026-04-01 00:00:00',
+                                       '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                                  """;
             var fId = fileCmd.Parameters.Add("$id", SqliteType.Integer);
             var fPath = fileCmd.Parameters.Add("$path", SqliteType.Text);
             var fSize = fileCmd.Parameters.Add("$size", SqliteType.Integer);
@@ -219,14 +221,14 @@ public class StressMigrationTest : FixtureTestBase
 
             trackCmd.Transaction = tx;
             trackCmd.CommandText = """
-                INSERT INTO MediaTrack
-                    (Id, MediaFileId, TrackNumber, Type, IsCommentary, IsHearingImpaired,
-                     IsVisualImpaired, IsDefault, IsForced, IsOriginal,
-                     Codec, AudioChannels, LanguageCode, LanguageName, TrackName)
-                VALUES
-                    ($id, $fileId, $trackNum, $type, $comm, $hi, $vi, $def, $forced, $orig,
-                     $codec, $channels, $langCode, $langName, $name)
-                """;
+                                   INSERT INTO MediaTrack
+                                       (Id, MediaFileId, TrackNumber, Type, IsCommentary, IsHearingImpaired,
+                                        IsVisualImpaired, IsDefault, IsForced, IsOriginal,
+                                        Codec, AudioChannels, LanguageCode, LanguageName, TrackName)
+                                   VALUES
+                                       ($id, $fileId, $trackNum, $type, $comm, $hi, $vi, $def, $forced, $orig,
+                                        $codec, $channels, $langCode, $langName, $name)
+                                   """;
             var tId = trackCmd.Parameters.Add("$id", SqliteType.Integer);
             var tFileId = trackCmd.Parameters.Add("$fileId", SqliteType.Integer);
             var tNum = trackCmd.Parameters.Add("$trackNum", SqliteType.Integer);
@@ -250,9 +252,9 @@ public class StressMigrationTest : FixtureTestBase
                 fPath.Value = $"/media/show/episode-{i:D6}.mkv";
                 fSize.Value = 500_000_000L + i;
                 fTrackCount.Value = TracksPerFile;
-                fContainer.Value = (i % 2 == 0) ? "Matroska" : "MP4/QuickTime";
-                fResolution.Value = (i % 3 == 0) ? "3840x2160" : "1920x1080";
-                fDuration.Value = 1_200_000L + (i * 13L % 5_400_000L);
+                fContainer.Value = i % 2 == 0 ? "Matroska" : "MP4/QuickTime";
+                fResolution.Value = i % 3 == 0 ? "3840x2160" : "1920x1080";
+                fDuration.Value = 1_200_000L + i * 13L % 5_400_000L;
                 await fileCmd.ExecuteNonQueryAsync();
 
                 // 1 video, 2 audio, 2 subtitle per file.
@@ -275,22 +277,22 @@ public class StressMigrationTest : FixtureTestBase
                     else if (t <= 2)
                     {
                         tType.Value = "Audio";
-                        tCodec.Value = (t == 1) ? "Aac" : "Eac3";
-                        tChannels.Value = (t == 1) ? 2 : 6;
-                        tLangCode.Value = (t == 1) ? "eng" : "jpn";
-                        tLangName.Value = (t == 1) ? "English" : "Japanese";
-                        tName.Value = (t == 1) ? "English Stereo" : "Japanese Surround";
-                        tDef.Value = (t == 1) ? 1 : 0;
-                        tOrig.Value = (t == 2) ? 1 : 0;
+                        tCodec.Value = t == 1 ? "Aac" : "Eac3";
+                        tChannels.Value = t == 1 ? 2 : 6;
+                        tLangCode.Value = t == 1 ? "eng" : "jpn";
+                        tLangName.Value = t == 1 ? "English" : "Japanese";
+                        tName.Value = t == 1 ? "English Stereo" : "Japanese Surround";
+                        tDef.Value = t == 1 ? 1 : 0;
+                        tOrig.Value = t == 2 ? 1 : 0;
                     }
                     else
                     {
                         tType.Value = "Subtitles";
                         tCodec.Value = "SubRip";
                         tChannels.Value = 0;
-                        tLangCode.Value = (t == 3) ? "eng" : "spa";
-                        tLangName.Value = (t == 3) ? "English" : "Spanish";
-                        tName.Value = (t == 3) ? "English" : "Spanish";
+                        tLangCode.Value = t == 3 ? "eng" : "spa";
+                        tLangName.Value = t == 3 ? "English" : "Spanish";
+                        tName.Value = t == 3 ? "English" : "Spanish";
                         tDef.Value = 0;
                         tOrig.Value = 0;
                     }
@@ -312,15 +314,15 @@ public class StressMigrationTest : FixtureTestBase
         {
             convCmd.Transaction = tx;
             convCmd.CommandText = """
-                INSERT INTO MediaConversion
-                    (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
-                     TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
-                     CreatedDate, UpdatedDate)
-                VALUES
-                    ($id, $fileId, $name, '', $progress, $sizeBefore, $sizeAfter, $sizeDiff,
-                     $tracksBefore, $tracksAfter, $allowedTracks, $isCustom, $state,
-                     '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-                """;
+                                  INSERT INTO MediaConversion
+                                      (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
+                                       TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
+                                       CreatedDate, UpdatedDate)
+                                  VALUES
+                                      ($id, $fileId, $name, '', $progress, $sizeBefore, $sizeAfter, $sizeDiff,
+                                       $tracksBefore, $tracksAfter, $allowedTracks, $isCustom, $state,
+                                       '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                                  """;
             var cId = convCmd.Parameters.Add("$id", SqliteType.Integer);
             var cFileId = convCmd.Parameters.Add("$fileId", SqliteType.Integer);
             var cName = convCmd.Parameters.Add("$name", SqliteType.Text);
@@ -340,7 +342,7 @@ public class StressMigrationTest : FixtureTestBase
             for (var i = 0; i < CompletedConversions; i++, convId++)
             {
                 cId.Value = convId;
-                cFileId.Value = (i % FileCount) + 1;
+                cFileId.Value = i % FileCount + 1;
                 cName.Value = $"completed-{convId}.mkv";
                 cProgress.Value = 100;
                 cSizeBefore.Value = 1_000_000_000L;
@@ -358,7 +360,7 @@ public class StressMigrationTest : FixtureTestBase
             for (var i = 0; i < FailedConversions; i++, convId++)
             {
                 cId.Value = convId;
-                cFileId.Value = (i % FileCount) + 1;
+                cFileId.Value = i % FileCount + 1;
                 cName.Value = $"failed-{convId}.mkv";
                 cProgress.Value = 0;
                 cSizeBefore.Value = 1_000_000_000L;
@@ -376,7 +378,7 @@ public class StressMigrationTest : FixtureTestBase
             for (var i = 0; i < QueuedNonCustom; i++, convId++)
             {
                 cId.Value = convId;
-                cFileId.Value = (i % FileCount) + 1;
+                cFileId.Value = i % FileCount + 1;
                 cName.Value = $"queued-{convId}.mkv";
                 cProgress.Value = 0;
                 cSizeBefore.Value = 0;
@@ -395,7 +397,7 @@ public class StressMigrationTest : FixtureTestBase
             for (var i = 0; i < QueuedCustom; i++, convId++)
             {
                 cId.Value = convId;
-                cFileId.Value = (i % FileCount) + 1;
+                cFileId.Value = i % FileCount + 1;
                 cName.Value = $"custom-{convId}.mkv";
                 cProgress.Value = 0;
                 cSizeBefore.Value = 0;
@@ -413,7 +415,7 @@ public class StressMigrationTest : FixtureTestBase
             for (var i = 0; i < ProcessingMixed; i++, convId++)
             {
                 cId.Value = convId;
-                cFileId.Value = (i % FileCount) + 1;
+                cFileId.Value = i % FileCount + 1;
                 cName.Value = $"processing-{convId}.mkv";
                 cProgress.Value = 50;
                 cSizeBefore.Value = 1_000_000_000L;
@@ -421,8 +423,8 @@ public class StressMigrationTest : FixtureTestBase
                 cSizeDiff.Value = 0;
                 cTracksBefore.Value = sampleTracks.FullBefore;
                 cTracksAfter.Value = sampleTracks.FullAfter;
-                cAllowedTracks.Value = (i % 2 == 0) ? sampleTracks.CustomAllowed : "[]";
-                cIsCustom.Value = (i % 2 == 0) ? 1 : 0;
+                cAllowedTracks.Value = i % 2 == 0 ? sampleTracks.CustomAllowed : "[]";
+                cIsCustom.Value = i % 2 == 0 ? 1 : 0;
                 cState.Value = "Processing";
                 await convCmd.ExecuteNonQueryAsync();
             }
@@ -439,7 +441,7 @@ public class StressMigrationTest : FixtureTestBase
     {
         var before = new StringBuilder("[");
         before.Append(Track(0, "Video", "H264", langCode: "und", langName: "Undetermined", isDefault: true));
-        before.Append(',').Append(Track(1, "Audio", "Aac", 2, "eng", "English", isDefault: true, name: "English"));
+        before.Append(',').Append(Track(1, "Audio", "Aac", 2, "eng", "English", true, name: "English"));
         before.Append(',').Append(Track(2, "Audio", "Eac3", 6, "jpn", "Japanese", isOriginal: true, name: "Japanese"));
         before.Append(',').Append(Track(3, "Subtitles", "SubRip", langCode: "eng", langName: "English", name: "English"));
         before.Append(',').Append(Track(4, "Subtitles", "SubRip", langCode: "spa", langName: "Spanish", name: "Spanish"));
@@ -447,7 +449,7 @@ public class StressMigrationTest : FixtureTestBase
 
         var after = new StringBuilder("[");
         after.Append(Track(0, "Video", "H264", langCode: "und", langName: "Undetermined", isDefault: true));
-        after.Append(',').Append(Track(1, "Audio", "Aac", 2, "eng", "English", isDefault: true, name: "English"));
+        after.Append(',').Append(Track(1, "Audio", "Aac", 2, "eng", "English", true, name: "English"));
         after.Append(',').Append(Track(2, "Subtitles", "SubRip", langCode: "eng", langName: "English", name: "English"));
         after.Append(']');
 
@@ -455,7 +457,7 @@ public class StressMigrationTest : FixtureTestBase
         custom.Append(Track(0, "Video", "H264", langCode: "und", langName: "Undetermined",
             isDefault: true, name: "User Video Title"));
         custom.Append(',').Append(Track(1, "Audio", "Aac", 2, "eng", "English",
-            isDefault: true, isOriginal: true, name: "User Audio Title"));
+            true, isOriginal: true, name: "User Audio Title"));
         custom.Append(',').Append(Track(2, "Subtitles", "SubRip", langCode: "eng", langName: "English",
             isHi: true, name: "User Sub Title"));
         custom.Append(']');
@@ -471,9 +473,12 @@ public class StressMigrationTest : FixtureTestBase
     {
         var nameJson = name == null ? "null" : $"\"{name}\"";
         return $$"""
-            {"Id":{{id}},"Type":"{{type}}","IsCommentary":{{B(isComm)}},"IsHearingImpaired":{{B(isHi)}},"IsVisualImpaired":{{B(isVi)}},"IsDefault":{{B(isDefault)}},"IsForced":{{B(isForced)}},"IsOriginal":{{B(isOriginal)}},"Codec":"{{codec}}","AudioChannels":{{channels}},"LanguageCode":"{{langCode}}","LanguageName":"{{langName}}","TrackName":{{nameJson}}}
-            """;
+                 {"Id":{{id}},"Type":"{{type}}","IsCommentary":{{B(isComm)}},"IsHearingImpaired":{{B(isHi)}},"IsVisualImpaired":{{B(isVi)}},"IsDefault":{{B(isDefault)}},"IsForced":{{B(isForced)}},"IsOriginal":{{B(isOriginal)}},"Codec":"{{codec}}","AudioChannels":{{channels}},"LanguageCode":"{{langCode}}","LanguageName":"{{langName}}","TrackName":{{nameJson}}}
+                 """;
     }
 
-    private static string B(bool b) => b ? "true" : "false";
+    private static string B(bool b)
+    {
+        return b ? "true" : "false";
+    }
 }
