@@ -95,7 +95,7 @@ public class ArrSyncPathMappingTests
     {
         public HttpClient CreateClient(string name)
         {
-            return new HttpClient(new StubHandler(json), disposeHandler: true);
+            return new HttpClient(new StubHandler(json), true);
         }
     }
 

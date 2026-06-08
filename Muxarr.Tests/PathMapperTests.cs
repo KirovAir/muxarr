@@ -33,6 +33,41 @@ public class PathMapperTests
     }
 
     [TestMethod]
+    [DataRow("/data", "/media")]
+    [DataRow("/data/", "/media/")]
+    [DataRow("/data/", "/media")]
+    [DataRow("/data", "/media/")]
+    public void Resolve_TrailingSlashCombos_AllNormalizeIdentically(string from, string to)
+    {
+        var mappings = new List<PathMapping> { new() { From = from, To = to } };
+
+        Assert.AreEqual("/media/movies/x.mkv", PathMapper.Resolve("/data/movies/x.mkv", mappings));
+        Assert.AreEqual("/media", PathMapper.Resolve("/data", mappings));
+        Assert.AreEqual("/media/", PathMapper.Resolve("/data/", mappings));
+    }
+
+    [TestMethod]
+    public void Resolve_WindowsArrToLinuxMuxarr_MatchesAndConvertsToForwardSlashes()
+    {
+        var mappings = new List<PathMapping> { new() { From = @"D:\Media", To = "/media" } };
+        Assert.AreEqual("/media/Movies/x.mkv", PathMapper.Resolve(@"D:\Media\Movies\x.mkv", mappings));
+    }
+
+    [TestMethod]
+    public void Resolve_SeparatorStyleMismatch_StillMatches()
+    {
+        var mappings = new List<PathMapping> { new() { From = "D:/Media", To = "/media" } };
+        Assert.AreEqual("/media/Movies/x.mkv", PathMapper.Resolve(@"D:\Media\Movies\x.mkv", mappings));
+    }
+
+    [TestMethod]
+    public void Resolve_LinuxToWindows_OutputUsesBackslashes()
+    {
+        var mappings = new List<PathMapping> { new() { From = "/data", To = @"C:\Media" } };
+        Assert.AreEqual(@"C:\Media\movies\x.mkv", PathMapper.Resolve("/data/movies/x.mkv", mappings));
+    }
+
+    [TestMethod]
     public void Resolve_NoMappingsReturnsOriginal()
     {
         Assert.AreEqual("/data/file.mkv", PathMapper.Resolve("/data/file.mkv", []));

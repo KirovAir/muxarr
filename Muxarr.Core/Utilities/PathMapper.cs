@@ -6,10 +6,11 @@ public static class PathMapper
 {
     /// <summary>
     /// Rewrites a path reported by Sonarr/Radarr to the equivalent path Muxarr can access,
-    /// using the most specific (longest) matching From prefix so the order mappings are
-    /// configured in doesn't matter. Matching is case-insensitive and only on whole path
-    /// segments, so "/data" never matches "/database". Returns the path unchanged when
-    /// nothing matches.
+    /// using the longest matching From prefix so configuration order doesn't matter. Matching
+    /// is case- and separator-insensitive ('/' and '\' are equivalent) and only on whole
+    /// segments, so "/data" never matches "/database". The remainder is re-joined using the
+    /// To side's separator style, so a Windows path mapped onto a Linux mount comes out clean.
+    /// Returns the path unchanged when nothing matches.
     /// </summary>
     public static string Resolve(string path, IReadOnlyList<PathMapping> mappings)
     {
@@ -17,6 +18,8 @@ public static class PathMapper
         {
             return path;
         }
+
+        var comparePath = path.Replace('\\', '/');
 
         string? result = null;
         var matchedLength = -1;
@@ -30,7 +33,7 @@ public static class PathMapper
                 continue;
             }
 
-            if (!path.StartsWith(from, StringComparison.OrdinalIgnoreCase))
+            if (!comparePath.StartsWith(from.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
@@ -42,7 +45,8 @@ public static class PathMapper
                 continue;
             }
 
-            result = to + remainder;
+            var separator = to.Contains('\\') && !to.Contains('/') ? '\\' : '/';
+            result = to + (separator == '\\' ? remainder.Replace('/', '\\') : remainder.Replace('\\', '/'));
             matchedLength = from.Length;
         }
 
