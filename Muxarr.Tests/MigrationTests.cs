@@ -44,30 +44,30 @@ public class MigrationTests : FixtureTestBase
     private static Task SeedProfileAsync(AppDbContext context)
     {
         return ExecAsync(context, """
-            INSERT INTO Profile
-                (Id, Name, Directories, ClearVideoTrackNames, AudioSettings, SubtitleSettings,
-                 SkipHardlinkedFiles, CreatedDate, UpdatedDate)
-            VALUES
-                (1, 'test', '[]', 0, '{}', '{}', 0, '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-            """);
+                                  INSERT INTO Profile
+                                      (Id, Name, Directories, ClearVideoTrackNames, AudioSettings, SubtitleSettings,
+                                       SkipHardlinkedFiles, CreatedDate, UpdatedDate)
+                                  VALUES
+                                      (1, 'test', '[]', 0, '{}', '{}', 0, '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                                  """);
     }
 
     private static Task SeedMediaFileAsync(AppDbContext context, int id, string path,
         string container = "Matroska", string resolution = "1920x1080", long durationMs = 3600000)
     {
         return ExecAsync(context, $"""
-            INSERT INTO MediaFile
-                (Id, ProfileId, Path, Size, ProbeOutput, TrackCount,
-                 HasRedundantTracks, HasNonStandardMetadata, HasScanWarning,
-                 ContainerType, Resolution, DurationMs, VideoBitDepth, HasFaststart,
-                 FileLastWriteTime, FileCreationTime, CreatedDate, UpdatedDate)
-            VALUES
-                ({id}, 1, '{path}', 12345, '', 2,
-                 0, 0, 0,
-                 '{container}', '{resolution}', {durationMs}, 10, 0,
-                 '2026-04-01 00:00:00', '2026-04-01 00:00:00',
-                 '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-            """);
+                                   INSERT INTO MediaFile
+                                       (Id, ProfileId, Path, Size, ProbeOutput, TrackCount,
+                                        HasRedundantTracks, HasNonStandardMetadata, HasScanWarning,
+                                        ContainerType, Resolution, DurationMs, VideoBitDepth, HasFaststart,
+                                        FileLastWriteTime, FileCreationTime, CreatedDate, UpdatedDate)
+                                   VALUES
+                                       ({id}, 1, '{path}', 12345, '', 2,
+                                        0, 0, 0,
+                                        '{container}', '{resolution}', {durationMs}, 10, 0,
+                                        '2026-04-01 00:00:00', '2026-04-01 00:00:00',
+                                        '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                                   """);
     }
 
     [TestMethod]
@@ -81,20 +81,20 @@ public class MigrationTests : FixtureTestBase
             await SeedProfileAsync(context);
             await SeedMediaFileAsync(context, 1, "/m/show.mkv");
             await ExecAsync(context, """
-                INSERT INTO MediaConversion
-                    (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
-                     TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
-                     CreatedDate, UpdatedDate)
-                VALUES
-                    (1, 1, 'show.mkv', '', 0, 0, 0, 0,
-                     '[]', '[]',
-                     '[
-                        {"Id":0,"Type":"Video","IsCommentary":false,"IsHearingImpaired":false,"IsVisualImpaired":false,"IsDefault":true,"IsForced":false,"IsOriginal":false,"Codec":"H264","AudioChannels":0,"LanguageCode":"und","LanguageName":"Undetermined","TrackName":"Custom Video Name"},
-                        {"Id":1,"Type":"Audio","IsCommentary":false,"IsHearingImpaired":false,"IsVisualImpaired":false,"IsDefault":true,"IsForced":false,"IsOriginal":true,"Codec":"Aac","AudioChannels":2,"LanguageCode":"eng","LanguageName":"English","TrackName":"English Stereo"},
-                        {"Id":2,"Type":"Subtitles","IsCommentary":false,"IsHearingImpaired":true,"IsVisualImpaired":false,"IsDefault":false,"IsForced":false,"IsOriginal":false,"Codec":"SubRip","AudioChannels":0,"LanguageCode":"eng","LanguageName":"English","TrackName":"English SDH"}
-                     ]',
-                     1, 'New', '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-                """);
+                                     INSERT INTO MediaConversion
+                                         (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
+                                          TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
+                                          CreatedDate, UpdatedDate)
+                                     VALUES
+                                         (1, 1, 'show.mkv', '', 0, 0, 0, 0,
+                                          '[]', '[]',
+                                          '[
+                                             {"Id":0,"Type":"Video","IsCommentary":false,"IsHearingImpaired":false,"IsVisualImpaired":false,"IsDefault":true,"IsForced":false,"IsOriginal":false,"Codec":"H264","AudioChannels":0,"LanguageCode":"und","LanguageName":"Undetermined","TrackName":"Custom Video Name"},
+                                             {"Id":1,"Type":"Audio","IsCommentary":false,"IsHearingImpaired":false,"IsVisualImpaired":false,"IsDefault":true,"IsForced":false,"IsOriginal":true,"Codec":"Aac","AudioChannels":2,"LanguageCode":"eng","LanguageName":"English","TrackName":"English Stereo"},
+                                             {"Id":2,"Type":"Subtitles","IsCommentary":false,"IsHearingImpaired":true,"IsVisualImpaired":false,"IsDefault":false,"IsForced":false,"IsOriginal":false,"Codec":"SubRip","AudioChannels":0,"LanguageCode":"eng","LanguageName":"English","TrackName":"English SDH"}
+                                          ]',
+                                          1, 'New', '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                                     """);
             await MigrateAsync(context, null);
         }
 
@@ -144,16 +144,16 @@ public class MigrationTests : FixtureTestBase
             await SeedProfileAsync(context);
             await SeedMediaFileAsync(context, 1, "/m/done.mkv");
             await ExecAsync(context, """
-                INSERT INTO MediaConversion
-                    (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
-                     TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
-                     CreatedDate, UpdatedDate)
-                VALUES
-                    (1, 1, 'done.mkv', '', 100, 0, 0, 0,
-                     '[]', '[]',
-                     '[{"Id":0,"Type":"Video","Codec":"H264","TrackName":"x"}]',
-                     1, 'Completed', '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-                """);
+                                     INSERT INTO MediaConversion
+                                         (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
+                                          TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
+                                          CreatedDate, UpdatedDate)
+                                     VALUES
+                                         (1, 1, 'done.mkv', '', 100, 0, 0, 0,
+                                          '[]', '[]',
+                                          '[{"Id":0,"Type":"Video","Codec":"H264","TrackName":"x"}]',
+                                          1, 'Completed', '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                                     """);
             await MigrateAsync(context, null);
         }
 
@@ -176,16 +176,16 @@ public class MigrationTests : FixtureTestBase
             await SeedProfileAsync(context);
             await SeedMediaFileAsync(context, 1, "/m/auto.mkv");
             await ExecAsync(context, """
-                INSERT INTO MediaConversion
-                    (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
-                     TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
-                     CreatedDate, UpdatedDate)
-                VALUES
-                    (1, 1, 'auto.mkv', '', 0, 0, 0, 0,
-                     '[]', '[]',
-                     '[{"Id":0,"Type":"Video","Codec":"H264"}]',
-                     0, 'New', '2026-04-01 00:00:00', '2026-04-01 00:00:00')
-                """);
+                                     INSERT INTO MediaConversion
+                                         (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
+                                          TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
+                                          CreatedDate, UpdatedDate)
+                                     VALUES
+                                         (1, 1, 'auto.mkv', '', 0, 0, 0, 0,
+                                          '[]', '[]',
+                                          '[{"Id":0,"Type":"Video","Codec":"H264"}]',
+                                          0, 'New', '2026-04-01 00:00:00', '2026-04-01 00:00:00')
+                                     """);
             await MigrateAsync(context, null);
         }
 
@@ -207,16 +207,16 @@ public class MigrationTests : FixtureTestBase
             await MigrateAsync(context, PreSnapshotMigration);
             await SeedProfileAsync(context);
             await SeedMediaFileAsync(context, 1, "/m/movie.mkv",
-                container: "Matroska", resolution: "3840x2160", durationMs: 7200000);
+                "Matroska", "3840x2160", 7200000);
             await ExecAsync(context, """
-                INSERT INTO MediaTrack
-                    (Id, MediaFileId, TrackNumber, Type, IsCommentary, IsHearingImpaired,
-                     IsVisualImpaired, IsDefault, IsForced, IsOriginal,
-                     Codec, AudioChannels, LanguageCode, LanguageName, TrackName)
-                VALUES
-                    (1, 1, 0, 'Video', 0, 0, 0, 1, 0, 0, 'H264', 0, 'und', 'Undetermined', NULL),
-                    (2, 1, 1, 'Audio', 0, 0, 0, 1, 0, 1, 'Aac', 6, 'eng', 'English', '5.1 Audio');
-                """);
+                                     INSERT INTO MediaTrack
+                                         (Id, MediaFileId, TrackNumber, Type, IsCommentary, IsHearingImpaired,
+                                          IsVisualImpaired, IsDefault, IsForced, IsOriginal,
+                                          Codec, AudioChannels, LanguageCode, LanguageName, TrackName)
+                                     VALUES
+                                         (1, 1, 0, 'Video', 0, 0, 0, 1, 0, 0, 'H264', 0, 'und', 'Undetermined', NULL),
+                                         (2, 1, 1, 'Audio', 0, 0, 0, 1, 0, 1, 'Aac', 6, 'eng', 'English', '5.1 Audio');
+                                     """);
             await MigrateAsync(context, null);
         }
 
@@ -259,19 +259,19 @@ public class MigrationTests : FixtureTestBase
             await SeedProfileAsync(context);
             await SeedMediaFileAsync(context, 1, "/m/old.mkv");
             await ExecAsync(context, """
-                INSERT INTO MediaConversion
-                    (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
-                     TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
-                     CreatedDate, UpdatedDate)
-                VALUES
-                    (1, 1, 'old.mkv', '', 100, 1000, 800, -200,
-                     '[{"Id":0,"Type":"Video","Codec":"H264","LanguageCode":"und","LanguageName":"Undetermined","TrackName":null},
-                       {"Id":1,"Type":"Audio","Codec":"Dts","LanguageCode":"eng","LanguageName":"English","AudioChannels":6,"TrackName":"Original"}]',
-                     '[{"Id":0,"Type":"Video","Codec":"H264","LanguageCode":"und","LanguageName":"Undetermined","TrackName":null},
-                       {"Id":1,"Type":"Audio","Codec":"Aac","LanguageCode":"eng","LanguageName":"English","AudioChannels":2,"TrackName":"Stereo"}]',
-                     '[]',
-                     0, 'Completed', '2026-04-01 00:00:00', '2026-04-01 01:00:00')
-                """);
+                                     INSERT INTO MediaConversion
+                                         (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
+                                          TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
+                                          CreatedDate, UpdatedDate)
+                                     VALUES
+                                         (1, 1, 'old.mkv', '', 100, 1000, 800, -200,
+                                          '[{"Id":0,"Type":"Video","Codec":"H264","LanguageCode":"und","LanguageName":"Undetermined","TrackName":null},
+                                            {"Id":1,"Type":"Audio","Codec":"Dts","LanguageCode":"eng","LanguageName":"English","AudioChannels":6,"TrackName":"Original"}]',
+                                          '[{"Id":0,"Type":"Video","Codec":"H264","LanguageCode":"und","LanguageName":"Undetermined","TrackName":null},
+                                            {"Id":1,"Type":"Audio","Codec":"Aac","LanguageCode":"eng","LanguageName":"English","AudioChannels":2,"TrackName":"Stereo"}]',
+                                          '[]',
+                                          0, 'Completed', '2026-04-01 00:00:00', '2026-04-01 01:00:00')
+                                     """);
             await MigrateAsync(context, null);
         }
 
@@ -311,19 +311,19 @@ public class MigrationTests : FixtureTestBase
             await SeedMediaFileAsync(context, 1, "/m/broken.mkv");
             // Two broken rows plus one valid; migration must skip the bad ones and keep going.
             await ExecAsync(context, """
-                INSERT INTO MediaConversion
-                    (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
-                     TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
-                     CreatedDate, UpdatedDate)
-                VALUES
-                    (1, 1, 'broken.mkv', '', 100, 0, 0, 0,
-                     'not json at all', '{"oops":"object not array"}', '[]',
-                     0, 'Failed', '2026-04-01 00:00:00', '2026-04-01 00:00:00'),
-                    (2, 1, 'ok.mkv', '', 100, 0, 0, 0,
-                     '[{"Id":0,"Type":"Video","Codec":"H264","LanguageCode":"und","LanguageName":"Undetermined"}]',
-                     '[]', '[]',
-                     0, 'Completed', '2026-04-01 00:00:00', '2026-04-01 00:00:00');
-                """);
+                                     INSERT INTO MediaConversion
+                                         (Id, MediaFileId, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference,
+                                          TracksBefore, TracksAfter, AllowedTracks, IsCustomConversion, State,
+                                          CreatedDate, UpdatedDate)
+                                     VALUES
+                                         (1, 1, 'broken.mkv', '', 100, 0, 0, 0,
+                                          'not json at all', '{"oops":"object not array"}', '[]',
+                                          0, 'Failed', '2026-04-01 00:00:00', '2026-04-01 00:00:00'),
+                                         (2, 1, 'ok.mkv', '', 100, 0, 0, 0,
+                                          '[{"Id":0,"Type":"Video","Codec":"H264","LanguageCode":"und","LanguageName":"Undetermined"}]',
+                                          '[]', '[]',
+                                          0, 'Completed', '2026-04-01 00:00:00', '2026-04-01 00:00:00');
+                                     """);
             await MigrateAsync(context, null);
         }
 

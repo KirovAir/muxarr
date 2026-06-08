@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Api;
+using Muxarr.Core.Config;
+using Muxarr.Core.Utilities;
 using Muxarr.Data;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -36,6 +38,7 @@ public class ArrSyncService(
     private async Task SyncArrs(AppDbContext context, CancellationToken token)
     {
         var integrations = await context.Integrations.ToListAsync(token);
+        var mappings = context.Configs.GetOrDefault<PathMappingConfig>().Mappings;
 
         foreach (var integration in integrations)
         {
@@ -60,7 +63,7 @@ public class ArrSyncService(
                         IntegrationId = integration.Id,
                         IsMovie = true,
                         OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
-                        Path = x.MovieFile.Path,
+                        Path = PathMapper.Resolve(x.MovieFile.Path, mappings),
                         Title = x.Title
                     }), integration.Id, token);
                 }
@@ -78,7 +81,7 @@ public class ArrSyncService(
                         IntegrationId = integration.Id,
                         IsMovie = false,
                         OriginalLanguage = x.OriginalLanguage?.Name ?? string.Empty,
-                        Path = x.Path,
+                        Path = PathMapper.Resolve(x.Path, mappings),
                         Title = x.Title
                     }), integration.Id, token);
                 }

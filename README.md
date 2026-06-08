@@ -40,7 +40,7 @@ services:
 
 ## Features
 
-- **Strip unwanted tracks** - remove audio (commentary, foreign dubs) and subtitles (SDH, foreign) without re-encoding, so quality is untouched. A typical 4GB file processes in about a minute depending on disk speed, saving up to 10% in file size.
+- **Strip unwanted tracks** - remove audio (commentary, foreign dubs) and subtitles (SDH, foreign) without re-encoding, so quality is untouched. A typical 4GB file processes in about a minute depending on disk speed. Cutting spare audio tracks alone often saves 10-30%.
 - **Original language detection** - integrates with your *arr stack so foreign films and shows always keep the correct audio track
 - **Automatic processing** - webhook support to process new imports as they arrive
 - **Per-directory profiles** - different language and track rules for different collections (e.g. anime vs western media)
