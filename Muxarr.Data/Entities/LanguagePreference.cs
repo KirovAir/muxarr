@@ -19,20 +19,22 @@ public class LanguagePreference
 
     /// <summary>
     /// Audio quality preference for this language when limiting tracks.
-    /// Null = BestQuality (default). Only meaningful for audio tracks.
+    /// Only meaningful for audio tracks; defaults to BestQuality.
     /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public AudioQualityStrategy? QualityStrategy { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public AudioQualityStrategy QualityStrategy { get; set; } = AudioQualityStrategy.BestQuality;
 
     /// <summary>
     /// Subtitle quality preference for this language when limiting tracks.
-    /// Null = TextFirst (default). Only meaningful for subtitle tracks.
+    /// Only meaningful for subtitle tracks; defaults to TextFirst.
     /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public SubtitleQualityStrategy? SubtitleStrategy { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public SubtitleQualityStrategy SubtitleStrategy { get; set; } = SubtitleQualityStrategy.TextFirst;
 
     [JsonIgnore]
-    public bool HasOverrides => MaxTracks.HasValue || QualityStrategy.HasValue || SubtitleStrategy.HasValue;
+    public bool HasOverrides => MaxTracks.HasValue
+                                || QualityStrategy != AudioQualityStrategy.BestQuality
+                                || SubtitleStrategy != SubtitleQualityStrategy.TextFirst;
 
     /// <summary>
     /// True if this entry is the dynamic "Original Language" placeholder

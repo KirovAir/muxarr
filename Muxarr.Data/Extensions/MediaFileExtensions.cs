@@ -435,12 +435,10 @@ public static class MediaFileExtensions
                 if (pref?.MaxTracks is > 0)
                 {
                     var isAudio = tracksInLanguage[0].Type == MediaTrackType.Audio;
-                    var audioStrategy = pref.QualityStrategy ?? AudioQualityStrategy.BestQuality;
-                    var subtitleStrategy = pref.SubtitleStrategy ?? SubtitleQualityStrategy.TextFirst;
                     filteredTracks = filteredTracks
                         .OrderByDescending(t => isAudio
-                            ? TrackQualityScorer.ScoreAudio(t, audioStrategy)
-                            : TrackQualityScorer.ScoreSubtitle(t, subtitleStrategy))
+                            ? TrackQualityScorer.ScoreAudio(t, pref.QualityStrategy)
+                            : TrackQualityScorer.ScoreSubtitle(t, pref.SubtitleStrategy))
                         .Take(pref.MaxTracks.Value);
                 }
 

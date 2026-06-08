@@ -77,11 +77,10 @@
                                 <label class="lpe-advanced-label">Quality preference</label>
                             </ToolTip>
                             <select class="form-select form-select-sm"
-                                    value="@(pref.QualityStrategy?.ToString() ?? "")"
+                                    value="@pref.QualityStrategy.ToString()"
                                     @onchange="e => SetQualityStrategy(pref, e.Value?.ToString())">
-                                <option value="">Default (lossless first)</option>
+                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Lossless first (default)</option>
                                 <option value="@nameof(AudioQualityStrategy.MostChannels)">Most channels (surround)</option>
-                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Lossless first</option>
                                 <option value="@nameof(AudioQualityStrategy.SmallestSize)">Smallest size</option>
                             </select>
                         }
@@ -92,20 +91,16 @@
                                 <label class="lpe-advanced-label">Subtitle preference</label>
                             </ToolTip>
                             <select class="form-select form-select-sm"
-                                    value="@(pref.SubtitleStrategy?.ToString() ?? "")"
+                                    value="@pref.SubtitleStrategy.ToString()"
                                     @onchange="e => SetSubtitleStrategy(pref, e.Value?.ToString())">
-                                <option value="">Default (text first)</option>
-                                <option value="@nameof(SubtitleQualityStrategy.TextFirst)">Text first (SRT)</option>
+                                <option value="@nameof(SubtitleQualityStrategy.TextFirst)">Text first (SRT, default)</option>
                                 <option value="@nameof(SubtitleQualityStrategy.ImageFirst)">Image first (PGS)</option>
                                 <option value="@nameof(SubtitleQualityStrategy.Accessibility)">Accessibility (SDH)</option>
                             </select>
                         }
                     </div>
                 </div>
-                @if (pref.MaxTracks is > 0)
-                {
-                    <small class="lpe-advanced-hint">@RankingHint(pref)</small>
-                }
+                <small class="lpe-advanced-hint">@RankingHint(pref)</small>
                 @if (pref.HasOverrides)
                 {
                     <button type="button" class="btn btn-link btn-sm text-muted p-0 mt-2"
@@ -241,26 +236,26 @@
 
     private static void SetQualityStrategy(LanguagePreference pref, string? value)
     {
-        pref.QualityStrategy = Enum.TryParse<AudioQualityStrategy>(value, out var v) ? v : null;
+        pref.QualityStrategy = Enum.TryParse<AudioQualityStrategy>(value, out var v) ? v : AudioQualityStrategy.BestQuality;
     }
 
     private static void SetSubtitleStrategy(LanguagePreference pref, string? value)
     {
-        pref.SubtitleStrategy = Enum.TryParse<SubtitleQualityStrategy>(value, out var v) ? v : null;
+        pref.SubtitleStrategy = Enum.TryParse<SubtitleQualityStrategy>(value, out var v) ? v : SubtitleQualityStrategy.TextFirst;
     }
 
     private static void ClearOverrides(LanguagePreference pref)
     {
         pref.MaxTracks = null;
-        pref.QualityStrategy = null;
-        pref.SubtitleStrategy = null;
+        pref.QualityStrategy = AudioQualityStrategy.BestQuality;
+        pref.SubtitleStrategy = SubtitleQualityStrategy.TextFirst;
     }
 
     private string RankingHint(LanguagePreference pref)
     {
         if (IsAudio)
         {
-            return (pref.QualityStrategy ?? AudioQualityStrategy.BestQuality) switch
+            return pref.QualityStrategy switch
             {
                 AudioQualityStrategy.MostChannels =>
                     "Most channels first (surround > stereo), then spatial & lossless. Commentary ranked lowest.",
@@ -271,7 +266,7 @@
             };
         }
 
-        return (pref.SubtitleStrategy ?? SubtitleQualityStrategy.TextFirst) switch
+        return pref.SubtitleStrategy switch
         {
             SubtitleQualityStrategy.ImageFirst =>
                 "Image (PGS) > text, then Regular > SDH > Forced. Commentary ranked lowest.",
