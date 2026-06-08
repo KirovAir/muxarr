@@ -430,12 +430,17 @@ public static class MediaFileExtensions
 
                 // Apply per-language track limits (MaxTracks).
                 // After language/flag/codec filtering, keep only the top N tracks by quality score.
+                // Audio and subtitles score on different axes, so each uses its own strategy.
                 var pref = FindMatchingPreference(language, originalLanguage, s);
                 if (pref?.MaxTracks is > 0)
                 {
-                    var strategy = pref.QualityStrategy ?? AudioQualityStrategy.BestQuality;
+                    var isAudio = tracksInLanguage[0].Type == MediaTrackType.Audio;
+                    var audioStrategy = pref.QualityStrategy ?? AudioQualityStrategy.BestQuality;
+                    var subtitleStrategy = pref.SubtitleStrategy ?? SubtitleQualityStrategy.TextFirst;
                     filteredTracks = filteredTracks
-                        .OrderByDescending(t => TrackQualityScorer.ScoreTrack(t, strategy))
+                        .OrderByDescending(t => isAudio
+                            ? TrackQualityScorer.ScoreAudio(t, audioStrategy)
+                            : TrackQualityScorer.ScoreSubtitle(t, subtitleStrategy))
                         .Take(pref.MaxTracks.Value);
                 }
 

@@ -18,14 +18,21 @@ public class LanguagePreference
     public int? MaxTracks { get; set; }
 
     /// <summary>
-    /// Quality preference for this language when limiting tracks.
-    /// Null = BestQuality (default).
+    /// Audio quality preference for this language when limiting tracks.
+    /// Null = BestQuality (default). Only meaningful for audio tracks.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public AudioQualityStrategy? QualityStrategy { get; set; }
 
+    /// <summary>
+    /// Subtitle quality preference for this language when limiting tracks.
+    /// Null = TextFirst (default). Only meaningful for subtitle tracks.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubtitleQualityStrategy? SubtitleStrategy { get; set; }
+
     [JsonIgnore]
-    public bool HasOverrides => MaxTracks.HasValue || QualityStrategy.HasValue;
+    public bool HasOverrides => MaxTracks.HasValue || QualityStrategy.HasValue || SubtitleStrategy.HasValue;
 
     /// <summary>
     /// True if this entry is the dynamic "Original Language" placeholder
@@ -64,9 +71,41 @@ public class LanguagePreference
 
 public enum AudioQualityStrategy
 {
-    /// <summary>Keep the highest quality track (lossless + spatial > lossless > lossy, more channels > fewer).</summary>
+    /// <summary>
+    /// Keep the highest-fidelity track: lossless + spatial > lossless > lossy,
+    /// with channel count only breaking ties within the same fidelity tier.
+    /// This is the default and preserves the original behaviour.
+    /// </summary>
     BestQuality,
 
     /// <summary>Keep the smallest track (lossy > lossless, fewer channels > more).</summary>
-    SmallestSize
+    SmallestSize,
+
+    /// <summary>
+    /// Keep the track with the most channels (surround &gt; stereo), using spatial
+    /// (Atmos/DTS:X) and then lossless as tiebreakers within the same channel count.
+    /// A 5.1/7.1 track is never dropped in favour of a stereo downmix.
+    /// </summary>
+    MostChannels
+}
+
+public enum SubtitleQualityStrategy
+{
+    /// <summary>
+    /// Prefer text subtitles (SRT/ASS) over image-based (PGS/VobSub): smaller,
+    /// styleable, and universally compatible. This is the default.
+    /// </summary>
+    TextFirst,
+
+    /// <summary>
+    /// Prefer image-based subtitles (PGS/VobSub) over text: pristine Blu-ray
+    /// rendering with no OCR or formatting errors.
+    /// </summary>
+    ImageFirst,
+
+    /// <summary>
+    /// Prefer hearing-impaired (SDH) subtitles above all, then text &gt; image.
+    /// Keeps the accessibility track that would otherwise lose to a regular one.
+    /// </summary>
+    Accessibility
 }

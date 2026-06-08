@@ -56,8 +56,8 @@
         {
             <div class="lpe-advanced-panel">
                 <div class="row g-2">
-                    <div class="@(IsAudio ? "col-6" : "col-12")">
-                        <ToolTip Tip="Limit the number of tracks kept for this language. Best quality is kept first.">
+                    <div class="col-6">
+                        <ToolTip Tip="Limit the number of tracks kept for this language. The preferred track is kept first.">
                             <label class="lpe-advanced-label">Max tracks</label>
                         </ToolTip>
                         <select class="form-select form-select-sm"
@@ -68,42 +68,44 @@
                             <option value="2">Keep 2</option>
                             <option value="3">Keep 3</option>
                         </select>
-                        @if (pref.MaxTracks is > 0)
-                        {
-                            <small class="lpe-advanced-hint">
-                                @if (!IsAudio)
-                                {
-                                    <text>Text &gt; Bitmap, then Regular &gt; SDH &gt; Forced &gt; Commentary.</text>
-                                }
-                                else if (pref.QualityStrategy == AudioQualityStrategy.SmallestSize)
-                                {
-                                    <text>Lossy &gt; Lossless, fewest channels first. Commentary ranked lowest.</text>
-                                }
-                                else
-                                {
-                                    <text>Lossless + Spatial &gt; Lossless &gt; Lossy, most channels first. Commentary
-                                        ranked lowest.</text>
-                                }
-                            </small>
-                        }
                     </div>
-                    @if (IsAudio)
-                    {
-                        <div class="col-6">
+                    <div class="col-6">
+                        @if (IsAudio)
+                        {
                             <ToolTip
-                                Tip="When limiting tracks, prefer highest quality (lossless, more channels) or smallest file size (lossy, fewer channels).">
+                                Tip="When limiting tracks, choose what to keep: the most surround channels, lossless audio first, or the smallest file size.">
                                 <label class="lpe-advanced-label">Quality preference</label>
                             </ToolTip>
                             <select class="form-select form-select-sm"
                                     value="@(pref.QualityStrategy?.ToString() ?? "")"
                                     @onchange="e => SetQualityStrategy(pref, e.Value?.ToString())">
-                                <option value="">Default (best quality)</option>
-                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Best quality</option>
+                                <option value="">Default (lossless first)</option>
+                                <option value="@nameof(AudioQualityStrategy.MostChannels)">Most channels (surround)</option>
+                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Lossless first</option>
                                 <option value="@nameof(AudioQualityStrategy.SmallestSize)">Smallest size</option>
                             </select>
-                        </div>
-                    }
+                        }
+                        else
+                        {
+                            <ToolTip
+                                Tip="When limiting tracks, choose what to keep: text subtitles (SRT), image subtitles (PGS), or accessibility (SDH) tracks.">
+                                <label class="lpe-advanced-label">Subtitle preference</label>
+                            </ToolTip>
+                            <select class="form-select form-select-sm"
+                                    value="@(pref.SubtitleStrategy?.ToString() ?? "")"
+                                    @onchange="e => SetSubtitleStrategy(pref, e.Value?.ToString())">
+                                <option value="">Default (text first)</option>
+                                <option value="@nameof(SubtitleQualityStrategy.TextFirst)">Text first (SRT)</option>
+                                <option value="@nameof(SubtitleQualityStrategy.ImageFirst)">Image first (PGS)</option>
+                                <option value="@nameof(SubtitleQualityStrategy.Accessibility)">Accessibility (SDH)</option>
+                            </select>
+                        }
+                    </div>
                 </div>
+                @if (pref.MaxTracks is > 0)
+                {
+                    <small class="lpe-advanced-hint">@RankingHint(pref)</small>
+                }
                 @if (pref.HasOverrides)
                 {
                     <button type="button" class="btn btn-link btn-sm text-muted p-0 mt-2"
@@ -242,10 +244,42 @@
         pref.QualityStrategy = Enum.TryParse<AudioQualityStrategy>(value, out var v) ? v : null;
     }
 
+    private static void SetSubtitleStrategy(LanguagePreference pref, string? value)
+    {
+        pref.SubtitleStrategy = Enum.TryParse<SubtitleQualityStrategy>(value, out var v) ? v : null;
+    }
+
     private static void ClearOverrides(LanguagePreference pref)
     {
         pref.MaxTracks = null;
         pref.QualityStrategy = null;
+        pref.SubtitleStrategy = null;
+    }
+
+    private string RankingHint(LanguagePreference pref)
+    {
+        if (IsAudio)
+        {
+            return (pref.QualityStrategy ?? AudioQualityStrategy.BestQuality) switch
+            {
+                AudioQualityStrategy.MostChannels =>
+                    "Most channels first (surround > stereo), then spatial & lossless. Commentary ranked lowest.",
+                AudioQualityStrategy.SmallestSize =>
+                    "Lossy > lossless, fewest channels first. Commentary ranked lowest.",
+                _ =>
+                    "Lossless + spatial > lossless > lossy, most channels as tiebreak. Commentary ranked lowest."
+            };
+        }
+
+        return (pref.SubtitleStrategy ?? SubtitleQualityStrategy.TextFirst) switch
+        {
+            SubtitleQualityStrategy.ImageFirst =>
+                "Image (PGS) > text, then Regular > SDH > Forced. Commentary ranked lowest.",
+            SubtitleQualityStrategy.Accessibility =>
+                "SDH/HI first, then text > image. Keeps accessibility subtitles.",
+            _ =>
+                "Text > image, then Regular > SDH > Forced. Commentary ranked lowest."
+        };
     }
 
 }

@@ -21,7 +21,7 @@ public class TrackPriorityTests
         var truhd = Audio(codec: "TrueHd", channels: 8);
 
         Assert.IsTrue(
-            TrackQualityScorer.ScoreTrack(truhdAtmos) > TrackQualityScorer.ScoreTrack(truhd));
+            TrackQualityScorer.ScoreAudio(truhdAtmos) > TrackQualityScorer.ScoreAudio(truhd));
     }
 
     [TestMethod]
@@ -30,7 +30,7 @@ public class TrackPriorityTests
         var flac = Audio(codec: "Flac", channels: 2);
         var aac = Audio(codec: "Aac", channels: 2);
 
-        Assert.IsTrue(TrackQualityScorer.ScoreTrack(flac) > TrackQualityScorer.ScoreTrack(aac));
+        Assert.IsTrue(TrackQualityScorer.ScoreAudio(flac) > TrackQualityScorer.ScoreAudio(aac));
     }
 
     [TestMethod]
@@ -39,7 +39,7 @@ public class TrackPriorityTests
         var ac3_51 = Audio(codec: "Ac3", channels: 6);
         var ac3_20 = Audio(codec: "Ac3", channels: 2);
 
-        Assert.IsTrue(TrackQualityScorer.ScoreTrack(ac3_51) > TrackQualityScorer.ScoreTrack(ac3_20));
+        Assert.IsTrue(TrackQualityScorer.ScoreAudio(ac3_51) > TrackQualityScorer.ScoreAudio(ac3_20));
     }
 
     [TestMethod]
@@ -49,8 +49,8 @@ public class TrackPriorityTests
         var aac = Audio(codec: "Aac", channels: 2);
 
         Assert.IsTrue(
-            TrackQualityScorer.ScoreTrack(aac, AudioQualityStrategy.SmallestSize) >
-            TrackQualityScorer.ScoreTrack(truhd, AudioQualityStrategy.SmallestSize));
+            TrackQualityScorer.ScoreAudio(aac, AudioQualityStrategy.SmallestSize) >
+            TrackQualityScorer.ScoreAudio(truhd, AudioQualityStrategy.SmallestSize));
     }
 
     [TestMethod]
@@ -59,7 +59,102 @@ public class TrackPriorityTests
         var srt = Sub();
         var pgs = Sub(codec: "Pgs");
 
-        Assert.IsTrue(TrackQualityScorer.ScoreTrack(srt) > TrackQualityScorer.ScoreTrack(pgs));
+        Assert.IsTrue(TrackQualityScorer.ScoreSubtitle(srt) > TrackQualityScorer.ScoreSubtitle(pgs));
+    }
+
+    // --- MostChannels strategy: surround must beat a stereo lossless downmix ---
+
+    [TestMethod]
+    public void QualityScore_MostChannels_SurroundLossyBeatsStereoLossless()
+    {
+        // The reported bug: a 5.1 E-AC-3 Atmos track was dropped in favour of a
+        // 2.0 FLAC downmix because lossless dominated. With MostChannels it must not.
+        var eac3Atmos = Audio(codec: "Eac3", channels: 6, trackName: "Dolby Atmos 5.1");
+        var flacStereo = Audio(codec: "Flac", channels: 2, trackName: "Original Dual Mono");
+
+        Assert.IsTrue(
+            TrackQualityScorer.ScoreAudio(eac3Atmos, AudioQualityStrategy.MostChannels) >
+            TrackQualityScorer.ScoreAudio(flacStereo, AudioQualityStrategy.MostChannels),
+            "5.1 surround should outrank a 2.0 lossless downmix under MostChannels");
+    }
+
+    [TestMethod]
+    public void QualityScore_MostChannels_MoreChannelsBeatsLossless()
+    {
+        // 7.1 lossy beats 5.1 lossless: channel count is the dominant axis.
+        var dts71 = Audio(codec: "Dts", channels: 8);
+        var truehd51 = Audio(codec: "TrueHd", channels: 6);
+
+        Assert.IsTrue(
+            TrackQualityScorer.ScoreAudio(dts71, AudioQualityStrategy.MostChannels) >
+            TrackQualityScorer.ScoreAudio(truehd51, AudioQualityStrategy.MostChannels));
+    }
+
+    [TestMethod]
+    public void QualityScore_BestQuality_StereoLosslessStillBeatsSurroundLossy()
+    {
+        // Lossless-first is preserved as the default: the FLAC stereo still wins,
+        // exactly as before. Users opt into MostChannels to change this.
+        var eac3Atmos = Audio(codec: "Eac3", channels: 6, trackName: "Dolby Atmos 5.1");
+        var flacStereo = Audio(codec: "Flac", channels: 2);
+
+        Assert.IsTrue(
+            TrackQualityScorer.ScoreAudio(flacStereo) > TrackQualityScorer.ScoreAudio(eac3Atmos));
+    }
+
+    // --- Content tier: main feature audio always beats commentary/dub ---
+
+    [TestMethod]
+    public void QualityScore_MainTrackBeatsHigherChannelCommentary()
+    {
+        // A 7.1 commentary track must never outrank a 2.0 main track, under any
+        // strategy. Previously the flag was only a tiny final tiebreaker.
+        var commentary71 = Audio(codec: "TrueHd", channels: 8, commentary: true);
+        var main20 = Audio(codec: "Aac", channels: 2);
+
+        Assert.IsTrue(TrackQualityScorer.ScoreAudio(main20) > TrackQualityScorer.ScoreAudio(commentary71),
+            "main track should win under BestQuality");
+        Assert.IsTrue(
+            TrackQualityScorer.ScoreAudio(main20, AudioQualityStrategy.MostChannels) >
+            TrackQualityScorer.ScoreAudio(commentary71, AudioQualityStrategy.MostChannels),
+            "main track should win under MostChannels too");
+    }
+
+    // --- Subtitle strategies ---
+
+    [TestMethod]
+    public void QualityScore_Subtitles_ImageFirst_PrefersBitmap()
+    {
+        var srt = Sub();
+        var pgs = Sub(codec: "Pgs");
+
+        Assert.IsTrue(
+            TrackQualityScorer.ScoreSubtitle(pgs, SubtitleQualityStrategy.ImageFirst) >
+            TrackQualityScorer.ScoreSubtitle(srt, SubtitleQualityStrategy.ImageFirst));
+    }
+
+    [TestMethod]
+    public void QualityScore_Subtitles_Accessibility_PrefersSdhOverRegular()
+    {
+        var regular = Sub();
+        var sdh = Sub(hi: true);
+
+        Assert.IsTrue(
+            TrackQualityScorer.ScoreSubtitle(sdh, SubtitleQualityStrategy.Accessibility) >
+            TrackQualityScorer.ScoreSubtitle(regular, SubtitleQualityStrategy.Accessibility));
+    }
+
+    [TestMethod]
+    public void QualityScore_Subtitles_Accessibility_SdhBitmapBeatsRegularText()
+    {
+        // SDH wins even when it's the lower-quality format: that is the point of
+        // the accessibility strategy.
+        var regularText = Sub(codec: "Srt");
+        var sdhImage = Sub(codec: "Pgs", hi: true);
+
+        Assert.IsTrue(
+            TrackQualityScorer.ScoreSubtitle(sdhImage, SubtitleQualityStrategy.Accessibility) >
+            TrackQualityScorer.ScoreSubtitle(regularText, SubtitleQualityStrategy.Accessibility));
     }
 
     // --- MaxTracks (Deduplication) ---
@@ -192,6 +287,141 @@ public class TrackPriorityTests
         Assert.AreEqual(3, result.Count);
         Assert.AreEqual(1, result.Count(t => t.LanguageName == "English"));
         Assert.AreEqual(2, result.Count(t => t.LanguageName == "Japanese"));
+    }
+
+    [TestMethod]
+    public void MaxTracks_MostChannels_KeepsSurroundOverStereoLossless()
+    {
+        // End-to-end through the dedup path: reproduces the reported bug scenario.
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                new LanguagePreference(IsoLanguage.Find("English"))
+                {
+                    MaxTracks = 1,
+                    QualityStrategy = AudioQualityStrategy.MostChannels
+                }
+            ]
+        };
+
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English", "Eac3", 6, trackName: "Dolby Atmos 5.1"),
+            Audio(2, "English", "Flac", 2, trackName: "Original Dual Mono")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, null);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("Eac3", result[0].Codec, "5.1 Atmos should survive, not the 2.0 FLAC downmix");
+    }
+
+    [TestMethod]
+    public void MaxTracks_DefaultStrategy_KeepsStereoLossless()
+    {
+        // Same input, default (lossless-first) strategy: current behaviour is preserved.
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                new LanguagePreference(IsoLanguage.Find("English")) { MaxTracks = 1 }
+            ]
+        };
+
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English", "Eac3", 6, trackName: "Dolby Atmos 5.1"),
+            Audio(2, "English", "Flac", 2, trackName: "Original Dual Mono")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, null);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("Flac", result[0].Codec, "Default lossless-first keeps the FLAC, unchanged");
+    }
+
+    [TestMethod]
+    public void MaxTracks_SubtitleImageFirst_KeepsPgs()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                new LanguagePreference(IsoLanguage.Find("English"))
+                {
+                    MaxTracks = 1,
+                    SubtitleStrategy = SubtitleQualityStrategy.ImageFirst
+                }
+            ]
+        };
+
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", "Srt"),
+            Sub(2, "English", "Pgs")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, null);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("Pgs", result[0].Codec, "ImageFirst keeps the PGS track over SRT");
+    }
+
+    [TestMethod]
+    public void MaxTracks_SubtitleAccessibility_KeepsSdh()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                new LanguagePreference(IsoLanguage.Find("English"))
+                {
+                    MaxTracks = 1,
+                    SubtitleStrategy = SubtitleQualityStrategy.Accessibility
+                }
+            ]
+        };
+
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", "Srt"),
+            Sub(2, "English", "Srt", hi: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, null);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.IsTrue(result[0].IsHearingImpaired, "Accessibility keeps the SDH track over the regular one");
+    }
+
+    [TestMethod]
+    public void MaxTracks_SubtitleDefault_KeepsTextOverImage()
+    {
+        // No subtitle strategy set: default TextFirst preserves prior behaviour.
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                new LanguagePreference(IsoLanguage.Find("English")) { MaxTracks = 1 }
+            ]
+        };
+
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", "Pgs"),
+            Sub(2, "English", "Srt")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, null);
+
+        Assert.AreEqual(1, result.Count);
+        Assert.AreEqual("Srt", result[0].Codec, "Default TextFirst keeps the SRT track");
     }
 
     // --- Language Priority Reordering ---
