@@ -24,10 +24,12 @@ public class WebhookService(
         using var scope = serviceScopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var config = context.Configs.GetOrDefault<WebhookConfig>();
+        var mappings = context.Configs.GetOrDefault<PathMappingConfig>().Mappings;
 
+        var path = PathMapper.Resolve(item.FilePath, mappings);
         var processAfter = DateTime.UtcNow.AddSeconds(config.DelaySeconds);
-        _queue.Enqueue(new WebhookQueueItem(item.FilePath, item.Title, item.OriginalLanguage, processAfter));
-        logger.LogInformation("Webhook queued {Path}, will process after {Time}", item.FilePath, processAfter);
+        _queue.Enqueue(new WebhookQueueItem(path, item.Title, item.OriginalLanguage, processAfter));
+        logger.LogInformation("Webhook queued {Path}, will process after {Time}", path, processAfter);
     }
 
     protected override async Task ExecuteAsync(CancellationToken token)
