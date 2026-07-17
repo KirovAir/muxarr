@@ -162,6 +162,14 @@
                     </button>
                 </ToolTip>
             }
+            @if (File.Snapshot.HasChapters)
+            {
+                <div class="form-check form-switch mb-0 ms-1">
+                    <input type="checkbox" class="form-check-input" id="customRemoveChapters"
+                           @bind="_removeChapters"/>
+                    <label class="form-check-label small" for="customRemoveChapters">Remove chapters</label>
+                </div>
+            }
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-secondary" @onclick="Cancel">Cancel</button>
@@ -183,6 +191,7 @@
     private List<IsoLanguage> _languages = new();
     private int _selectedProfileId;
     private bool _validationError;
+    private bool _removeChapters;
 
     protected override void OnInitialized()
     {
@@ -227,6 +236,7 @@
         }
 
         var target = File.BuildTargetFromProfile(profile);
+        _removeChapters = profile.RemoveChapters;
 
         // Apply track selection from profile.
         var allowedIds = target.Tracks.Select(t => t.Index).ToHashSet();
@@ -380,6 +390,11 @@
             .Where(t => t.Type != MediaTrackType.Video && _selectedTrackIds.Contains(t.Index));
         var selectedTracks = videoTracks.Concat(selectedNonVideo).ToList();
         var target = File.BuildTargetFromCustom(selectedTracks);
+        if (_removeChapters)
+        {
+            target.HasChapters = false;
+        }
+
         await BlazoredModal.CloseAsync(ModalResult.Ok(target));
     }
 

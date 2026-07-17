@@ -88,6 +88,14 @@ public static class MkvPropEdit
             editCount++;
         }
 
+        // An empty chapter filename tells mkvpropedit to strip all chapters,
+        // so a chapter-only removal stays on the fast in-place path.
+        if (delta.HasChapters == false)
+        {
+            command += " --chapters \"\"";
+            editCount++;
+        }
+
         // Guard against plan/apply drift: if a strategy of MetadataEdit
         // produced a delta whose fields Apply can't express (e.g. a bare
         // IsDub change that the planner should have folded into a title

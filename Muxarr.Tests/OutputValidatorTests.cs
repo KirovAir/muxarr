@@ -313,4 +313,30 @@ public class OutputValidatorTests
 
         StringAssert.Contains(ex.Message, "title");
     }
+
+    [TestMethod]
+    public void RemoveChapters_OutputStripped_Passes()
+    {
+        var source = Media(trackTypes: MediaTrackType.Video);
+        var actual = Media(trackTypes: MediaTrackType.Video); // HasChapters defaults false
+        var target = Expected(MediaTrackType.Video);
+        target.HasChapters = false;
+
+        OutputValidator.ValidateOrThrow(actual, source, target);
+    }
+
+    [TestMethod]
+    public void RemoveChapters_ChaptersSurvived_Throws()
+    {
+        var source = Media(trackTypes: MediaTrackType.Video);
+        var actual = Media(trackTypes: MediaTrackType.Video);
+        actual.Snapshot.HasChapters = true;
+        var target = Expected(MediaTrackType.Video);
+        target.HasChapters = false;
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, target));
+
+        StringAssert.Contains(ex.Message, "chapters");
+    }
 }

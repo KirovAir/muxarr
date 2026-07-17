@@ -299,6 +299,7 @@ public class MediaScannerService(
                 var trackCount = dbFile.Snapshot.TrackCount;
                 dbFile.HasRedundantTracks = profile != null && target.Tracks.Count < trackCount;
                 dbFile.HasNonStandardMetadata = dbFile.CheckHasNonStandardMetadata(profile, target);
+                dbFile.HasRemovableChapters = profile is { RemoveChapters: true } && dbFile.Snapshot.HasChapters;
             }
 
             dbFile.Size = fileInfo.Length;

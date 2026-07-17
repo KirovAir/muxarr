@@ -949,6 +949,7 @@ public static class MediaFileExtensions
         {
             TrimToVideoLengthMs = profile.TrimToVideoLength ? file.Snapshot.VideoEndTrimPointMs() : null,
             Title = profile.ClearFileTitle ? "" : null,
+            HasChapters = profile.RemoveChapters ? false : (bool?)null,
             Tracks = allowed.Select(t =>
             {
                 var settings = SettingsFor(t.Type, profile);

@@ -319,4 +319,51 @@ public class MkvToolNixTests : FixtureTestBase
             }
         }
     }
+
+    // Chapter-only in-place edit: the plan carries no track changes, so this
+    // also proves the empty --chapters "" arg survives ProcessExecutor and that
+    // editCount is bumped (else mkvpropedit no-ops on "Nothing to do").
+    [TestMethod]
+    public async Task PropEdit_RemovesChapters()
+    {
+        var file = CopyFixture("chapters.mkv");
+        var before = await MkvMerge.GetFileInfo(file);
+        Assert.IsTrue(before.Result!.Chapters.Sum(c => c.NumEntries) > 0, "fixture should start with chapters");
+
+        var plan = TestPlan.Of(new TrackPlan { Index = 0, Type = MediaTrackType.Video });
+        plan.HasChapters = false;
+
+        var result = await MkvPropEdit.Apply(file, file, plan);
+        Assert.IsTrue(result.Success, $"MkvPropEdit failed: {result.Error}");
+
+        var after = await MkvMerge.GetFileInfo(file);
+        Assert.AreEqual(0, after.Result!.Chapters.Sum(c => c.NumEntries));
+    }
+
+    [TestMethod]
+    public async Task RemuxFile_RemovesChapters()
+    {
+        var file = CopyFixture("chapters.mkv");
+        var output = file + ".remux.mkv";
+        try
+        {
+            var plan = TestPlan.Of(
+                new TrackPlan { Index = 0, Type = MediaTrackType.Video },
+                new TrackPlan { Index = 1, Type = MediaTrackType.Audio });
+            plan.HasChapters = false;
+
+            var result = await MkvMerge.Remux(file, output, plan);
+            Assert.IsTrue(MkvMerge.IsSuccess(result), $"RemuxFile failed: {result.Error}");
+
+            var info = await MkvMerge.GetFileInfo(output);
+            Assert.AreEqual(0, info.Result!.Chapters.Sum(c => c.NumEntries));
+        }
+        finally
+        {
+            if (File.Exists(output))
+            {
+                File.Delete(output);
+            }
+        }
+    }
 }

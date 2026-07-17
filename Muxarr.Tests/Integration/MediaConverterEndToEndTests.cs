@@ -266,6 +266,35 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // Chapter removal: MKV takes the in-place mkvpropedit path, MP4 the ffmpeg
+    // remux path. Both must strip chapters, flag the file for the auto-queue,
+    // and leave nothing to redo.
+    [TestMethod]
+    [DataRow("chapters.mkv")]
+    [DataRow("chapters.mp4")]
+    public async Task RemoveChapters_StripsChapters(string fixture)
+    {
+        var path = CopyFixture(fixture);
+        var profile = await Fixture.SeedProfile(removeChapters: true);
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.IsTrue(file.Snapshot.HasChapters, "fixture should start with chapters");
+        Assert.IsTrue(file.HasRemovableChapters, "scan must flag the file so the webhook queue picks it up");
+
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromProfile(profile));
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.IsFalse(probed.Snapshot.HasChapters, $"chapters should be gone from {fixture}");
+
+        var recheck = ConversionPlanExtensions.Delta(probed.Snapshot, probed.BuildTargetFromProfile(profile));
+        Assert.IsNull(recheck.HasChapters, "a stripped file must not ask to be stripped again");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
     [TestMethod]
     public async Task CustomConversion_StaleTarget_FailsWithClearMessage()
     {

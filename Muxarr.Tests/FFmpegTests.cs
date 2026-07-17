@@ -98,6 +98,28 @@ public class FFmpegTests
     }
 
     [TestMethod]
+    public void BuildArguments_DropsChapters_WhenPlanRemovesThem()
+    {
+        var plan = TestPlan.Of(new List<TrackPlan> { new() { Index = 0, Type = MediaTrackType.Video } });
+        plan.HasChapters = false;
+
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", plan);
+
+        StringAssert.Contains(args, "-map_chapters -1");
+    }
+
+    [TestMethod]
+    public void BuildArguments_KeepsChapters_WhenPlanDoesNot()
+    {
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(new List<TrackPlan>
+        {
+            new() { Index = 0, Type = MediaTrackType.Video }
+        }));
+
+        Assert.IsFalse(args.Contains("-map_chapters -1"), $"unexpected chapter drop in: {args}");
+    }
+
+    [TestMethod]
     public void BuildArguments_IncludesProgressPipe()
     {
         var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(new List<TrackPlan>()));
@@ -390,6 +412,49 @@ public class FFmpegTests
         var probed = new MediaFile { Path = output };
         await probed.SetFileDataFromFFprobe();
         Assert.IsTrue(string.IsNullOrEmpty(probed.Snapshot.Title));
+    }
+
+    [TestMethod]
+    public async Task RemuxFile_RemovesChapters()
+    {
+        var work = Path.Combine(Path.GetTempPath(), $"muxarr_chap_{Guid.NewGuid():N}.mp4");
+        var output = work + ".muxtmp";
+        File.Copy(Fixtures.Resolve("chapters.mp4"), work, true);
+        try
+        {
+            var source = new MediaFile { Path = work };
+            await source.SetFileDataFromFFprobe();
+            Assert.IsTrue(source.Snapshot.HasChapters, "fixture should start with chapters");
+
+            var probe = await FFmpeg.GetStreamInfo(work);
+            var tracks = probe.Result!.Streams
+                .Where(s => s.CodecType is "video" or "audio")
+                .Select(s => new TrackPlan
+                {
+                    Index = s.Index,
+                    Type = s.CodecType == "video" ? MediaTrackType.Video : MediaTrackType.Audio
+                })
+                .ToList();
+            var plan = TestPlan.Of(tracks);
+            plan.HasChapters = false;
+
+            var result = await FFmpeg.Remux(work, output, plan);
+            Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
+
+            var probed = new MediaFile { Path = output };
+            await probed.SetFileDataFromFFprobe();
+            Assert.IsFalse(probed.Snapshot.HasChapters, "chapters should be gone");
+        }
+        finally
+        {
+            foreach (var p in new[] { work, output })
+            {
+                if (File.Exists(p))
+                {
+                    File.Delete(p);
+                }
+            }
+        }
     }
 
     [TestMethod]

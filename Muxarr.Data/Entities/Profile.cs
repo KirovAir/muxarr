@@ -87,6 +87,7 @@ public class Profile : AuditableEntity
     public List<string> Directories { get; set; } = new();
     public bool ClearVideoTrackNames { get; set; }
     public bool ClearFileTitle { get; set; }
+    public bool RemoveChapters { get; set; }
     public bool TrimToVideoLength { get; set; }
     public bool SkipHardlinkedFiles { get; set; }
     public TrackSettings AudioSettings { get; set; } = new();
@@ -167,6 +168,10 @@ public class ProfileConfiguration : AuditEntityConfiguration<Profile>
             .HasDefaultValue(false);
 
         builder.Property(e => e.ClearFileTitle)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(e => e.RemoveChapters)
             .IsRequired()
             .HasDefaultValue(false);
 

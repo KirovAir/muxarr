@@ -132,7 +132,8 @@ public class WebhookService(
                 return;
             }
 
-            if (!mediaFile.HasRedundantTracks && !mediaFile.HasNonStandardMetadata)
+            if (!mediaFile.HasRedundantTracks && !mediaFile.HasNonStandardMetadata &&
+                !mediaFile.HasRemovableChapters)
             {
                 logger.LogInformation("Webhook: no changes needed for {Path}, skipping queue", item.FilePath);
                 return;

@@ -75,6 +75,11 @@ public static class OutputValidator
             throw new Exception(
                 $"Output container title is '{actual.Snapshot.Title}', expected '{target.Title}'.");
         }
+
+        if (target.HasChapters == false && actual.Snapshot.HasChapters)
+        {
+            throw new Exception("Output still has chapters; removal did not apply.");
+        }
     }
 
     // A container is as long as its longest track, so dropping a track that ran

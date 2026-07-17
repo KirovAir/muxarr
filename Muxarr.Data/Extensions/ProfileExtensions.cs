@@ -21,6 +21,7 @@ public static class ProfileExtensions
         clone.Id = profile.Id;
         clone.ClearVideoTrackNames = profile.ClearVideoTrackNames;
         clone.ClearFileTitle = profile.ClearFileTitle;
+        clone.RemoveChapters = profile.RemoveChapters;
         clone.TrimToVideoLength = profile.TrimToVideoLength;
         clone.SkipHardlinkedFiles = profile.SkipHardlinkedFiles;
         return clone;

@@ -113,6 +113,45 @@ public class ConversionPlannerTests
         Assert.IsNull(result.Delta.Title);
     }
 
+    // --- Strategy: chapter removal ---
+
+    // Stripping chapters is metadata-only on Matroska (mkvpropedit --chapters "")
+    // but forces a remux on MP4, same container split as any other field change.
+    [TestMethod]
+    [DataRow("Matroska", ConversionPlanner.ConversionStrategy.MetadataEdit)]
+    [DataRow("MP4/QuickTime", ConversionPlanner.ConversionStrategy.Remux)]
+    public void Strategy_RemoveChapters_SplitsByContainer(string container,
+        ConversionPlanner.ConversionStrategy expected)
+    {
+        var file = MakeFileWithContainer(container, null, Video(0), Audio(1, "English"));
+        file.Snapshot.HasChapters = true;
+        var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
+        target.HasChapters = false;
+
+        var result = ConversionPlanner.Plan(before, target);
+
+        Assert.AreEqual(expected, result.Strategy);
+        Assert.AreEqual(false, result.Delta.HasChapters, "delta must carry the strip through to the writer");
+    }
+
+    // A file without chapters needs no work even when the profile removes them.
+    [TestMethod]
+    [DataRow("Matroska")]
+    [DataRow("MP4/QuickTime")]
+    public void Strategy_RemoveChapters_NoChapters_ReturnsSkip(string container)
+    {
+        var file = MakeFileWithContainer(container, null, Video(0), Audio(1, "English"));
+        var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
+        target.HasChapters = false;
+
+        var result = ConversionPlanner.Plan(before, target);
+
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
+        Assert.IsNull(result.Delta.HasChapters);
+    }
+
     // --- Strategy: Remux (structural changes) ---
 
     [TestMethod]

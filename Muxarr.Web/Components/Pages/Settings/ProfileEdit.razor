@@ -84,6 +84,13 @@
                             <small class="form-text text-muted d-block">Remove the container title (the release group
                                 name or junk shown as the file's "Title") during conversion.</small>
                         </div>
+                        <div class="mb-3 form-check form-switch">
+                            <InputCheckbox id="removeChapters" class="form-check-input"
+                                           @bind-Value="_profile.RemoveChapters"/>
+                            <label class="form-check-label" for="removeChapters">Remove chapters</label>
+                            <small class="form-text text-muted d-block">Strip chapter markers from files during
+                                conversion.</small>
+                        </div>
                     }
                     else if (_tab == "video")
                     {
@@ -205,6 +212,7 @@
                 existing.Directories = _profile.Directories;
                 existing.ClearVideoTrackNames = _profile.ClearVideoTrackNames;
                 existing.ClearFileTitle = _profile.ClearFileTitle;
+                existing.RemoveChapters = _profile.RemoveChapters;
                 existing.TrimToVideoLength = _profile.TrimToVideoLength;
                 existing.SkipHardlinkedFiles = _profile.SkipHardlinkedFiles;
                 existing.AudioSettings = _profile.AudioSettings;

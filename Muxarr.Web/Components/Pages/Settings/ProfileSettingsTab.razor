@@ -60,7 +60,7 @@ else
                     <TrackSettingsDisplay Settings="@profile.SubtitleSettings"/>
                 </div>
 
-                @if (profile.ClearVideoTrackNames || profile.ClearFileTitle || profile.TrimToVideoLength || profile.SkipHardlinkedFiles)
+                @if (profile.ClearVideoTrackNames || profile.ClearFileTitle || profile.RemoveChapters || profile.TrimToVideoLength || profile.SkipHardlinkedFiles)
                 {
                     <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top">
                         @if (profile.ClearVideoTrackNames)
@@ -76,6 +76,14 @@ else
                             <ToolTip Tip="The container title will be cleared during conversion">
                                 <span class="badge text-bg-light border">
                                     <i class="bi bi-type me-1"></i>Clear file title
+                                </span>
+                            </ToolTip>
+                        }
+                        @if (profile.RemoveChapters)
+                        {
+                            <ToolTip Tip="Chapter markers will be removed during conversion">
+                                <span class="badge text-bg-light border">
+                                    <i class="bi bi-bookmark-x me-1"></i>Remove chapters
                                 </span>
                             </ToolTip>
                         }

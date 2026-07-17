@@ -42,6 +42,42 @@ public static class Fixtures
         await GenerateAsymmetricMp4Async("asymmetric.mp4");
         await GenerateTruncatedMkvAsync("truncated.mkv");
         await GenerateRichMp4Async("test_rich.mp4");
+        await GenerateChapteredAsync("chapters.mkv", "mpeg4", "ac3", "matroska", 10);
+        await GenerateChapteredAsync("chapters.mp4", "libx264", "aac", "mp4", 25);
+    }
+
+    /// <summary>
+    /// A short A/V file carrying two chapters, so the chapter-removal path has
+    /// something real to strip on both the mkv and mp4 engines.
+    /// </summary>
+    private static async Task GenerateChapteredAsync(string targetName, string vcodec, string acodec,
+        string format, int rate)
+    {
+        var target = Path.Combine(PoolDir, targetName);
+        if (File.Exists(target))
+        {
+            return;
+        }
+
+        var meta = target + ".ffmeta";
+        await File.WriteAllTextAsync(meta,
+            ";FFMETADATA1\n" +
+            "[CHAPTER]\nTIMEBASE=1/1000\nSTART=0\nEND=2000\ntitle=Intro\n" +
+            "[CHAPTER]\nTIMEBASE=1/1000\nSTART=2000\nEND=5000\ntitle=Main\n");
+
+        var args =
+            "-y -loglevel error " +
+            $"-f lavfi -i \"testsrc=duration=5:size=160x120:rate={rate}\" " +
+            "-f lavfi -i \"sine=duration=5:frequency=440\" " +
+            $"-i \"{meta}\" -map 0:v -map 1:a -map_chapters 2 " +
+            $"-c:v {vcodec} -c:a {acodec} -f {format} " +
+            $"\"{target}\"";
+        var result = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", args, TimeSpan.FromSeconds(60));
+        File.Delete(meta);
+        if (!result.Success || !File.Exists(target))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}: {result.Error?.Trim()}");
+        }
     }
 
     /// <summary>

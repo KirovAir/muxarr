@@ -1471,6 +1471,22 @@ public class ConversionPipelineTests
         Assert.IsFalse(file.CheckHasNonStandardMetadata(MakeProfile(clearFileTitle: false)));
     }
 
+    // --- RemoveChapters ---
+
+    [TestMethod]
+    [DataRow(true, false)]
+    [DataRow(false, null)]
+    public void RemoveChapters_SetsPlanFlagOnlyWhenEnabled(bool enabled, bool? expected)
+    {
+        var file = MakeFile(null, Video(0), Audio(1, "English"));
+        file.Snapshot.ContainerType = "Matroska";
+        file.Snapshot.HasChapters = true;
+
+        var target = file.BuildTargetFromProfile(MakeProfile(removeChapters: enabled));
+
+        Assert.AreEqual(expected, target.HasChapters);
+    }
+
     // --- CheckHasNonStandardMetadata ---
 
     [TestMethod]
