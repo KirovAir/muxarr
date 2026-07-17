@@ -452,12 +452,9 @@ public static class MediaFileExtensions
                     // A forced subtitle only translates foreign dialogue and signs, so it
                     // is no substitute for the full captions an SDH track carries.
                     var isSubtitles = tracksInLanguage[0].Type == MediaTrackType.Subtitles;
-                    var nonHITracks = tracksInLanguage
-                        .Where(t => !t.IsHearingImpaired && !(isSubtitles && t.IsForced))
-                        .ToList();
-                    if (nonHITracks.Any())
+                    if (tracksInLanguage.Any(t => !IsImpaired(t) && !(isSubtitles && t.IsForced)))
                     {
-                        filteredTracks = filteredTracks.Where(t => !t.IsHearingImpaired);
+                        filteredTracks = filteredTracks.Where(t => !IsImpaired(t));
                     }
                 }
 
@@ -499,7 +496,7 @@ public static class MediaFileExtensions
                         s.AllowedLanguages.Any(x => x.Name == t.LanguageName) ||
                         t.LanguageName == originalLanguage)
                     .ThenByDescending(t => !t.IsCommentary)
-                    .ThenByDescending(t => !t.IsHearingImpaired)
+                    .ThenByDescending(t => !IsImpaired(t))
                     .ThenByDescending(x => x.Index);
 
                 allowedTracks.Add(bestTracks.First());
@@ -1054,8 +1051,14 @@ public static class MediaFileExtensions
     // that should be the actual default.
     private static bool IsSupplementary(IMediaTrack track)
     {
-        return track.IsCommentary || track.IsHearingImpaired || track.IsVisualImpaired ||
-               track.IsDub || track.IsForced;
+        return track.IsCommentary || IsImpaired(track) || track.IsDub || track.IsForced;
+    }
+
+    // What "Remove SDH / Accessibility" covers: captions for hearing impaired
+    // viewers, and audio description for visually impaired ones.
+    private static bool IsImpaired(IMediaTrack track)
+    {
+        return track.IsHearingImpaired || track.IsVisualImpaired;
     }
 
     // Helpers

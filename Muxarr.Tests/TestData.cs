@@ -27,7 +27,8 @@ public static class TestData
     public static TrackSnapshot Audio(int trackNumber = 0, string language = "English",
         string codec = nameof(AudioCodec.Aac), int channels = 6,
         bool commentary = false, bool hi = false, bool isDefault = false,
-        bool dub = false, bool isOriginal = false, string? trackName = null, string? languageCode = null)
+        bool dub = false, bool isOriginal = false, string? trackName = null, string? languageCode = null,
+        bool vi = false)
     {
         var iso = IsoLanguage.Find(language);
         return new TrackSnapshot
@@ -40,6 +41,7 @@ public static class TestData
             AudioChannels = channels,
             IsCommentary = commentary,
             IsHearingImpaired = hi,
+            IsVisualImpaired = vi,
             IsDefault = isDefault,
             IsDub = dub,
             IsOriginal = isOriginal,

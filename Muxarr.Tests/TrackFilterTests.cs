@@ -295,6 +295,45 @@ public class TrackFilterTests
             "forced is not a full-text alternative, so the SDH track must stay");
     }
 
+    [TestMethod]
+    public void Audio_AudioDescription_RemovedWhenAlternativeExists()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English", vi: true),
+            Audio(2, "English")
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveImpaired = true
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void Audio_AudioDescriptionOnly_KeptBySafetyCheck()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English", vi: true)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveImpaired = true
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        Assert.AreEqual(1, result.Count, "removing the only audio track would leave silence");
+    }
+
     // "Forced" only means something for subtitles, and it gets inferred from
     // track titles, so audio must keep treating it as an ordinary alternative.
     [TestMethod]
