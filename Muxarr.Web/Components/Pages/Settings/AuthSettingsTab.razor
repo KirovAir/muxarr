@@ -47,6 +47,21 @@
                         }
                     </div>
                 </EditForm>
+
+                @if (IsConfigured)
+                {
+                    <hr class="my-3"/>
+                    <div class="form-check form-switch">
+                        <input type="checkbox" class="form-check-input" role="switch" id="trust-local-network"
+                               checked="@TrustLocalNetwork" @onchange="HandleTrustLocalChanged"/>
+                        <label class="form-check-label" for="trust-local-network">Trust the local network</label>
+                    </div>
+                    <small class="form-text text-muted">
+                        Requests from private/LAN addresses can use Muxarr without logging in. Behind a reverse proxy,
+                        make sure it forwards the real client address (X-Forwarded-For), otherwise all traffic is treated
+                        as local.
+                    </small>
+                }
             </div>
         </div>
     </div>
@@ -83,6 +98,7 @@
     private AuthFormModel Model { get; set; } = new();
     private bool IsConfigured { get; set; }
     private string CurrentUsername { get; set; } = string.Empty;
+    private bool TrustLocalNetwork { get; set; }
     private string _apiKey = string.Empty;
 
     protected override async Task OnInitializedAsync()
@@ -96,6 +112,7 @@
         var config = context.Configs.Get<AuthConfig>(AuthConfig.Key);
         IsConfigured = config != null;
         CurrentUsername = config?.Username ?? string.Empty;
+        TrustLocalNetwork = config?.TrustLocalNetwork ?? false;
         Model.Username = CurrentUsername;
 
         var webhookConfig = context.Configs.GetOrDefault<WebhookConfig>();
@@ -125,11 +142,9 @@
         try
         {
             await using var context = await ContextFactory.CreateDbContextAsync();
-            var config = new AuthConfig
-            {
-                Username = Model.Username.Trim(),
-                PasswordHash = Hasher.HashPassword(Model.Username, Model.Password)
-            };
+            var config = context.Configs.Get<AuthConfig>(AuthConfig.Key) ?? new AuthConfig();
+            config.Username = Model.Username.Trim();
+            config.PasswordHash = Hasher.HashPassword(Model.Username, Model.Password);
             context.Configs.Set(config, AuthConfig.Key);
             await context.SaveChangesAsync();
 
@@ -169,6 +184,35 @@
         catch (Exception ex)
         {
             ToastService.ShowError($"Failed to disable: {ex.Message}");
+        }
+    }
+
+    private async Task HandleTrustLocalChanged(ChangeEventArgs e)
+    {
+        var enabled = e.Value as bool? ?? false;
+
+        try
+        {
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            var config = context.Configs.Get<AuthConfig>(AuthConfig.Key);
+            if (config == null)
+            {
+                return;
+            }
+
+            config.TrustLocalNetwork = enabled;
+            context.Configs.Set(config, AuthConfig.Key);
+            await context.SaveChangesAsync();
+
+            TrustLocalNetwork = enabled;
+            ToastService.ShowSuccess(enabled
+                ? "Local network login is now skipped."
+                : "Local network login is now required.");
+        }
+        catch (Exception ex)
+        {
+            await LoadState();
+            ToastService.ShowError($"Failed to save: {ex.Message}");
         }
     }
 

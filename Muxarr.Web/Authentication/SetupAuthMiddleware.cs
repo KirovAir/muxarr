@@ -63,8 +63,15 @@ public class SetupAuthMiddleware(RequestDelegate next)
                 .GetRequiredService<IDbContextFactory<AppDbContext>>()
                 .CreateDbContextAsync();
 
-            if (await db.Configs.GetAsync<AuthConfig>(AuthConfig.Key) != null)
+            if (await db.Configs.GetAsync<AuthConfig>(AuthConfig.Key) is { } authConfig)
             {
+                if (authConfig.TrustLocalNetwork &&
+                    LocalNetwork.IsLocalAddress(httpContext.Connection.RemoteIpAddress))
+                {
+                    await next(httpContext);
+                    return;
+                }
+
                 httpContext.Response.Redirect("/login");
                 return;
             }
