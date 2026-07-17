@@ -204,10 +204,14 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // mkvmerge is told to stop after the video; ffmpeg is handed the same cut
+    // point as -t. Both must land on the 3s video without shortening it.
     [TestMethod]
-    public async Task Remux_StopAfterVideoEnds_TrimsOverlongAudio()
+    [DataRow("asymmetric.mkv")]
+    [DataRow("asymmetric.mp4")]
+    public async Task Remux_StopAfterVideoEnds_TrimsOverlongAudio(string fixture)
     {
-        var path = CopyFixture("asymmetric.mkv");
+        var path = CopyFixture(fixture);
         var profile = await Fixture.SeedProfile(stopAfterVideoEnds: true);
         var file = await Fixture.ScanAndPersist(path, profile);
 
@@ -223,7 +227,13 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         Assert.AreEqual(2, probed.Snapshot.Tracks.Count, "trimming must not drop tracks");
         Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
             $"audio should be cut back to the 3s video, got {probed.Snapshot.DurationMs}ms");
-        Assert.IsNull(probed.BuildTargetFromProfile(profile).StopAfterVideoEnds,
+
+        // The whole safety promise: the video itself comes out untouched.
+        var video = probed.Snapshot.Tracks.Single(t => t.Type == MediaTrackType.Video);
+        Assert.IsTrue(video.DurationMs >= 2900,
+            $"the video must not be shortened, got {video.DurationMs}ms");
+
+        Assert.IsNull(probed.BuildTargetFromProfile(profile).StopAfterVideoEndsMs,
             "a trimmed file must not ask to be trimmed again");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }

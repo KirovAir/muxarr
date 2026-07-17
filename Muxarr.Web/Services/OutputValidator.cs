@@ -45,6 +45,20 @@ public static class OutputValidator
                     $"Output duration {actual.Snapshot.DurationMs}ms is shorter than the expected {expectedDuration}ms " +
                     $"(tolerance {tolerance}ms). File may be truncated.");
             }
+
+            // A trim is a hard cut: an output still at full length means the writer
+            // ignored it. A skipped trim leaves over a second of overrun (that is
+            // what makes a file worth trimming), so a sub-second bound reliably
+            // tells a real cut from a skipped one - and unlike the percentage floor
+            // above, it stays tight on a multi-hour file.
+            const long trimToleranceMs = 500;
+            if (target.StopAfterVideoEndsMs != null &&
+                actual.Snapshot.DurationMs > expectedDuration + trimToleranceMs)
+            {
+                throw new Exception(
+                    $"Output duration {actual.Snapshot.DurationMs}ms is longer than the requested trim point " +
+                    $"{expectedDuration}ms (tolerance {trimToleranceMs}ms). Trim may not have applied.");
+            }
         }
 
         if (actual.HasScanWarning && !source.HasScanWarning)
@@ -55,19 +69,19 @@ public static class OutputValidator
     }
 
     // A container is as long as its longest track, so dropping a track that ran
-    // past the rest of the file shortens the output for good reason. Measure
-    // against the tracks the plan keeps instead. A track the probe gave no
-    // duration for would drag the expectation down and let real truncation
-    // through, so fall back to the source container unless all of them reported.
+    // past the rest legitimately shortens the output. Measure against the tracks
+    // the plan keeps; but a missing per-track duration would drag the expectation
+    // down and hide real truncation, so fall back to the container unless all reported.
     private static long ExpectedDurationMs(MediaFile source, ConversionPlan target)
     {
-        var tracks = source.Snapshot.Tracks;
-        var remaining = target.StopAfterVideoEnds == true
-            ? tracks.GetVideoTracks()
-            : tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
+        if (target.StopAfterVideoEndsMs is { } trimMs)
+        {
+            return trimMs;
+        }
 
-        return remaining.Count > 0 && remaining.All(t => t.DurationMs > 0)
-            ? remaining.LongestDurationMs()
+        var kept = source.Snapshot.Tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
+        return kept.Count > 0 && kept.All(t => t.DurationMs > 0)
+            ? kept.LongestDurationMs()
             : source.Snapshot.DurationMs;
     }
 }

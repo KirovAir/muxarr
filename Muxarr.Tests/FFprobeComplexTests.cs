@@ -117,9 +117,7 @@ public class FFprobeComplexTests : FixtureTestBase
         Assert.AreEqual(9, file.Snapshot.TrackCount);
     }
 
-    // Matroska only reports per-track length through the DURATION tag. Reading
-    // stream.duration instead leaves video and audio at zero and hands every
-    // subtitle the container's length.
+    // Guards the DURATION-tag read: stream.duration alone leaves MKV tracks at zero.
     [TestMethod]
     public async Task SetFileDataFromFFprobe_ParsesPerTrackDuration()
     {

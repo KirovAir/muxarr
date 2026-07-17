@@ -227,9 +227,49 @@ public class OutputValidatorTests
         var actual = MediaWithTracks(5_000, video, audio, longSub);
 
         var plan = Keeping(video, audio, longSub);
-        plan.StopAfterVideoEnds = true;
+        plan.StopAfterVideoEndsMs = 5_000;
 
         OutputValidator.ValidateOrThrow(actual, source, plan);
+    }
+
+    // If the writer silently ignored the trim request, the output is the full
+    // untrimmed length - "not shorter than expected" alone would wave that through.
+    [TestMethod]
+    public void StopAfterVideoEnds_OutputLongerThanTrim_Throws()
+    {
+        var video = Track(0, MediaTrackType.Video, 5_000);
+        var audio = Track(1, MediaTrackType.Audio, 25_000);
+
+        var source = MediaWithTracks(25_000, video, audio);
+        var actual = MediaWithTracks(25_000, video, audio);
+
+        var plan = Keeping(video, audio);
+        plan.StopAfterVideoEndsMs = 5_000;
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, plan));
+
+        StringAssert.Contains(ex.Message, "Trim may not have applied");
+    }
+
+    // A percentage tolerance sized for a 2h film would hide a completely
+    // un-trimmed 60s overrun. The trim check needs a small fixed bound instead.
+    [TestMethod]
+    public void StopAfterVideoEnds_LongFile_UntrimmedOverrun_StillThrows()
+    {
+        var video = Track(0, MediaTrackType.Video, 7_200_000);
+        var audio = Track(1, MediaTrackType.Audio, 7_260_000);
+
+        var source = MediaWithTracks(7_260_000, video, audio);
+        var actual = MediaWithTracks(7_260_000, video, audio); // trim never happened
+
+        var plan = Keeping(video, audio);
+        plan.StopAfterVideoEndsMs = 7_200_000;
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, plan));
+
+        StringAssert.Contains(ex.Message, "Trim may not have applied");
     }
 
     [TestMethod]
@@ -242,7 +282,7 @@ public class OutputValidatorTests
         var actual = MediaWithTracks(2_000, video, longSub);
 
         var plan = Keeping(video, longSub);
-        plan.StopAfterVideoEnds = true;
+        plan.StopAfterVideoEndsMs = 5_000;
 
         Assert.ThrowsExactly<Exception>(() => OutputValidator.ValidateOrThrow(actual, source, plan));
     }

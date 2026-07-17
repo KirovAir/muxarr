@@ -14,9 +14,10 @@ public class ConversionPlan : IMedia<TrackPlan>
     // Only meaningful for MP4-family containers; Matroska tools ignore it.
     public bool? Faststart { get; set; }
 
-    // Cut every track at the end of the video. Matroska only: ffmpeg's -shortest
-    // stops at the shortest stream instead, which eats real video and audio.
-    public bool? StopAfterVideoEnds { get; set; }
+    // Where the video track ends, when something runs past it and the profile
+    // asked for that to be cut. mkvmerge finds the point itself; ffmpeg has to
+    // be handed it, so the plan carries the timestamp rather than a flag.
+    public long? StopAfterVideoEndsMs { get; set; }
 
     bool IMedia<TrackPlan>.HasChapters => HasChapters ?? false;
     bool IMedia<TrackPlan>.HasAttachments => HasAttachments ?? false;

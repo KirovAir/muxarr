@@ -40,12 +40,12 @@ public class ConversionPlannerTests
             Audio(1, "English"));
         var before = file.ToMediaSnapshot();
         var target = TargetFromSnapshot(before);
-        target.StopAfterVideoEnds = true;
+        target.StopAfterVideoEndsMs = 5_000;
 
         var result = ConversionPlanner.Plan(before, target);
 
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
-        Assert.IsTrue(result.Delta.StopAfterVideoEnds, "delta must carry the trim through to mkvmerge");
+        Assert.AreEqual(5_000L, result.Delta.StopAfterVideoEndsMs, "delta must carry the trim through to the writer");
     }
 
     // --- Strategy: MetadataEdit (Matroska only) ---

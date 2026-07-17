@@ -39,6 +39,7 @@ public static class Fixtures
         await GenerateMp4FromMkvAsync("test.mkv", "test.mp4");
         await GenerateMp4FromMkvAsync("test_complex.mkv", "test_complex.mp4");
         await GenerateAsymmetricMkvAsync("asymmetric.mkv");
+        await GenerateAsymmetricMp4Async("asymmetric.mp4");
         await GenerateTruncatedMkvAsync("truncated.mkv");
         await GenerateRichMp4Async("test_rich.mp4");
     }
@@ -150,6 +151,31 @@ public static class Fixtures
             "-f lavfi -i \"testsrc=duration=3:size=160x120:rate=10\" " +
             "-f lavfi -i \"sine=duration=10:frequency=440\" " +
             "-c:v mpeg4 -c:a ac3 " +
+            $"\"{target}\"";
+        var result = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", args, TimeSpan.FromSeconds(60));
+        if (!result.Success || !File.Exists(target))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}: {result.Error?.Trim()}");
+        }
+    }
+
+    /// <summary>
+    /// The asymmetric fixture in an MP4 container, so the ffmpeg writer gets the
+    /// same 3s video + 10s audio shape the mkvmerge one is tested against.
+    /// </summary>
+    private static async Task GenerateAsymmetricMp4Async(string targetName)
+    {
+        var target = Path.Combine(PoolDir, targetName);
+        if (File.Exists(target))
+        {
+            return;
+        }
+
+        var args =
+            "-y -loglevel error " +
+            "-f lavfi -i \"testsrc=duration=3:size=160x120:rate=25\" " +
+            "-f lavfi -i \"sine=duration=10:frequency=440\" " +
+            "-c:v libx264 -c:a aac " +
             $"\"{target}\"";
         var result = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", args, TimeSpan.FromSeconds(60));
         if (!result.Success || !File.Exists(target))

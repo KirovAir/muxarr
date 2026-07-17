@@ -13,8 +13,9 @@ namespace Muxarr.Data.Extensions;
 
 public static class MediaFileExtensions
 {
-    // Trailing audio runs a packet or two past the last video frame on plenty
-    // of healthy files. Only an overhang beyond this is worth acting on.
+    // Healthy files often trail audio a packet or two past the last video frame;
+    // only an overhang beyond this counts as a track really running long. In the
+    // issue #18 file the audio ran 10ms past the video, the runaway subtitle ~18min.
     private const long VideoEndSlackMs = 1000;
 
     public static IQueryable<MediaFile> WithTracks(this IQueryable<MediaFile> query)
@@ -369,10 +370,15 @@ public static class MediaFileExtensions
             : 0;
     }
 
-    public static bool HasContentPastVideoEnd(this MediaSnapshot snapshot)
+    // Where the video ends, when another track runs past it (else null). First
+    // video track by index, not the longest: that is where mkvmerge's
+    // --stop-after-video-ends cuts, and the two writers must agree.
+    public static long? VideoEndTrimPointMs(this MediaSnapshot snapshot)
     {
-        var videoEnd = snapshot.Tracks.GetVideoTracks().LongestDurationMs();
-        return videoEnd > 0 && snapshot.Tracks.Any(t => t.DurationMs > videoEnd + VideoEndSlackMs);
+        var videoEnd = snapshot.Tracks.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault()?.DurationMs ?? 0;
+        return videoEnd > 0 && snapshot.Tracks.Any(t => t.DurationMs > videoEnd + VideoEndSlackMs)
+            ? videoEnd
+            : null;
     }
 
     // Allowed tracks filtering
@@ -914,7 +920,7 @@ public static class MediaFileExtensions
 
         var target = new ConversionPlan
         {
-            StopAfterVideoEnds = profile.StopAfterVideoEnds && file.Snapshot.HasContentPastVideoEnd() ? true : null,
+            StopAfterVideoEndsMs = profile.StopAfterVideoEnds ? file.Snapshot.VideoEndTrimPointMs() : null,
             Tracks = allowed.Select(t =>
             {
                 var settings = SettingsFor(t.Type, profile);
@@ -1054,8 +1060,7 @@ public static class MediaFileExtensions
         return track.IsCommentary || IsImpaired(track) || track.IsDub || track.IsForced;
     }
 
-    // What "Remove SDH / Accessibility" covers: captions for hearing impaired
-    // viewers, and audio description for visually impaired ones.
+    // The two "Remove SDH / Accessibility" covers: SDH captions and audio description.
     private static bool IsImpaired(IMediaTrack track)
     {
         return track.IsHearingImpaired || track.IsVisualImpaired;

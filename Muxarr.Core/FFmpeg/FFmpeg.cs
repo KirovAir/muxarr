@@ -68,7 +68,9 @@ public static class FFmpeg
         }
 
         var args = BuildRemuxArguments(input, output, delta, GetMp4MuxerFormat(input));
-        return await ExecuteAsync(args, sourceDurationMs, onProgress, timeout);
+
+        // A trimmed output stops at the cut, so that is what progress runs to.
+        return await ExecuteAsync(args, delta.StopAfterVideoEndsMs ?? sourceDurationMs, onProgress, timeout);
     }
 
     internal static string GetMp4MuxerFormat(string path)
@@ -172,6 +174,13 @@ public static class FFmpeg
 
         var movflags = faststart ? "+use_metadata_tags+faststart" : "+use_metadata_tags";
         sb.Append($" -c copy -map_metadata 0 -movflags {movflags}");
+
+        // Cut at the video's end, never -shortest (which stops at the shortest
+        // stream and would drop real video). The ms suffix keeps it locale-proof.
+        if (delta.StopAfterVideoEndsMs is { } trimMs)
+        {
+            sb.Append($" -t {trimMs}ms");
+        }
 
         for (var outIdx = 0; outIdx < tracks.Count; outIdx++)
         {
