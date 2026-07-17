@@ -98,7 +98,8 @@ public sealed class ConverterIntegrationFixture : IDisposable
     }
 
     public async Task<Profile> SeedProfile(string name = "test-profile",
-        bool clearVideoTrackNames = false, bool skipHardlinkedFiles = false)
+        bool clearVideoTrackNames = false, bool skipHardlinkedFiles = false,
+        bool stopAfterVideoEnds = false)
     {
         return await WithDbContext(async ctx =>
         {
@@ -108,6 +109,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
                 Directories = new List<string> { TempDir },
                 ClearVideoTrackNames = clearVideoTrackNames,
                 SkipHardlinkedFiles = skipHardlinkedFiles,
+                StopAfterVideoEnds = stopAfterVideoEnds,
                 AudioSettings = new TrackSettings(),
                 SubtitleSettings = new TrackSettings()
             };

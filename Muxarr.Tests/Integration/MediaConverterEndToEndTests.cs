@@ -137,18 +137,54 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
     [TestMethod]
     public async Task Remux_OutputTooShort_ValidatorRejects_RestoresFromBackup()
     {
-        // asymmetric.mkv is 3s video + 10s audio. Dropping the audio
-        // produces a 3s output, which trips OutputValidator's duration
-        // tolerance and triggers .muxbak rollback.
+        // truncated.mkv advertises two 10s tracks but its packets stop early,
+        // so mkvmerge happily writes a ~6s output. Nothing else catches this,
+        // which trips OutputValidator and triggers .muxbak rollback.
+        var path = CopyFixture("truncated.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.IsTrue(file.Snapshot.Tracks.LongestDurationMs() >= 9000,
+            $"truncated fixture should still advertise ~10s tracks, got " +
+            $"{file.Snapshot.Tracks.LongestDurationMs()}ms");
+
+        var hashBefore = FileAssertions.Sha256(path);
+        var sizeBefore = new FileInfo(path).Length;
+
+        // Keep every track, so the shortfall can only be real data loss.
+        // Reordering is what pulls this onto the remux path.
+        var reordered = file.Snapshot.Tracks.OrderByDescending(t => t.Index).ToSnapshots();
+        var target = file.BuildTargetFromCustom(reordered);
+
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
+        StringAssert.Contains(result.Log, "truncated",
+            $"log should mention the duration mismatch that tripped the validator. Log: {result.Log}");
+
+        // Rollback must leave the original byte-identical to pre-conversion.
+        Assert.IsTrue(File.Exists(path), "original file must still exist");
+        Assert.AreEqual(sizeBefore, new FileInfo(path).Length,
+            "restored file must match pre-conversion size");
+        FileAssertions.AssertSha256Equals(path, hashBefore,
+            "restored file must be byte-identical to the pre-conversion source");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // asymmetric.mkv is 3s video + 10s audio, so its container reports 10s.
+    // Dropping the audio leaves a complete 3s file - the validator used to call
+    // that truncation and roll back. Issues #18 and #37.
+    [TestMethod]
+    public async Task Remux_DroppingTheLongestTrack_IsNotTruncation()
+    {
         var path = CopyFixture("asymmetric.mkv");
         var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
         Assert.IsTrue(file.Snapshot.DurationMs >= 9000,
             $"asymmetric fixture should report >=9s container duration, got {file.Snapshot.DurationMs}ms");
-
-        var hashBefore = FileAssertions.Sha256(path);
-        var sizeBefore = new FileInfo(path).Length;
 
         var videoOnly = file.Snapshot.Tracks
             .Where(t => t.Type == MediaTrackType.Video)
@@ -159,16 +195,36 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
-        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
-        StringAssert.Contains(result.Log, "duration",
-            $"log should mention the duration mismatch that tripped the validator. Log: {result.Log}");
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
 
-        // Rollback must leave the original byte-identical to pre-conversion.
-        Assert.IsTrue(File.Exists(path), "original file must still exist");
-        Assert.AreEqual(sizeBefore, new FileInfo(path).Length,
-            "restored file must match pre-conversion size");
-        FileAssertions.AssertSha256Equals(path, hashBefore,
-            "restored file must be byte-identical to the pre-conversion source");
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.AreEqual(1, probed.Snapshot.Tracks.Count);
+        Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
+            $"output should be the 3s video, got {probed.Snapshot.DurationMs}ms");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    [TestMethod]
+    public async Task Remux_StopAfterVideoEnds_TrimsOverlongAudio()
+    {
+        var path = CopyFixture("asymmetric.mkv");
+        var profile = await Fixture.SeedProfile(stopAfterVideoEnds: true);
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        // Nothing about the tracks needs changing - the trim alone must be
+        // enough to pull this off the Skip path and into a real remux.
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromProfile(profile));
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.AreEqual(2, probed.Snapshot.Tracks.Count, "trimming must not drop tracks");
+        Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
+            $"audio should be cut back to the 3s video, got {probed.Snapshot.DurationMs}ms");
+        Assert.IsNull(probed.BuildTargetFromProfile(profile).StopAfterVideoEnds,
+            "a trimmed file must not ask to be trimmed again");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 

@@ -13,6 +13,10 @@ namespace Muxarr.Data.Extensions;
 
 public static class MediaFileExtensions
 {
+    // Trailing audio runs a packet or two past the last video frame on plenty
+    // of healthy files. Only an overhang beyond this is worth acting on.
+    private const long VideoEndSlackMs = 1000;
+
     public static IQueryable<MediaFile> WithTracks(this IQueryable<MediaFile> query)
     {
         return query.Include(f => f.Snapshot.Tracks);
@@ -53,6 +57,11 @@ public static class MediaFileExtensions
     public static List<T> GetSubtitleTracks<T>(this IEnumerable<T> tracks) where T : IMediaTrack
     {
         return tracks.Where(x => x.Type == MediaTrackType.Subtitles).ToList();
+    }
+
+    public static long LongestDurationMs<T>(this IEnumerable<T> tracks) where T : IMediaTrack
+    {
+        return tracks.Select(t => t.DurationMs).DefaultIfEmpty(0).Max();
     }
 
     public static void SetFileData(this MediaFile file, MkvMergeInfo? mkvInfo)
@@ -209,7 +218,7 @@ public static class MediaFileExtensions
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
                 IsOriginal = disposition.Original == 1,
                 IsDub = (trustDispositionDub && disposition.Dub == 1) || TrackNameFlags.ContainsDub(trackName),
-                DurationMs = ParseDurationMs(stream.Duration)
+                DurationMs = ParseTrackDurationMs(stream)
             };
 
             if (track.Type != MediaTrackType.Video
@@ -324,6 +333,30 @@ public static class MediaFileExtensions
         return null;
     }
 
+    // Matroska keeps per-track length in the DURATION tag. Its stream.duration
+    // is the segment length instead: absent on video/audio, and the whole
+    // container's length on subtitles. MP4 has no tag but a real stream.duration.
+    private static long ParseTrackDurationMs(FFprobeStream stream)
+    {
+        return stream.Tags != null && stream.Tags.TryGetValue("DURATION", out var tagged)
+            ? ParseTagDurationMs(tagged)
+            : ParseDurationMs(stream.Duration);
+    }
+
+    // DURATION is HH:MM:SS.nnnnnnnnn; TimeSpan only parses seven fractional digits.
+    private static long ParseTagDurationMs(string duration)
+    {
+        var dot = duration.IndexOf('.');
+        if (dot >= 0 && duration.Length - dot > 8)
+        {
+            duration = duration[..(dot + 8)];
+        }
+
+        return TimeSpan.TryParse(duration, CultureInfo.InvariantCulture, out var parsed)
+            ? (long)parsed.TotalMilliseconds
+            : 0;
+    }
+
     private static long ParseDurationMs(string? duration)
     {
         if (string.IsNullOrEmpty(duration))
@@ -334,6 +367,12 @@ public static class MediaFileExtensions
         return double.TryParse(duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var seconds)
             ? (long)(seconds * 1000)
             : 0;
+    }
+
+    public static bool HasContentPastVideoEnd(this MediaSnapshot snapshot)
+    {
+        var videoEnd = snapshot.Tracks.GetVideoTracks().LongestDurationMs();
+        return videoEnd > 0 && snapshot.Tracks.Any(t => t.DurationMs > videoEnd + VideoEndSlackMs);
     }
 
     // Allowed tracks filtering
@@ -873,6 +912,7 @@ public static class MediaFileExtensions
 
         var target = new ConversionPlan
         {
+            StopAfterVideoEnds = profile.StopAfterVideoEnds && file.Snapshot.HasContentPastVideoEnd() ? true : null,
             Tracks = allowed.Select(t =>
             {
                 var settings = SettingsFor(t.Type, profile);

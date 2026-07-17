@@ -31,6 +31,23 @@ public class ConversionPlannerTests
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
     }
 
+    // An otherwise untouched file: the trim alone has to force a remux.
+    [TestMethod]
+    public void Strategy_StopAfterVideoEnds_ReturnsRemux()
+    {
+        var file = MakeFileWithContainer("Matroska", null,
+            Video(0),
+            Audio(1, "English"));
+        var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
+        target.StopAfterVideoEnds = true;
+
+        var result = ConversionPlanner.Plan(before, target);
+
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
+        Assert.IsTrue(result.Delta.StopAfterVideoEnds, "delta must carry the trim through to mkvmerge");
+    }
+
     // --- Strategy: MetadataEdit (Matroska only) ---
 
     [TestMethod]

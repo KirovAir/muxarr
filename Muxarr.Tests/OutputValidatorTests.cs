@@ -31,6 +31,32 @@ public class OutputValidatorTests
         };
     }
 
+    private static TrackSnapshot Track(int index, MediaTrackType type, long durationMs)
+    {
+        return new TrackSnapshot { Index = index, Type = type, DurationMs = durationMs };
+    }
+
+    private static MediaFile MediaWithTracks(long durationMs, params TrackSnapshot[] tracks)
+    {
+        return new MediaFile
+        {
+            Snapshot = new MediaSnapshot
+            {
+                ContainerType = "Matroska",
+                DurationMs = durationMs,
+                Tracks = tracks.ToList()
+            }
+        };
+    }
+
+    private static ConversionPlan Keeping(params TrackSnapshot[] tracks)
+    {
+        return new ConversionPlan
+        {
+            Tracks = tracks.Select(t => new TrackPlan { Index = t.Index, Type = t.Type }).ToList()
+        };
+    }
+
     [TestMethod]
     public void Matching_Passes()
     {
@@ -140,5 +166,84 @@ public class OutputValidatorTests
         var actual = Media(durationMs: 0, trackTypes: [MediaTrackType.Video]);
 
         OutputValidator.ValidateOrThrow(actual, source, Expected(MediaTrackType.Video));
+    }
+
+    // A 24s subtitle is what made this source report 25s. Dropping it leaves a
+    // 5s file that is complete, not truncated. Issues #18 and #37.
+    [TestMethod]
+    public void DroppedOverlongTrack_IsNotTruncation()
+    {
+        var video = Track(0, MediaTrackType.Video, 5_000);
+        var audio = Track(1, MediaTrackType.Audio, 5_038);
+        var longSub = Track(2, MediaTrackType.Subtitles, 24_000);
+        var shortSub = Track(3, MediaTrackType.Subtitles, 3_000);
+
+        var source = MediaWithTracks(25_000, video, audio, longSub, shortSub);
+        var actual = MediaWithTracks(5_038, video, audio, shortSub);
+
+        OutputValidator.ValidateOrThrow(actual, source, Keeping(video, audio, shortSub));
+    }
+
+    [TestMethod]
+    public void OutputShorterThanKeptTracks_Throws()
+    {
+        var video = Track(0, MediaTrackType.Video, 10_000);
+        var audio = Track(1, MediaTrackType.Audio, 10_000);
+
+        var source = MediaWithTracks(10_000, video, audio);
+        var actual = MediaWithTracks(6_026, video, audio);
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, Keeping(video, audio)));
+
+        StringAssert.Contains(ex.Message, "truncated");
+    }
+
+    // Trusting the tracks that did report a duration would expect 5s here and
+    // wave through an output missing 55 minutes of video.
+    [TestMethod]
+    public void PartiallyMissingTrackDurations_FallsBackToTheContainer()
+    {
+        var video = Track(0, MediaTrackType.Video, 0);
+        var audio = Track(1, MediaTrackType.Audio, 5_000);
+
+        var source = MediaWithTracks(3_600_000, video, audio);
+        var actual = MediaWithTracks(5_000, video, audio);
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, Keeping(video, audio)));
+
+        StringAssert.Contains(ex.Message, "truncated");
+    }
+
+    [TestMethod]
+    public void StopAfterVideoEnds_MeasuresAgainstVideoTrack()
+    {
+        var video = Track(0, MediaTrackType.Video, 5_000);
+        var audio = Track(1, MediaTrackType.Audio, 5_038);
+        var longSub = Track(2, MediaTrackType.Subtitles, 24_000);
+
+        var source = MediaWithTracks(25_000, video, audio, longSub);
+        var actual = MediaWithTracks(5_000, video, audio, longSub);
+
+        var plan = Keeping(video, audio, longSub);
+        plan.StopAfterVideoEnds = true;
+
+        OutputValidator.ValidateOrThrow(actual, source, plan);
+    }
+
+    [TestMethod]
+    public void StopAfterVideoEnds_StillCatchesTruncatedVideo()
+    {
+        var video = Track(0, MediaTrackType.Video, 5_000);
+        var longSub = Track(1, MediaTrackType.Subtitles, 24_000);
+
+        var source = MediaWithTracks(25_000, video, longSub);
+        var actual = MediaWithTracks(2_000, video, longSub);
+
+        var plan = Keeping(video, longSub);
+        plan.StopAfterVideoEnds = true;
+
+        Assert.ThrowsExactly<Exception>(() => OutputValidator.ValidateOrThrow(actual, source, plan));
     }
 }

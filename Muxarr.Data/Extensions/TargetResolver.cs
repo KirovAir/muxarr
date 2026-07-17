@@ -26,6 +26,7 @@ public static class TargetResolver
 
         if (family != ContainerFamily.Matroska)
         {
+            target.StopAfterVideoEnds = null;
             return;
         }
 

@@ -1367,6 +1367,46 @@ public class ConversionPipelineTests
             "File with null video name and ClearVideoTrackNames should be considered optimal");
     }
 
+    // --- StopAfterVideoEnds ---
+
+    [TestMethod]
+    [DataRow("Matroska", true, 24_000, true)] // the 24s sub is what makes the container overrun
+    [DataRow("Matroska", true, 5_500, false)] // within slack, not worth a remux
+    [DataRow("Matroska", false, 24_000, false)] // opt-in only
+    [DataRow("MP4/QuickTime", true, 24_000, false)] // ffmpeg has no safe equivalent
+    public void StopAfterVideoEnds_SetOnlyWhenTheSourceNeedsIt(
+        string container, bool enabled, int subDurationMs, bool expected)
+    {
+        var video = Video(0);
+        video.DurationMs = 5_000;
+        var sub = Sub(1, "English");
+        sub.DurationMs = subDurationMs;
+
+        var file = MakeFile(null, video, sub);
+        file.Snapshot.ContainerType = container;
+
+        var profile = MakeProfile();
+        profile.StopAfterVideoEnds = enabled;
+
+        var target = file.BuildTargetFromProfile(profile);
+
+        Assert.AreEqual(expected ? true : null, target.StopAfterVideoEnds);
+    }
+
+    // Without per-track duration there is nothing to compare against, so the
+    // trim must stay off rather than guess.
+    [TestMethod]
+    public void StopAfterVideoEnds_NotSet_WhenProbeCarriedNoTrackDurations()
+    {
+        var file = MakeFile(null, Video(0), Sub(1, "English"));
+        file.Snapshot.ContainerType = "Matroska";
+
+        var profile = MakeProfile();
+        profile.StopAfterVideoEnds = true;
+
+        Assert.IsNull(file.BuildTargetFromProfile(profile).StopAfterVideoEnds);
+    }
+
     // --- CheckHasNonStandardMetadata ---
 
     [TestMethod]

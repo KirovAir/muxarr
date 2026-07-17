@@ -117,6 +117,23 @@ public class FFprobeComplexTests : FixtureTestBase
         Assert.AreEqual(9, file.Snapshot.TrackCount);
     }
 
+    // Matroska only reports per-track length through the DURATION tag. Reading
+    // stream.duration instead leaves video and audio at zero and hands every
+    // subtitle the container's length.
+    [TestMethod]
+    public async Task SetFileDataFromFFprobe_ParsesPerTrackDuration()
+    {
+        var file = new MediaFile { Path = _workingCopy };
+        await file.SetFileDataFromFFprobe();
+
+        Assert.IsTrue(file.Snapshot.Tracks.All(t => t.DurationMs > 0),
+            "every track should carry its own duration: " +
+            string.Join(", ", file.Snapshot.Tracks.Select(t => $"{t.Type}={t.DurationMs}")));
+
+        Assert.IsTrue(file.Snapshot.Tracks.LongestDurationMs() <= file.Snapshot.DurationMs,
+            "no track may outlast the container it sits in");
+    }
+
     // --- End-to-end: ffprobe -> filter -> verify (parity with MkvToolNixComplexTests) ---
 
     [TestMethod]

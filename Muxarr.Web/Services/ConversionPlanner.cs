@@ -47,6 +47,12 @@ public static class ConversionPlanner
 
     private static bool HasStructuralChanges(MediaSnapshot source, ConversionPlan desired)
     {
+        // Trimming rewrites packets, so mkvpropedit can never apply it.
+        if (desired.StopAfterVideoEnds == true)
+        {
+            return true;
+        }
+
         if (source.Tracks.Count != desired.Tracks.Count)
         {
             return true;

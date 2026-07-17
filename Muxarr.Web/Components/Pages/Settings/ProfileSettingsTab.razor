@@ -60,7 +60,7 @@ else
                     <TrackSettingsDisplay Settings="@profile.SubtitleSettings"/>
                 </div>
 
-                @if (profile.ClearVideoTrackNames || profile.SkipHardlinkedFiles)
+                @if (profile.ClearVideoTrackNames || profile.StopAfterVideoEnds || profile.SkipHardlinkedFiles)
                 {
                     <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top">
                         @if (profile.ClearVideoTrackNames)
@@ -68,6 +68,14 @@ else
                             <ToolTip Tip="Video track names will be cleared during conversion">
                                 <span class="badge text-bg-light border">
                                     <i class="bi bi-film me-1"></i>Clear video names
+                                </span>
+                            </ToolTip>
+                        }
+                        @if (profile.StopAfterVideoEnds)
+                        {
+                            <ToolTip Tip="Audio and subtitle content past the end of the video is discarded during conversion">
+                                <span class="badge text-bg-light border">
+                                    <i class="bi bi-scissors me-1"></i>Stop after video
                                 </span>
                             </ToolTip>
                         }

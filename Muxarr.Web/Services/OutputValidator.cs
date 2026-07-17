@@ -1,6 +1,7 @@
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
+using Muxarr.Data.Extensions;
 
 namespace Muxarr.Web.Services;
 
@@ -34,14 +35,14 @@ public static class OutputValidator
             }
         }
 
-        var sourceDuration = source.Snapshot.DurationMs;
-        if (sourceDuration > 0)
+        var expectedDuration = ExpectedDurationMs(source, target);
+        if (expectedDuration > 0)
         {
-            var tolerance = Math.Max(500, sourceDuration / 100);
-            if (actual.Snapshot.DurationMs < sourceDuration - tolerance)
+            var tolerance = Math.Max(500, expectedDuration / 100);
+            if (actual.Snapshot.DurationMs < expectedDuration - tolerance)
             {
                 throw new Exception(
-                    $"Output duration {actual.Snapshot.DurationMs}ms is shorter than source {sourceDuration}ms " +
+                    $"Output duration {actual.Snapshot.DurationMs}ms is shorter than the expected {expectedDuration}ms " +
                     $"(tolerance {tolerance}ms). File may be truncated.");
             }
         }
@@ -51,5 +52,22 @@ public static class OutputValidator
             throw new Exception(
                 "ffprobe flagged the output file with a warning that was not present on the source.");
         }
+    }
+
+    // A container is as long as its longest track, so dropping a track that ran
+    // past the rest of the file shortens the output for good reason. Measure
+    // against the tracks the plan keeps instead. A track the probe gave no
+    // duration for would drag the expectation down and let real truncation
+    // through, so fall back to the source container unless all of them reported.
+    private static long ExpectedDurationMs(MediaFile source, ConversionPlan target)
+    {
+        var tracks = source.Snapshot.Tracks;
+        var remaining = target.StopAfterVideoEnds == true
+            ? tracks.GetVideoTracks()
+            : tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
+
+        return remaining.Count > 0 && remaining.All(t => t.DurationMs > 0)
+            ? remaining.LongestDurationMs()
+            : source.Snapshot.DurationMs;
     }
 }

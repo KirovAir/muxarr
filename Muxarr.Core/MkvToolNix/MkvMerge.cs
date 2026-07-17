@@ -73,6 +73,11 @@ public static class MkvMerge
             command += " --no-attachments";
         }
 
+        if (delta.StopAfterVideoEnds == true)
+        {
+            command += " --stop-after-video-ends";
+        }
+
         foreach (var track in tracks)
         {
             if (track.Name != null)

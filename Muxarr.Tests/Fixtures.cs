@@ -39,6 +39,7 @@ public static class Fixtures
         await GenerateMp4FromMkvAsync("test.mkv", "test.mp4");
         await GenerateMp4FromMkvAsync("test_complex.mkv", "test_complex.mp4");
         await GenerateAsymmetricMkvAsync("asymmetric.mkv");
+        await GenerateTruncatedMkvAsync("truncated.mkv");
         await GenerateRichMp4Async("test_rich.mp4");
     }
 
@@ -155,5 +156,36 @@ public static class Fixtures
         {
             Assert.Inconclusive($"Failed to generate {targetName}: {result.Error?.Trim()}");
         }
+    }
+
+    /// <summary>
+    /// A 10s file with its tail lopped off. The headers still advertise two 10s
+    /// tracks, so remuxing it silently yields a ~6s output and mkvmerge reports
+    /// no error at all - the damage OutputValidator exists to catch.
+    /// </summary>
+    private static async Task GenerateTruncatedMkvAsync(string targetName)
+    {
+        var target = Path.Combine(PoolDir, targetName);
+        if (File.Exists(target))
+        {
+            return;
+        }
+
+        var full = target + ".full";
+        var args =
+            "-y -loglevel error " +
+            "-f lavfi -i \"testsrc=duration=10:size=160x120:rate=10\" " +
+            "-f lavfi -i \"sine=duration=10:frequency=440\" " +
+            "-c:v mpeg4 -c:a ac3 -f matroska " +
+            $"\"{full}\"";
+        var result = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", args, TimeSpan.FromSeconds(60));
+        if (!result.Success || !File.Exists(full))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}: {result.Error?.Trim()}");
+        }
+
+        var bytes = await File.ReadAllBytesAsync(full);
+        await File.WriteAllBytesAsync(target, bytes[..(bytes.Length * 6 / 10)]);
+        File.Delete(full);
     }
 }
