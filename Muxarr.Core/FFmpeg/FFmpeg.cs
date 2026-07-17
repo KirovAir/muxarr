@@ -175,6 +175,13 @@ public static class FFmpeg
         var movflags = faststart ? "+use_metadata_tags+faststart" : "+use_metadata_tags";
         sb.Append($" -c copy -map_metadata 0 -movflags {movflags}");
 
+        // -map_metadata 0 copies the source container title through, so an empty
+        // value here is needed to actually drop it. Must come after the copy.
+        if (delta.Title != null)
+        {
+            sb.Append($" -metadata title={FFmpegHelper.EscapeValue(delta.Title)}");
+        }
+
         // Cut at the video's end, never -shortest (which stops at the shortest
         // stream and would drop real video). The ms suffix keeps it locale-proof.
         if (delta.TrimToVideoLengthMs is { } trimMs)

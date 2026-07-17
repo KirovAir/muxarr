@@ -118,4 +118,9 @@ public class FFprobeFormat
 
     [JsonPropertyName("duration")]
     public string? Duration { get; set; }
+
+    // Container-level tags. The file title lives here as tags.title for both
+    // Matroska (segment title) and MP4 (the title atom).
+    [JsonPropertyName("tags")]
+    public Dictionary<string, string>? Tags { get; set; }
 }

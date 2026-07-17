@@ -74,6 +74,45 @@ public class ConversionPlannerTests
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
     }
 
+    // --- Strategy: file title clear ---
+
+    // Clearing the container title is metadata-only on Matroska (fast propedit)
+    // but forces a full remux on MP4, same split as any other metadata edit.
+    [TestMethod]
+    [DataRow("Matroska", ConversionPlanner.ConversionStrategy.MetadataEdit)]
+    [DataRow("MP4/QuickTime", ConversionPlanner.ConversionStrategy.Remux)]
+    public void Strategy_ClearFileTitle_SplitsByContainer(string container,
+        ConversionPlanner.ConversionStrategy expected)
+    {
+        var file = MakeFileWithContainer(container, null, Video(0), Audio(1, "English"));
+        file.Snapshot.Title = "Big Buck Bunny";
+        var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
+        target.Title = "";
+
+        var result = ConversionPlanner.Plan(before, target);
+
+        Assert.AreEqual(expected, result.Strategy);
+        Assert.AreEqual("", result.Delta.Title, "delta must carry the clear through to the writer");
+    }
+
+    // A file with no title needs no work even when the profile clears titles.
+    [TestMethod]
+    [DataRow("Matroska")]
+    [DataRow("MP4/QuickTime")]
+    public void Strategy_ClearFileTitle_NoTitle_ReturnsSkip(string container)
+    {
+        var file = MakeFileWithContainer(container, null, Video(0), Audio(1, "English"));
+        var before = file.ToMediaSnapshot();
+        var target = TargetFromSnapshot(before);
+        target.Title = "";
+
+        var result = ConversionPlanner.Plan(before, target);
+
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
+        Assert.IsNull(result.Delta.Title);
+    }
+
     // --- Strategy: Remux (structural changes) ---
 
     [TestMethod]

@@ -14,6 +14,10 @@ public class ConversionPlan : IMedia<TrackPlan>
     // Only meaningful for MP4-family containers; Matroska tools ignore it.
     public bool? Faststart { get; set; }
 
+    // Container title (MKV segment title / MP4 title atom).
+    // null = inherit source, "" = clear. Mirrors TrackPlan.Name semantics.
+    public string? Title { get; set; }
+
     // Where the video track ends, when something runs past it and the profile
     // asked for that to be cut. mkvmerge finds the point itself; ffmpeg has to
     // be handed it, so the plan carries the timestamp rather than a flag.

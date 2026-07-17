@@ -87,13 +87,14 @@ public static class TestData
     }
 
     public static Profile MakeProfile(TrackSettings? audio = null, TrackSettings? subtitle = null,
-        bool clearVideoNames = false)
+        bool clearVideoNames = false, bool clearFileTitle = false)
     {
         return new Profile
         {
             AudioSettings = audio ?? new TrackSettings(),
             SubtitleSettings = subtitle ?? new TrackSettings(),
-            ClearVideoTrackNames = clearVideoNames
+            ClearVideoTrackNames = clearVideoNames,
+            ClearFileTitle = clearFileTitle
         };
     }
 }

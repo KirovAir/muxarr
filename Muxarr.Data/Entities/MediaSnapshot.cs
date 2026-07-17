@@ -17,6 +17,7 @@ public class MediaSnapshot : IMedia<TrackSnapshot>
     public DateTime CapturedAt { get; set; }
 
     public string? ContainerType { get; set; }
+    public string? Title { get; set; }
     public string? Resolution { get; set; }
     public long DurationMs { get; set; }
     public int VideoBitDepth { get; set; }
@@ -68,6 +69,9 @@ public class MediaSnapshotConfiguration : IEntityTypeConfiguration<MediaSnapshot
 
         builder.Property(e => e.ContainerType)
             .HasMaxLength(50);
+
+        builder.Property(e => e.Title)
+            .HasMaxLength(500);
 
         builder.Property(e => e.Resolution)
             .HasMaxLength(20);

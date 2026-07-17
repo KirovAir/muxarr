@@ -116,6 +116,7 @@ public static class MediaFileExtensions
         {
             CapturedAt = DateTime.UtcNow,
             ContainerType = containerType,
+            Title = mkvInfo.Container?.Properties?.Title,
             Resolution = firstVideoTrack?.Properties.PixelDimensions,
             VideoBitDepth = firstVideoTrack?.Properties.ColorBitsPerChannel ?? 0,
             DurationMs = (mkvInfo.Container?.Properties?.Duration ?? 0) / 1_000_000,
@@ -257,6 +258,7 @@ public static class MediaFileExtensions
         {
             CapturedAt = DateTime.UtcNow,
             ContainerType = containerType,
+            Title = PickContainerTitle(probe.Format?.Tags),
             Resolution = resolution,
             VideoBitDepth = videoBitDepth,
             DurationMs = durationMs,
@@ -329,6 +331,26 @@ public static class MediaFileExtensions
         if (tags.TryGetValue("title", out var title) && !string.IsNullOrEmpty(title))
         {
             return title;
+        }
+
+        return null;
+    }
+
+    // Container title from ffprobe's format.tags. ffprobe casing varies by
+    // container (MKV keeps element casing, MP4 lowercases), so match loosely.
+    private static string? PickContainerTitle(Dictionary<string, string>? tags)
+    {
+        if (tags == null)
+        {
+            return null;
+        }
+
+        foreach (var (key, value) in tags)
+        {
+            if (string.Equals(key, "title", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(value))
+            {
+                return value;
+            }
         }
 
         return null;
@@ -634,6 +656,11 @@ public static class MediaFileExtensions
         var target = prebuiltTarget ?? file.BuildTargetFromProfile(profile);
         var originals = file.Snapshot.Tracks.ToDictionary(t => t.Index);
 
+        if (target.Title != null && !string.Equals(target.Title, file.Snapshot.Title ?? "", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
         foreach (var preview in target.Tracks)
         {
             if (originals.TryGetValue(preview.Index, out var original) &&
@@ -921,6 +948,7 @@ public static class MediaFileExtensions
         var target = new ConversionPlan
         {
             TrimToVideoLengthMs = profile.TrimToVideoLength ? file.Snapshot.VideoEndTrimPointMs() : null,
+            Title = profile.ClearFileTitle ? "" : null,
             Tracks = allowed.Select(t =>
             {
                 var settings = SettingsFor(t.Type, profile);

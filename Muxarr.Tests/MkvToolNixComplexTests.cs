@@ -366,6 +366,16 @@ public class MkvToolNixComplexTests : FixtureTestBase
     // --- SetFileData integration: mkvmerge JSON -> TrackSnapshot entities ---
 
     [TestMethod]
+    public async Task SetFileData_CapturesContainerTitle()
+    {
+        var info = await MkvMerge.GetFileInfo(_workingCopy);
+        var file = new MediaFile();
+        file.SetFileData(info.Result);
+
+        Assert.AreEqual("Complex Test File", file.Snapshot.Title);
+    }
+
+    [TestMethod]
     public async Task SetFileData_ParsesAllFlagsFromComplexFile()
     {
         var info = await MkvMerge.GetFileInfo(_workingCopy);

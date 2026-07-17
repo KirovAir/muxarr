@@ -1427,6 +1427,50 @@ public class ConversionPipelineTests
         Assert.IsNull(file.BuildTargetFromProfile(profile).TrimToVideoLengthMs);
     }
 
+    // --- ClearFileTitle ---
+
+    [TestMethod]
+    [DataRow(true, "")]
+    [DataRow(false, null)]
+    public void ClearFileTitle_SetsPlanTitleOnlyWhenEnabled(bool enabled, string? expected)
+    {
+        var file = MakeFile(null, Video(0), Audio(1, "English"));
+        file.Snapshot.ContainerType = "Matroska";
+        file.Snapshot.Title = "Big Buck Bunny";
+
+        var target = file.BuildTargetFromProfile(MakeProfile(clearFileTitle: enabled));
+
+        Assert.AreEqual(expected, target.Title);
+    }
+
+    // A title-only clear is otherwise invisible to the webhook auto-queue, which
+    // gates on HasNonStandardMetadata - so the title has to register there.
+    [TestMethod]
+    public void HasNonStandardMetadata_DetectsFileTitle_WhenClearing()
+    {
+        var file = MakeFile(null, Video(0), Audio(1, "English"));
+        file.Snapshot.Title = "Big Buck Bunny";
+
+        Assert.IsTrue(file.CheckHasNonStandardMetadata(MakeProfile(clearFileTitle: true)));
+    }
+
+    [TestMethod]
+    public void HasNonStandardMetadata_IgnoresFileTitle_WhenNoTitleToClear()
+    {
+        var file = MakeFile(null, Video(0), Audio(1, "English"));
+
+        Assert.IsFalse(file.CheckHasNonStandardMetadata(MakeProfile(clearFileTitle: true)));
+    }
+
+    [TestMethod]
+    public void HasNonStandardMetadata_IgnoresFileTitle_WhenNotClearing()
+    {
+        var file = MakeFile(null, Video(0), Audio(1, "English"));
+        file.Snapshot.Title = "Big Buck Bunny";
+
+        Assert.IsFalse(file.CheckHasNonStandardMetadata(MakeProfile(clearFileTitle: false)));
+    }
+
     // --- CheckHasNonStandardMetadata ---
 
     [TestMethod]

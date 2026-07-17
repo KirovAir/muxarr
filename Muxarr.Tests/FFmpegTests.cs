@@ -69,6 +69,35 @@ public class FFmpegTests
     }
 
     [TestMethod]
+    public void BuildArguments_ClearsContainerTitle_AfterMetadataCopy()
+    {
+        var plan = TestPlan.Of(new List<TrackPlan>
+        {
+            new() { Index = 0, Type = MediaTrackType.Video }
+        });
+        plan.Title = "";
+
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", plan);
+
+        // Empty value drops the title; it must land after -map_metadata 0 or the
+        // copy would put the source title straight back.
+        StringAssert.Contains(args, "-metadata title=");
+        Assert.IsTrue(args.IndexOf("-metadata title=", StringComparison.Ordinal)
+                      > args.IndexOf("-map_metadata 0", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void BuildArguments_NoContainerTitleMetadata_WhenNotClearing()
+    {
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(new List<TrackPlan>
+        {
+            new() { Index = 0, Type = MediaTrackType.Video }
+        }));
+
+        Assert.IsFalse(args.Contains("-metadata title="), $"unexpected title metadata in: {args}");
+    }
+
+    [TestMethod]
     public void BuildArguments_IncludesProgressPipe()
     {
         var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(new List<TrackPlan>()));
@@ -329,6 +358,38 @@ public class FFmpegTests
 
         mutate?.Invoke(tracks);
         return tracks;
+    }
+
+    // The scanner runs ffprobe on every container, including MKV, so the segment
+    // title has to surface through format.tags there.
+    [TestMethod]
+    public async Task SetFileDataFromFFprobe_CapturesContainerTitle()
+    {
+        var file = new MediaFile { Path = SourceFixture };
+        await file.SetFileDataFromFFprobe();
+
+        Assert.AreEqual("Big Buck Bunny", file.Snapshot.Title);
+    }
+
+    [TestMethod]
+    public async Task RemuxFile_ClearsContainerTitle()
+    {
+        var output = _workingCopy + ".muxtmp";
+
+        // The MP4 fixture inherits "Big Buck Bunny" from the source mkv.
+        var source = new MediaFile { Path = _workingCopy };
+        await source.SetFileDataFromFFprobe();
+        Assert.AreEqual("Big Buck Bunny", source.Snapshot.Title);
+
+        var plan = TestPlan.Of(await BuildAllTracks());
+        plan.Title = "";
+
+        var result = await FFmpeg.Remux(_workingCopy, output, plan);
+        Assert.IsTrue(FFmpeg.IsSuccess(result), $"FFmpeg.RemuxFile failed: {result.Error}");
+
+        var probed = new MediaFile { Path = output };
+        await probed.SetFileDataFromFFprobe();
+        Assert.IsTrue(string.IsNullOrEmpty(probed.Snapshot.Title));
     }
 
     [TestMethod]

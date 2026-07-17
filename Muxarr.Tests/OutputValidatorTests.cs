@@ -286,4 +286,31 @@ public class OutputValidatorTests
 
         Assert.ThrowsExactly<Exception>(() => OutputValidator.ValidateOrThrow(actual, source, plan));
     }
+
+    [TestMethod]
+    public void ClearFileTitle_OutputCleared_Passes()
+    {
+        var source = Media(trackTypes: MediaTrackType.Video);
+        var actual = Media(trackTypes: MediaTrackType.Video); // Title left null = cleared
+        var target = Expected(MediaTrackType.Video);
+        target.Title = "";
+
+        OutputValidator.ValidateOrThrow(actual, source, target);
+    }
+
+    // The writer claimed success but the title survived: the safety net has to catch it.
+    [TestMethod]
+    public void ClearFileTitle_TitleSurvived_Throws()
+    {
+        var source = Media(trackTypes: MediaTrackType.Video);
+        var actual = Media(trackTypes: MediaTrackType.Video);
+        actual.Snapshot.Title = "Big Buck Bunny";
+        var target = Expected(MediaTrackType.Video);
+        target.Title = "";
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, target));
+
+        StringAssert.Contains(ex.Message, "title");
+    }
 }

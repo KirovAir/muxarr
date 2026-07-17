@@ -77,6 +77,13 @@
                             <small class="form-text text-muted d-block">Do not scan or process files that have more than
                                 one hard link.</small>
                         </div>
+                        <div class="mb-3 form-check form-switch">
+                            <InputCheckbox id="clearFileTitle" class="form-check-input"
+                                           @bind-Value="_profile.ClearFileTitle"/>
+                            <label class="form-check-label" for="clearFileTitle">Clear file title</label>
+                            <small class="form-text text-muted d-block">Remove the container title (the release group
+                                name or junk shown as the file's "Title") during conversion.</small>
+                        </div>
                     }
                     else if (_tab == "video")
                     {
@@ -197,6 +204,7 @@
                 existing.Name = _profile.Name;
                 existing.Directories = _profile.Directories;
                 existing.ClearVideoTrackNames = _profile.ClearVideoTrackNames;
+                existing.ClearFileTitle = _profile.ClearFileTitle;
                 existing.TrimToVideoLength = _profile.TrimToVideoLength;
                 existing.SkipHardlinkedFiles = _profile.SkipHardlinkedFiles;
                 existing.AudioSettings = _profile.AudioSettings;

@@ -66,6 +66,15 @@ public static class OutputValidator
             throw new Exception(
                 "ffprobe flagged the output file with a warning that was not present on the source.");
         }
+
+        // Only set when the plan asked to change the container title (currently
+        // clear only). Confirms the writer actually applied it.
+        if (target.Title != null &&
+            !string.Equals(actual.Snapshot.Title ?? "", target.Title, StringComparison.Ordinal))
+        {
+            throw new Exception(
+                $"Output container title is '{actual.Snapshot.Title}', expected '{target.Title}'.");
+        }
     }
 
     // A container is as long as its longest track, so dropping a track that ran

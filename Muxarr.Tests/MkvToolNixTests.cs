@@ -276,4 +276,47 @@ public class MkvToolNixTests : FixtureTestBase
         var info = await MkvMerge.GetFileInfo(_workingCopy);
         Assert.IsTrue(string.IsNullOrEmpty(info.Result!.Tracks[0].Properties.TrackName));
     }
+
+    [TestMethod]
+    public async Task PropEdit_ClearsContainerTitle()
+    {
+        // test.mkv ships with the segment title "Big Buck Bunny".
+        var before = await MkvMerge.GetFileInfo(_workingCopy);
+        Assert.AreEqual("Big Buck Bunny", before.Result!.Container!.Properties!.Title);
+
+        var plan = TestPlan.Of(new TrackPlan { Index = 0, Type = MediaTrackType.Video });
+        plan.Title = "";
+
+        var result = await MkvPropEdit.Apply(_workingCopy, _workingCopy, plan);
+        Assert.IsTrue(result.Success, $"MkvPropEdit failed: {result.Error}");
+
+        var after = await MkvMerge.GetFileInfo(_workingCopy);
+        Assert.IsTrue(string.IsNullOrEmpty(after.Result!.Container!.Properties!.Title));
+    }
+
+    [TestMethod]
+    public async Task RemuxFile_ClearsContainerTitle()
+    {
+        var output = _workingCopy + ".remux.mkv";
+        try
+        {
+            var plan = TestPlan.Of(
+                new TrackPlan { Index = 0, Type = MediaTrackType.Video },
+                new TrackPlan { Index = 1, Type = MediaTrackType.Audio });
+            plan.Title = "";
+
+            var result = await MkvMerge.Remux(_workingCopy, output, plan);
+            Assert.IsTrue(MkvMerge.IsSuccess(result), $"RemuxFile failed: {result.Error}");
+
+            var info = await MkvMerge.GetFileInfo(output);
+            Assert.IsTrue(string.IsNullOrEmpty(info.Result!.Container!.Properties!.Title));
+        }
+        finally
+        {
+            if (File.Exists(output))
+            {
+                File.Delete(output);
+            }
+        }
+    }
 }

@@ -55,6 +55,11 @@ public static class MkvMerge
 
         var command = $"-o \"{output}\"";
 
+        if (delta.Title != null)
+        {
+            command += $" --title {MkvToolNixHelper.EscapeValue(delta.Title)}";
+        }
+
         command += audioTracks.Count > 0
             ? $" --audio-tracks {string.Join(",", audioTracks.Select(t => t.Index))}"
             : " --no-audio";

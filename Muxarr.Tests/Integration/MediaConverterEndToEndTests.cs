@@ -238,6 +238,34 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // Clearing the container title: MKV takes the in-place mkvpropedit path, MP4
+    // the ffmpeg remux path. Both must strip the title and leave nothing to redo.
+    [TestMethod]
+    [DataRow("test.mkv")]
+    [DataRow("test.mp4")]
+    public async Task ClearFileTitle_RemovesContainerTitle(string fixture)
+    {
+        var path = CopyFixture(fixture);
+        var profile = await Fixture.SeedProfile(clearFileTitle: true);
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.AreEqual("Big Buck Bunny", file.Snapshot.Title, "fixture should start with a container title");
+
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromProfile(profile));
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.IsTrue(string.IsNullOrEmpty(probed.Snapshot.Title),
+            $"container title should be gone, got '{probed.Snapshot.Title}'");
+
+        var recheck = ConversionPlanExtensions.Delta(probed.Snapshot, probed.BuildTargetFromProfile(profile));
+        Assert.IsNull(recheck.Title, "a cleared file must not ask to be cleared again");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
     [TestMethod]
     public async Task CustomConversion_StaleTarget_FailsWithClearMessage()
     {

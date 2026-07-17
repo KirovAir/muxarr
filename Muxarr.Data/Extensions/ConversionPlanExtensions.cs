@@ -21,6 +21,7 @@ public static class ConversionPlanExtensions
             HasAttachments = DiffBool(source.HasAttachments, desired.HasAttachments),
             Faststart = desired.Faststart,
             TrimToVideoLengthMs = desired.TrimToVideoLengthMs,
+            Title = DiffString(source.Title, desired.Title),
             Tracks = new List<TrackPlan>(desired.Tracks.Count)
         };
 
@@ -78,6 +79,7 @@ public static class ConversionPlanExtensions
         return delta.HasChapters != null
                || delta.HasAttachments != null
                || delta.Faststart != null
+               || delta.Title != null
                || delta.Tracks.Any(HasChanges);
     }
 

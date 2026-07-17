@@ -99,7 +99,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
 
     public async Task<Profile> SeedProfile(string name = "test-profile",
         bool clearVideoTrackNames = false, bool skipHardlinkedFiles = false,
-        bool trimToVideoLength = false)
+        bool trimToVideoLength = false, bool clearFileTitle = false)
     {
         return await WithDbContext(async ctx =>
         {
@@ -110,6 +110,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
                 ClearVideoTrackNames = clearVideoTrackNames,
                 SkipHardlinkedFiles = skipHardlinkedFiles,
                 TrimToVideoLength = trimToVideoLength,
+                ClearFileTitle = clearFileTitle,
                 AudioSettings = new TrackSettings(),
                 SubtitleSettings = new TrackSettings()
             };

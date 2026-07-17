@@ -79,6 +79,15 @@ public static class MkvPropEdit
             }
         }
 
+        // Container title lives in the segment info, not on a track.
+        if (delta.Title != null)
+        {
+            command += delta.Title.Length == 0
+                ? " --edit info --delete title"
+                : $" --edit info --set title={MkvToolNixHelper.EscapeValue(delta.Title)}";
+            editCount++;
+        }
+
         // Guard against plan/apply drift: if a strategy of MetadataEdit
         // produced a delta whose fields Apply can't express (e.g. a bare
         // IsDub change that the planner should have folded into a title
