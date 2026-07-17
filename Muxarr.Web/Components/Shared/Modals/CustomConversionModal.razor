@@ -2,7 +2,8 @@
 @using Muxarr.Core.MkvToolNix
 <div class="modal-body">
     <p class="mb-3 text-body-secondary">Select which tracks to keep, reorder them, and edit their metadata. Use
-        <strong>Apply Profile</strong> below to start from a profile's settings. At least one audio track is required.
+        <strong>Apply Profile</strong> below to start from a profile's track rules. At least one audio track is required.
+        Whole-file options like clearing the title or removing chapters are applied only by the profile itself, not here.
     </p>
 
     @if (_validationError)
@@ -156,19 +157,11 @@
                         <option value="@p.Id">@p.Name</option>
                     }
                 </select>
-                <ToolTip Tip="Apply settings from the selected profile">
+                <ToolTip Tip="Apply the selected profile's track rules">
                     <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ApplyProfileTemplate">
                         <i class="bi bi-magic me-2"></i>Apply Profile
                     </button>
                 </ToolTip>
-            }
-            @if (File.Snapshot.HasChapters)
-            {
-                <div class="form-check form-switch mb-0 ms-1">
-                    <input type="checkbox" class="form-check-input" id="customRemoveChapters"
-                           @bind="_removeChapters"/>
-                    <label class="form-check-label small" for="customRemoveChapters">Remove chapters</label>
-                </div>
             }
         </div>
         <div class="d-flex gap-2">
@@ -191,7 +184,6 @@
     private List<IsoLanguage> _languages = new();
     private int _selectedProfileId;
     private bool _validationError;
-    private bool _removeChapters;
 
     protected override void OnInitialized()
     {
@@ -236,7 +228,6 @@
         }
 
         var target = File.BuildTargetFromProfile(profile);
-        _removeChapters = profile.RemoveChapters;
 
         // Apply track selection from profile.
         var allowedIds = target.Tracks.Select(t => t.Index).ToHashSet();
@@ -390,11 +381,6 @@
             .Where(t => t.Type != MediaTrackType.Video && _selectedTrackIds.Contains(t.Index));
         var selectedTracks = videoTracks.Concat(selectedNonVideo).ToList();
         var target = File.BuildTargetFromCustom(selectedTracks);
-        if (_removeChapters)
-        {
-            target.HasChapters = false;
-        }
-
         await BlazoredModal.CloseAsync(ModalResult.Ok(target));
     }
 

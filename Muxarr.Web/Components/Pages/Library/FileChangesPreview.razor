@@ -1,0 +1,70 @@
+@using Muxarr.Core.Models
+@using Muxarr.Data.Entities
+
+@* File-level (whole-container) changes a conversion will make, shown as a
+   compact chip row above the per-track preview. Renders nothing when a
+   profile touches only tracks. Add a case here as new container options land. *@
+@if (_changes.Count > 0)
+{
+    <div class="d-flex flex-wrap gap-2 mb-3">
+        @foreach (var change in _changes)
+        {
+            <ToolTip Tip="@change.Tooltip">
+                <span class="badge rounded-pill border @change.Css d-inline-flex align-items-center gap-1 fw-normal py-1 px-2">
+                    <i class="bi @change.Icon"></i>@change.Label
+                </span>
+            </ToolTip>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] [EditorRequired] public MediaSnapshot Source { get; set; } = default!;
+    [Parameter] public ConversionPlan? Plan { get; set; }
+
+    private sealed record Change(string Icon, string Label, string Tooltip, string Css);
+
+    // Removals share the track table's red x-circle so the whole preview reads
+    // as one language; value changes use the same info tone as track edits.
+    private const string Removed = "bg-danger-subtle text-danger-emphasis border-danger-subtle";
+    private const string Changed = "bg-info-subtle text-info-emphasis border-info-subtle";
+
+    private List<Change> _changes = [];
+
+    protected override void OnParametersSet()
+    {
+        var changes = new List<Change>();
+
+        if (Plan != null)
+        {
+            if (Plan.Title == "" && !string.IsNullOrEmpty(Source.Title))
+            {
+                changes.Add(new Change("bi-x-circle-fill", "File title",
+                    $"File title \"{Source.Title}\" will be removed", Removed));
+            }
+
+            if (Plan.HasChapters == false && Source.HasChapters)
+            {
+                changes.Add(new Change("bi-x-circle-fill", "Chapters",
+                    "Chapter markers will be removed", Removed));
+            }
+
+            if (Plan.TrimToVideoLengthMs is { } trimMs && Source.DurationMs > trimMs)
+            {
+                changes.Add(new Change("bi-scissors",
+                    $"{FormatClock(Source.DurationMs)} → {FormatClock(trimMs)}",
+                    "Audio and subtitles past the end of the video will be discarded", Changed));
+            }
+        }
+
+        _changes = changes;
+    }
+
+    private static string FormatClock(long ms)
+    {
+        var t = TimeSpan.FromMilliseconds(ms);
+        return t.TotalHours >= 1
+            ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}"
+            : $"{t.Minutes}:{t.Seconds:D2}";
+    }
+}

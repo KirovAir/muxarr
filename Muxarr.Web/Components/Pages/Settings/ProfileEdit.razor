@@ -81,15 +81,32 @@
                             <InputCheckbox id="clearFileTitle" class="form-check-input"
                                            @bind-Value="_profile.ClearFileTitle"/>
                             <label class="form-check-label" for="clearFileTitle">Clear file title</label>
-                            <small class="form-text text-muted d-block">Remove the container title (the release group
-                                name or junk shown as the file's "Title") during conversion.</small>
+                            <small class="form-text text-muted d-block">Remove the file title (often a release-group name
+                                or other leftover text shown as the file's "Title") during conversion.</small>
                         </div>
                         <div class="mb-3 form-check form-switch">
                             <InputCheckbox id="removeChapters" class="form-check-input"
                                            @bind-Value="_profile.RemoveChapters"/>
                             <label class="form-check-label" for="removeChapters">Remove chapters</label>
-                            <small class="form-text text-muted d-block">Strip chapter markers from files during
+                            <small class="form-text text-muted d-block">Remove chapter markers from the file during
                                 conversion.</small>
+                        </div>
+                        <div class="mb-3 form-check form-switch">
+                            <InputCheckbox id="trimToVideoLength" class="form-check-input"
+                                           @bind-Value="_profile.TrimToVideoLength"/>
+                            <label class="form-check-label" for="trimToVideoLength">Trim to video length</label>
+                            <small class="form-text text-muted d-block">Discard audio and subtitle content that runs
+                                past the end of the video track. Only enable this when you have files with incorrect
+                                audio or subtitle tracks that make the file look longer than it really is and cause
+                                issues.</small>
+                            @if (_profile.TrimToVideoLength)
+                            {
+                                <small class="form-text text-warning d-block">
+                                    <i class="bi bi-exclamation-triangle me-1"></i>Unsafe, use at your own risk. This
+                                    throws away real content and cannot be undone. If a file's video track is short
+                                    because it is damaged, everything after it is lost.
+                                </small>
+                            }
                         </div>
                     }
                     else if (_tab == "video")
@@ -99,25 +116,8 @@
                             <InputCheckbox id="clearVideoNames" class="form-check-input"
                                            @bind-Value="_profile.ClearVideoTrackNames"/>
                             <label class="form-check-label" for="clearVideoNames">Clear video track names</label>
-                            <small class="form-text text-muted d-block">Remove release group branding and other junk
-                                from video track descriptions during conversion.</small>
-                        </div>
-                        <div class="mb-3 form-check form-switch">
-                            <InputCheckbox id="trimToVideoLength" class="form-check-input"
-                                           @bind-Value="_profile.TrimToVideoLength"/>
-                            <label class="form-check-label" for="trimToVideoLength">Trim to video length</label>
-                            <small class="form-text text-muted d-block">Discard audio and subtitle content that runs
-                                past the end of the video track. Only enable this when you have files with incorrect
-                                audio or subtitle streams that make the container look longer than it really is and
-                                cause issues.</small>
-                            @if (_profile.TrimToVideoLength)
-                            {
-                                <small class="form-text text-warning d-block">
-                                    <i class="bi bi-exclamation-triangle me-1"></i>Unsafe, use at your own risk. This
-                                    throws away real content and cannot be undone. If a file's video track is short
-                                    because it is damaged, everything after it is lost.
-                                </small>
-                            }
+                            <small class="form-text text-muted d-block">Remove release-group branding and other leftover
+                                text from video track names during conversion.</small>
                         </div>
                     }
                     else if (_tab == "audio")

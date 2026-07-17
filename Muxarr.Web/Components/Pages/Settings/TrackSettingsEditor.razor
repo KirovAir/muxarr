@@ -11,7 +11,7 @@
     {
         <div class="ms-3 ps-3 border-start mb-3">
             <div class="mb-3">
-                <label class="form-label mb-1">Allowed @TrackType Languages</label>
+                <label class="form-label mb-1">Allowed @(TrackTypeLabel.ToLower()) languages</label>
                 <LanguagePriorityEditor Languages="Settings.AllowedLanguages"
                                         TrackType="TrackType"/>
                 <small class="form-text text-muted">
@@ -24,22 +24,26 @@
                 <InputCheckbox id="@($"removeCommentary{TrackTypeLabel}")" class="form-check-input"
                                @bind-Value="Settings.RemoveCommentary"/>
                 <label class="form-check-label" for="@($"removeCommentary{TrackTypeLabel}")">Remove
-                    Commentary @TrackTypeLabel</label>
-                <small class="form-text text-muted d-block">Removes commentary @(TrackTypeLabel.ToLower())s. Keeps them
-                    if they're the only option for that language.</small>
+                    commentary @(TrackTypeLabel.ToLower()) tracks</label>
+                <small class="form-text text-muted d-block">Removes commentary @(TrackTypeLabel.ToLower()) tracks. Keeps
+                    them if they're the only option for that language.</small>
             </div>
 
             <div class="mb-3 form-check form-switch">
                 <InputCheckbox id="@($"removeImpaired{TrackTypeLabel}")" class="form-check-input"
                                @bind-Value="Settings.RemoveImpaired"/>
-                <label class="form-check-label" for="@($"removeImpaired{TrackTypeLabel}")">Remove SDH /
-                    Accessibility @TrackTypeLabel</label>
-                <small class="form-text text-muted d-block">Removes @(TrackTypeLabel.ToLower())s for hearing or visually
-                    impaired viewers (SDH, closed captions, audio descriptions). Keeps them if they're the only
-                    option.@if (!IsAudio)
+                <label class="form-check-label" for="@($"removeImpaired{TrackTypeLabel}")">Remove
+                    @(IsAudio ? "audio description tracks" : "SDH subtitle tracks")</label>
+                <small class="form-text text-muted d-block">@if (IsAudio)
                     {
-                        <text> A forced subtitle doesn't count as an alternative, it only covers foreign
-                            dialogue.</text>
+                        <text>Removes audio-description tracks for blind and low-vision viewers. Keeps them if they're
+                            the only option.</text>
+                    }
+                    else
+                    {
+                        <text>Removes subtitles for deaf and hard-of-hearing viewers (SDH and closed captions). Keeps
+                            them if they're the only option. A forced subtitle doesn't count as an alternative; it only
+                            covers foreign dialogue.</text>
                     }</small>
             </div>
 
@@ -59,8 +63,8 @@
                 <div class="mb-3 form-check form-switch">
                     <InputCheckbox id="@($"excludeCodecs{TrackTypeLabel}")" class="form-check-input"
                                    @bind-Value="Settings.ExcludeCodecs"/>
-                    <label class="form-check-label" for="@($"excludeCodecs{TrackTypeLabel}")">Exclude Subtitle
-                        Codecs</label>
+                    <label class="form-check-label" for="@($"excludeCodecs{TrackTypeLabel}")">Exclude subtitle
+                        codecs</label>
                     <small class="form-text text-muted d-block">Remove subtitle tracks that match specific codecs during
                         conversion. Useful for dropping image-based formats like PGS or VobSub.</small>
                 </div>
@@ -143,8 +147,8 @@
     <div class="mb-3 form-check form-switch">
         <InputCheckbox id="@($"standardize{TrackTypeLabel}")" class="form-check-input"
                        @bind-Value="Settings.StandardizeTrackNames" @bind-Value:after="OnStandardizeToggled"/>
-        <label class="form-check-label" for="@($"standardize{TrackTypeLabel}")">Standardize @TrackTypeLabel Track
-            Names</label>
+        <label class="form-check-label" for="@($"standardize{TrackTypeLabel}")">Standardize @(TrackTypeLabel.ToLower())
+            track names</label>
         <small class="form-text text-muted d-block">Rename @(TrackTypeLabel.ToLower()) tracks during conversion using a
             template.</small>
     </div>

@@ -135,6 +135,10 @@
                         </span>
                     }
                 </div>
+                @if (_showPreview && Preview != null)
+                {
+                    <FileChangesPreview Source="File.Snapshot" Plan="Preview"/>
+                }
                 <div class="table-responsive">
                     @if (File.Snapshot.Tracks.Any())
                     {

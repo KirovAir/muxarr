@@ -96,7 +96,6 @@
                 <option value="">All Files</option>
                 <option value="tracks">Needs Track Removal</option>
                 <option value="metadata">Needs Metadata Fix</option>
-                <option value="chapters">Has Removable Chapters</option>
                 <option value="any">Needs Any Work</option>
                 <option value="warnings">Has Scan Warning</option>
             </select>
@@ -471,7 +470,6 @@
         {
             "tracks" => query.Where(x => x.HasRedundantTracks),
             "metadata" => query.Where(x => x.HasNonStandardMetadata),
-            "chapters" => query.Where(x => x.HasRemovableChapters),
             "any" => query.Where(x => x.HasRedundantTracks || x.HasNonStandardMetadata || x.HasRemovableChapters),
             "warnings" => query.Where(x => x.HasScanWarning),
             _ => query
