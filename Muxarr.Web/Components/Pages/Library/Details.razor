@@ -329,7 +329,6 @@
 
     private async Task AnalyzeFile()
     {
-        ToastService.ShowInfo($"Analyzing {File!.GetName()}...");
         await using var context = await ContextFactory.CreateDbContextAsync();
         var dbFile = await context.MediaFiles.WithTracksAndProfile().FirstOrDefaultAsync(f => f.Id == File!.Id);
         if (dbFile == null)
@@ -338,9 +337,23 @@
             return;
         }
 
-        await MediaScanner.ScanMediaFile(dbFile, true, context, dbFile.Profile);
-        await LoadFile();
-        ToastService.ShowSuccess($"Analysis complete for {dbFile.GetName()}.");
+        if (!System.IO.File.Exists(dbFile.Path))
+        {
+            ToastService.ShowError("This file could not be found on disk. It may have been moved, deleted, or its drive is offline.");
+            return;
+        }
+
+        ToastService.ShowInfo($"Analyzing {File!.GetName()}...");
+        try
+        {
+            await MediaScanner.ScanMediaFile(dbFile, true, context, dbFile.Profile);
+            await LoadFile();
+            ToastService.ShowSuccess($"Analysis complete for {dbFile.GetName()}.");
+        }
+        catch (Exception ex)
+        {
+            ToastService.ShowError($"Could not analyze {dbFile.GetName()}: {ex.Message}");
+        }
     }
 
     public override void Dispose()

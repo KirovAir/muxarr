@@ -255,6 +255,13 @@ public class MediaScannerService(
     {
         var fileInfo = new FileInfo(dbFile.Path);
 
+        // A missing file (deleted/moved/offline drive) makes FileInfo.Length below throw.
+        if (!fileInfo.Exists)
+        {
+            logger.LogWarning("Skipping scan; file not found on disk: {Path}", dbFile.Path);
+            return;
+        }
+
         // ReSharper disable once EntityFramework.NPlusOne.IncompleteDataUsage
         if (forceRescan || string.IsNullOrEmpty(dbFile.Path) || dbFile.NeedsArrProbe() ||
             dbFile.NeedsFileProbe(fileInfo))
