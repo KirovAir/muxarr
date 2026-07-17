@@ -52,7 +52,7 @@ public static class OutputValidator
             // tells a real cut from a skipped one - and unlike the percentage floor
             // above, it stays tight on a multi-hour file.
             const long trimToleranceMs = 500;
-            if (target.StopAfterVideoEndsMs != null &&
+            if (target.TrimToVideoLengthMs != null &&
                 actual.Snapshot.DurationMs > expectedDuration + trimToleranceMs)
             {
                 throw new Exception(
@@ -74,7 +74,7 @@ public static class OutputValidator
     // down and hide real truncation, so fall back to the container unless all reported.
     private static long ExpectedDurationMs(MediaFile source, ConversionPlan target)
     {
-        if (target.StopAfterVideoEndsMs is { } trimMs)
+        if (target.TrimToVideoLengthMs is { } trimMs)
         {
             return trimMs;
         }

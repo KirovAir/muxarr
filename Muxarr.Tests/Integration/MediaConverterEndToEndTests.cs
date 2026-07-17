@@ -209,10 +209,10 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
     [TestMethod]
     [DataRow("asymmetric.mkv")]
     [DataRow("asymmetric.mp4")]
-    public async Task Remux_StopAfterVideoEnds_TrimsOverlongAudio(string fixture)
+    public async Task Remux_TrimToVideoLength_TrimsOverlongAudio(string fixture)
     {
         var path = CopyFixture(fixture);
-        var profile = await Fixture.SeedProfile(stopAfterVideoEnds: true);
+        var profile = await Fixture.SeedProfile(trimToVideoLength: true);
         var file = await Fixture.ScanAndPersist(path, profile);
 
         // Nothing about the tracks needs changing - the trim alone must be
@@ -233,7 +233,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         Assert.IsTrue(video.DurationMs >= 2900,
             $"the video must not be shortened, got {video.DurationMs}ms");
 
-        Assert.IsNull(probed.BuildTargetFromProfile(profile).StopAfterVideoEndsMs,
+        Assert.IsNull(probed.BuildTargetFromProfile(profile).TrimToVideoLengthMs,
             "a trimmed file must not ask to be trimmed again");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }

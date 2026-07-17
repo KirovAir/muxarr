@@ -47,7 +47,7 @@ public class FFmpegTests
         {
             new() { Index = 0, Type = MediaTrackType.Video }
         });
-        plan.StopAfterVideoEndsMs = 5_000;
+        plan.TrimToVideoLengthMs = 5_000;
 
         var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", plan);
 

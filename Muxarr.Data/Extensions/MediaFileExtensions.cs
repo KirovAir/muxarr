@@ -920,7 +920,7 @@ public static class MediaFileExtensions
 
         var target = new ConversionPlan
         {
-            StopAfterVideoEndsMs = profile.StopAfterVideoEnds ? file.Snapshot.VideoEndTrimPointMs() : null,
+            TrimToVideoLengthMs = profile.TrimToVideoLength ? file.Snapshot.VideoEndTrimPointMs() : null,
             Tracks = allowed.Select(t =>
             {
                 var settings = SettingsFor(t.Type, profile);

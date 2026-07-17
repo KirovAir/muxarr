@@ -89,13 +89,14 @@
                                 from video track descriptions during conversion.</small>
                         </div>
                         <div class="mb-3 form-check form-switch">
-                            <InputCheckbox id="stopAfterVideoEnds" class="form-check-input"
-                                           @bind-Value="_profile.StopAfterVideoEnds"/>
-                            <label class="form-check-label" for="stopAfterVideoEnds">Stop after video ends</label>
+                            <InputCheckbox id="trimToVideoLength" class="form-check-input"
+                                           @bind-Value="_profile.TrimToVideoLength"/>
+                            <label class="form-check-label" for="trimToVideoLength">Trim to video length</label>
                             <small class="form-text text-muted d-block">Discard audio and subtitle content that runs
-                                past the end of the video track, for files where an overlong track makes the whole
-                                container look longer than it is.</small>
-                            @if (_profile.StopAfterVideoEnds)
+                                past the end of the video track. Only enable this when you have files with incorrect
+                                audio or subtitle streams that make the container look longer than it really is and
+                                cause issues.</small>
+                            @if (_profile.TrimToVideoLength)
                             {
                                 <small class="form-text text-warning d-block">
                                     <i class="bi bi-exclamation-triangle me-1"></i>Unsafe, use at your own risk. This
@@ -196,7 +197,7 @@
                 existing.Name = _profile.Name;
                 existing.Directories = _profile.Directories;
                 existing.ClearVideoTrackNames = _profile.ClearVideoTrackNames;
-                existing.StopAfterVideoEnds = _profile.StopAfterVideoEnds;
+                existing.TrimToVideoLength = _profile.TrimToVideoLength;
                 existing.SkipHardlinkedFiles = _profile.SkipHardlinkedFiles;
                 existing.AudioSettings = _profile.AudioSettings;
                 existing.SubtitleSettings = _profile.SubtitleSettings;

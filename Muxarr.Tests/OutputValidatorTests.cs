@@ -217,7 +217,7 @@ public class OutputValidatorTests
     }
 
     [TestMethod]
-    public void StopAfterVideoEnds_MeasuresAgainstVideoTrack()
+    public void TrimToVideoLength_MeasuresAgainstVideoTrack()
     {
         var video = Track(0, MediaTrackType.Video, 5_000);
         var audio = Track(1, MediaTrackType.Audio, 5_038);
@@ -227,7 +227,7 @@ public class OutputValidatorTests
         var actual = MediaWithTracks(5_000, video, audio, longSub);
 
         var plan = Keeping(video, audio, longSub);
-        plan.StopAfterVideoEndsMs = 5_000;
+        plan.TrimToVideoLengthMs = 5_000;
 
         OutputValidator.ValidateOrThrow(actual, source, plan);
     }
@@ -235,7 +235,7 @@ public class OutputValidatorTests
     // If the writer silently ignored the trim request, the output is the full
     // untrimmed length - "not shorter than expected" alone would wave that through.
     [TestMethod]
-    public void StopAfterVideoEnds_OutputLongerThanTrim_Throws()
+    public void TrimToVideoLength_OutputLongerThanTrim_Throws()
     {
         var video = Track(0, MediaTrackType.Video, 5_000);
         var audio = Track(1, MediaTrackType.Audio, 25_000);
@@ -244,7 +244,7 @@ public class OutputValidatorTests
         var actual = MediaWithTracks(25_000, video, audio);
 
         var plan = Keeping(video, audio);
-        plan.StopAfterVideoEndsMs = 5_000;
+        plan.TrimToVideoLengthMs = 5_000;
 
         var ex = Assert.ThrowsExactly<Exception>(() =>
             OutputValidator.ValidateOrThrow(actual, source, plan));
@@ -255,7 +255,7 @@ public class OutputValidatorTests
     // A percentage tolerance sized for a 2h film would hide a completely
     // un-trimmed 60s overrun. The trim check needs a small fixed bound instead.
     [TestMethod]
-    public void StopAfterVideoEnds_LongFile_UntrimmedOverrun_StillThrows()
+    public void TrimToVideoLength_LongFile_UntrimmedOverrun_StillThrows()
     {
         var video = Track(0, MediaTrackType.Video, 7_200_000);
         var audio = Track(1, MediaTrackType.Audio, 7_260_000);
@@ -264,7 +264,7 @@ public class OutputValidatorTests
         var actual = MediaWithTracks(7_260_000, video, audio); // trim never happened
 
         var plan = Keeping(video, audio);
-        plan.StopAfterVideoEndsMs = 7_200_000;
+        plan.TrimToVideoLengthMs = 7_200_000;
 
         var ex = Assert.ThrowsExactly<Exception>(() =>
             OutputValidator.ValidateOrThrow(actual, source, plan));
@@ -273,7 +273,7 @@ public class OutputValidatorTests
     }
 
     [TestMethod]
-    public void StopAfterVideoEnds_StillCatchesTruncatedVideo()
+    public void TrimToVideoLength_StillCatchesTruncatedVideo()
     {
         var video = Track(0, MediaTrackType.Video, 5_000);
         var longSub = Track(1, MediaTrackType.Subtitles, 24_000);
@@ -282,7 +282,7 @@ public class OutputValidatorTests
         var actual = MediaWithTracks(2_000, video, longSub);
 
         var plan = Keeping(video, longSub);
-        plan.StopAfterVideoEndsMs = 5_000;
+        plan.TrimToVideoLengthMs = 5_000;
 
         Assert.ThrowsExactly<Exception>(() => OutputValidator.ValidateOrThrow(actual, source, plan));
     }

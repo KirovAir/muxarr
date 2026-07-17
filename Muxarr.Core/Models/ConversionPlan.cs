@@ -17,7 +17,7 @@ public class ConversionPlan : IMedia<TrackPlan>
     // Where the video track ends, when something runs past it and the profile
     // asked for that to be cut. mkvmerge finds the point itself; ffmpeg has to
     // be handed it, so the plan carries the timestamp rather than a flag.
-    public long? StopAfterVideoEndsMs { get; set; }
+    public long? TrimToVideoLengthMs { get; set; }
 
     bool IMedia<TrackPlan>.HasChapters => HasChapters ?? false;
     bool IMedia<TrackPlan>.HasAttachments => HasAttachments ?? false;
