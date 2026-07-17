@@ -449,7 +449,12 @@ public static class MediaFileExtensions
 
                 if (s.RemoveImpaired)
                 {
-                    var nonHITracks = tracksInLanguage.Where(t => !t.IsHearingImpaired).ToList();
+                    // A forced subtitle only translates foreign dialogue and signs, so it
+                    // is no substitute for the full captions an SDH track carries.
+                    var isSubtitles = tracksInLanguage[0].Type == MediaTrackType.Subtitles;
+                    var nonHITracks = tracksInLanguage
+                        .Where(t => !t.IsHearingImpaired && !(isSubtitles && t.IsForced))
+                        .ToList();
                     if (nonHITracks.Any())
                     {
                         filteredTracks = filteredTracks.Where(t => !t.IsHearingImpaired);

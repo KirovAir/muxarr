@@ -272,6 +272,72 @@ public class TrackFilterTests
         Assert.AreEqual(1, result.Count, "Only HI sub in allowed language should be kept by safety check");
     }
 
+    // A forced track only covers foreign dialogue, so it does not make the SDH
+    // track redundant the way a regular full subtitle does. Issue #51.
+    [TestMethod]
+    public void Subtitles_HIWithOnlyForcedAlternative_IsKept()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", hi: true),
+            Sub(2, "English", forced: true)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveImpaired = true
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray(),
+            "forced is not a full-text alternative, so the SDH track must stay");
+    }
+
+    // "Forced" only means something for subtitles, and it gets inferred from
+    // track titles, so audio must keep treating it as an ordinary alternative.
+    [TestMethod]
+    public void Audio_HIWithForcedAlternative_HIStillRemoved()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English", hi: true),
+            Audio(2, "English", trackName: "Forced")
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveImpaired = true
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void Subtitles_HIWithRegularAndForced_HIRemoved()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", hi: true),
+            Sub(2, "English", forced: true),
+            Sub(3, "English")
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveImpaired = true
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 2, 3 }, result.Select(t => t.Index).ToArray());
+    }
+
     // --- Enabled=false bypasses filtering ---
 
     [TestMethod]

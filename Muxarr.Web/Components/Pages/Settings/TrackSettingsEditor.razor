@@ -36,7 +36,11 @@
                     Accessibility @TrackTypeLabel</label>
                 <small class="form-text text-muted d-block">Removes @(TrackTypeLabel.ToLower())s for hearing or visually
                     impaired viewers (SDH, closed captions, audio descriptions). Keeps them if they're the only
-                    option.</small>
+                    option.@if (!IsAudio)
+                    {
+                        <text> A forced subtitle doesn't count as an alternative, it only covers foreign
+                            dialogue.</text>
+                    }</small>
             </div>
 
             <div class="mb-3 form-check form-switch">
