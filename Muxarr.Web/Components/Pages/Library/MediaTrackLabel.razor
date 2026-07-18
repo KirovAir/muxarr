@@ -4,6 +4,10 @@
     {
         <span class="opacity-75 ms-1">@channels</span>
     }
+    @if (Count is { } count)
+    {
+        <span class="opacity-75 ms-1">@count</span>
+    }
     @if (Track.IsHearingImpaired)
     {
         <ToolTip Tip="Hearing Impaired (SDH)"><i class="bi bi-ear ms-1"></i></ToolTip>
@@ -44,6 +48,9 @@
     [Parameter] [EditorRequired] public required IMediaTrack Track { get; set; }
 
     [Parameter] public bool ShowAllFlags { get; set; }
+
+    /// <summary>Tally, when one badge stands for the same position across many files.</summary>
+    [Parameter] public int? Count { get; set; }
 
     private static string GetTrackTypeIcon(MediaTrackType trackType)
     {

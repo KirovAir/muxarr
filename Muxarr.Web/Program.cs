@@ -50,6 +50,7 @@ await builder.RunWithLoggingAsync(async b =>
     // UI services
     b.Services.AddScoped<LibraryStatsService>();
     b.Services.AddScoped<TooltipService>();
+    b.Services.AddScoped<LibrarySelectionState>();
     b.Services.AddScoped<BrowserService>();
     b.Services.AddBlazoredModal();
     b.Services.AddBlazoredToast();

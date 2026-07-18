@@ -2,7 +2,6 @@ using Blazored.Modal;
 using Blazored.Modal.Services;
 using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
-using Muxarr.Data.Extensions;
 using Muxarr.Web.Components.Shared.Modals;
 
 namespace Muxarr.Web.Helpers;
@@ -54,24 +53,5 @@ public static class ModalExtensions
         }
 
         return (ConversionPlan?)modalResult.Data;
-    }
-
-    public static async Task<List<BatchTrackEdit.BatchSlotEdit>?> ShowBatchTrackEdit(
-        this IModalService modal,
-        List<MediaFile> files)
-    {
-        var parameters = new ModalParameters()
-            .Add(nameof(BatchTrackEditModal.Files), files);
-
-        var options = new ModalOptions { Size = ModalSize.Large };
-        var result = modal.Show<BatchTrackEditModal>($"Batch Track Edit - {files.Count} files", parameters, options);
-        var modalResult = await result.Result;
-
-        if (modalResult.Cancelled)
-        {
-            return null;
-        }
-
-        return (List<BatchTrackEdit.BatchSlotEdit>?)modalResult.Data;
     }
 }

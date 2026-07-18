@@ -233,6 +233,7 @@
     [Inject] public required NavigationManager NavigationManager { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
     [Inject] public required IModalService ModalService { get; set; }
+    [Inject] public required LibrarySelectionState Selection { get; set; }
 
     // Basic filter
     [Filter] private string _fileFilter = "";
@@ -419,6 +420,9 @@
         await using var context = await ContextFactory.CreateDbContextAsync();
         _filterOptions = context.Configs.Get<LibraryStatsConfig>();
         await LoadProfileSummaries(context);
+
+        // The restore above has run; from here the ticks are the user's business again.
+        Selection.Ids.Clear();
     }
 
     private async Task LoadProfileSummaries(AppDbContext context)
@@ -466,6 +470,12 @@
         TotalItems = result.Total;
         TotalPages = result.TotalPages;
         Items = await result.Data.WithTracks().ToListAsync().ConfigureAwait(false);
+
+        // Ticks come back after a trip to the batch editor, which only ever holds ids.
+        foreach (var file in Items.Where(f => Selection.Ids.Contains(f.Id)))
+        {
+            SelectedItems.Add(file);
+        }
     }
 
     private IQueryable<MediaFile> ApplyFilters(IQueryable<MediaFile> query)
@@ -660,84 +670,28 @@
         return BatchEditTracks(ApplyFilters);
     }
 
+    // Only the ids travel to the editor; it reloads the rows with their tracks itself.
     private async Task BatchEditTracks(Func<IQueryable<MediaFile>, IQueryable<MediaFile>> filter)
     {
         _isQueueing = true;
         StateHasChanged();
         try
         {
-            List<MediaFile> files;
-            await using (var context = await ContextFactory.CreateDbContextAsync())
-            {
-                files = await filter(context.MediaFiles.AsQueryable()).WithTracksAndProfile().ToListAsync();
-            }
-
-            if (files.Count == 0)
-            {
-                ToastService.ShowInfo("No files to edit.");
-                return;
-            }
-
-            var edits = await ModalService.ShowBatchTrackEdit(files);
-            if (edits == null)
-            {
-                return;
-            }
-
-            await QueueBatchEdit(files, edits);
-            SelectedItems.Clear();
-            await UpdateList();
+            await using var context = await ContextFactory.CreateDbContextAsync();
+            Selection.Set(await filter(context.MediaFiles.AsQueryable()).Select(f => f.Id).ToListAsync());
         }
         finally
         {
             _isQueueing = false;
         }
-    }
 
-    private async Task QueueBatchEdit(List<MediaFile> files, List<BatchTrackEdit.BatchSlotEdit> edits)
-    {
-        var preview = BatchTrackEdit.Preview(files, edits);
-        var plans = preview.Results
-            .Where(r => r.Outcome == BatchTrackEdit.BatchOutcome.Changed)
-            .Select(r => (r.File, r.Plan!))
-            .ToList();
-
-        var results = await MediaConverter.AddCustomBatchToQueue(plans);
-        var queued = results.Values.Count(r => r == QueueResult.Queued);
-
-        if (queued > 0)
+        if (Selection.Ids.Count == 0)
         {
-            ToastService.ShowSuccess($"Added {queued} file(s) to the conversion queue.");
+            ToastService.ShowInfo("No files to edit.");
+            return;
         }
 
-        if (preview.Unchanged > 0)
-        {
-            ToastService.ShowInfo($"{preview.Unchanged} file(s) skipped, they already match the requested changes.");
-        }
-
-        if (preview.NoMatchingTrack > 0)
-        {
-            ToastService.ShowInfo(
-                $"{preview.NoMatchingTrack} file(s) skipped, they have no track in the edited position.");
-        }
-
-        ReportSkipped(results, QueueResult.Hardlinked,
-            "hardlink protection is enabled in the profile");
-        ReportSkipped(results, QueueResult.AlreadyQueued,
-            "a conversion is already queued or running");
-        ReportSkipped(results, QueueResult.FileMissing,
-            "not accessible (mount may be offline)");
-        ReportSkipped(results, QueueResult.NotInLibrary,
-            "no longer in the library");
-    }
-
-    private void ReportSkipped(Dictionary<int, QueueResult> results, QueueResult reason, string explanation)
-    {
-        var count = results.Values.Count(r => r == reason);
-        if (count > 0)
-        {
-            ToastService.ShowInfo($"{count} file(s) skipped, {explanation}.");
-        }
+        NavigationManager.NavigateTo("/library/batch");
     }
 
     private async Task ClearLibrary()

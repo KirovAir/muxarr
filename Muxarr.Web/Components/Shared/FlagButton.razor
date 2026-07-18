@@ -1,24 +1,36 @@
-@* Tri-state flag toggle for the batch editor: no change, turn on, turn off.
+@* Tri-state flag toggle for the batch editor: leave unchanged, turn on, turn off.
    The single-file modal's flags are plain booleans; across a batch "leave it
-   alone" has to be expressible, and is the default. *@
+   alone" has to be expressible, and is the default. The +/- sign is the same
+   one MediaTrackDetail puts on its flag delta badges, so the button and the
+   preview read as the same vocabulary. *@
 <ToolTip Tip="@Describe()">
     <button type="button" class="btn btn-sm @StateCss" @onclick="Cycle">
+        @if (Value is { } flag)
+        {
+            <span class="me-1">@(flag ? "+" : "-")</span>
+        }
         <i class="bi @Icon"></i>
     </button>
 </ToolTip>
 
 @code {
     [Parameter] [EditorRequired] public required string Icon { get; set; }
-    [Parameter] [EditorRequired] public required string Label { get; set; }
-    [Parameter] public string? Tip { get; set; }
+    [Parameter] [EditorRequired] public required string Tip { get; set; }
     [Parameter] public bool? Value { get; set; }
     [Parameter] public EventCallback<bool?> ValueChanged { get; set; }
 
     private string StateCss => Value switch
     {
         true => "btn-primary",
-        false => "btn-danger",
+        false => "btn-secondary",
         _ => "btn-outline-secondary"
+    };
+
+    private string Describe() => Value switch
+    {
+        true => $"{Tip}. Currently: turn on.",
+        false => $"{Tip}. Currently: turn off.",
+        _ => $"{Tip}. Currently: leave unchanged."
     };
 
     private async Task Cycle()
@@ -31,18 +43,6 @@
         };
 
         await ValueChanged.InvokeAsync(Value);
-    }
-
-    private string Describe()
-    {
-        var state = Value switch
-        {
-            true => $"{Label}: turn on",
-            false => $"{Label}: turn off",
-            _ => $"{Label}: leave unchanged"
-        };
-
-        return string.IsNullOrEmpty(Tip) ? state : $"{state}. {Tip}";
     }
 
 }

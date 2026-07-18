@@ -1,0 +1,491 @@
+@page "/library/batch"
+@using static Muxarr.Data.Extensions.BatchTrackEdit
+@attribute [StreamRendering]
+
+<PageTitle>@TitleHelper.GetTitle("Batch Track Edit")</PageTitle>
+
+<div class="container-fluid">
+    <nav class="mb-2">
+        <a href="/library" class="text-muted small text-decoration-none">
+            <i class="bi bi-arrow-left me-1"></i>Library
+        </a>
+    </nav>
+    <h2 class="mb-3">
+        <i class="bi bi-sliders me-2"></i>Batch Track Edit
+    </h2>
+
+    @if (_isLoading)
+    {
+        <Loader IsLoading="true">
+            <div class="py-5"></div>
+        </Loader>
+    }
+    else if (_files.Count == 0)
+    {
+        <div class="alert alert-warning">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            Nothing to edit. Pick files in the <a href="/library">library</a> and choose Edit tracks.
+        </div>
+    }
+    else
+    {
+        <p class="mb-3 text-body-secondary">
+            Rows are track positions, so <strong>1</strong> under Audio is the first audio track of every one of
+            these @_files.Count files. Only the fields you change are written.
+        </p>
+
+        <div class="row g-4">
+            <div class="col-12">
+                <div class="border rounded p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-collection text-primary me-2"></i>
+                        <h5 class="mb-0">Track Positions</h5>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0">
+                            <thead>
+                            <tr>
+                                <th style="width: 35px;">#</th>
+                                <th>Language</th>
+                                <th>Format</th>
+                                <th>Apply To</th>
+                                <th>Set Language</th>
+                                <th>Track Name</th>
+                                <th>Flags</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            @{ MediaTrackType? lastType = null; }
+                            @foreach (var slot in _slots)
+                            {
+                                var edit = _edits[slot.Slot];
+                                var isVideo = slot.Slot.Type == MediaTrackType.Video;
+                                var mixed = slot.Languages.Count > 1;
+
+                                if (slot.Slot.Type != lastType)
+                                {
+                                    lastType = slot.Slot.Type;
+                                    <tr>
+                                        <td colspan="7" class="fw-semibold text-body-secondary small py-1">
+                                            <i class="bi @TrackTypeDisplay.Icon(slot.Slot.Type) me-1"></i>@TrackTypeDisplay.Label(slot.Slot.Type)
+                                        </td>
+                                    </tr>
+                                }
+
+                                <tr>
+                                    <td>
+                                        @(slot.Slot.Ordinal + 1)
+                                        @if (slot.FileCount < _files.Count)
+                                        {
+                                            <ToolTip Tip="@($"{_files.Count - slot.FileCount} file(s) have no track in this position")">
+                                                <div class="text-muted small">@slot.FileCount/@_files.Count</div>
+                                            </ToolTip>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (isVideo)
+                                        {
+                                            <MediaTrackLabel Track="Badge(MediaTrackType.Video)"/>
+                                        }
+                                        else
+                                        {
+                                            foreach (var lang in slot.Languages.Take(TopValues))
+                                            {
+                                                <span class="@(Excluded(edit, lang.Value) ? "opacity-50" : null)">
+                                                    <MediaTrackLabel Track="Badge(slot.Slot.Type, lang.Value)"
+                                                                     Count="@(mixed ? lang.Count : null)"/>
+                                                </span>
+                                            }
+                                            @if (slot.Languages.Count > TopValues)
+                                            {
+                                                <ToolTip Tip="@Rest(slot.Languages)">
+                                                    <span class="text-muted small">+@(slot.Languages.Count - TopValues)</span>
+                                                </ToolTip>
+                                            }
+                                        }
+                                    </td>
+                                    <td>
+                                        @foreach (var codec in slot.Codecs.Take(2))
+                                        {
+                                            <code class="me-1">@codec.Value</code>
+                                        }
+                                        @if (slot.Codecs.Count > 2)
+                                        {
+                                            <span class="text-muted small me-1">+@(slot.Codecs.Count - 2)</span>
+                                        }
+                                        @if (slot.Codecs.Count > 1)
+                                        {
+                                            <ToolTip Tip="These files do not all carry the same codec in this position, so this may not be the same track everywhere">
+                                                <i class="bi bi-exclamation-triangle text-warning"></i>
+                                            </ToolTip>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (!isVideo)
+                                        {
+                                            <select class="form-select form-select-sm" value="@edit.OnlyWhereLanguage"
+                                                    @onchange="e => OnScopeChanged(edit, e.Value?.ToString())">
+                                                <option value="">All files</option>
+                                                @foreach (var lang in slot.Languages)
+                                                {
+                                                    <option value="@lang.Value">@lang.Value (@lang.Count)</option>
+                                                }
+                                            </select>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (!isVideo)
+                                        {
+                                            <select class="form-select form-select-sm" value="@edit.LanguageName"
+                                                    @onchange="e => OnLanguageChanged(edit, e.Value?.ToString())">
+                                                <option value="">(unchanged)</option>
+                                                @foreach (var lang in _languages)
+                                                {
+                                                    <option value="@lang.Name">@lang.Name</option>
+                                                }
+                                            </select>
+                                        }
+                                    </td>
+                                    <td>
+                                        <div class="d-flex gap-1">
+                                            <input type="text" class="form-control form-control-sm"
+                                                   placeholder="@(edit.ClearName ? "(cleared)" : "(unchanged)")"
+                                                   disabled="@edit.ClearName" value="@edit.Name"
+                                                   @onchange="e => OnNameChanged(edit, e.Value?.ToString())"/>
+                                            <ToolTip Tip="Clear the track name on every file this row matches">
+                                                <button type="button"
+                                                        class="btn btn-sm @(edit.ClearName ? "btn-primary" : "btn-outline-secondary")"
+                                                        @onclick="() => ToggleClearName(edit)">
+                                                    <i class="bi bi-eraser"></i>
+                                                </button>
+                                            </ToolTip>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        @if (!isVideo)
+                                        {
+                                            <div class="d-flex gap-1">
+                                                <FlagButton Icon="bi-play-circle"
+                                                            Tip="Default - player will auto-select this track"
+                                                            Value="edit.IsDefault"
+                                                            ValueChanged="v => Set(edit, e => e.IsDefault = v)"/>
+                                                @if (slot.Slot.Type == MediaTrackType.Subtitles)
+                                                {
+                                                    <FlagButton Icon="bi-ear"
+                                                                Tip="Hearing Impaired (SDH) - includes sound descriptions"
+                                                                Value="edit.IsHearingImpaired"
+                                                                ValueChanged="v => Set(edit, e => e.IsHearingImpaired = v)"/>
+                                                    <FlagButton Icon="bi-lock"
+                                                                Tip="Forced - shows even when subtitles are off"
+                                                                Value="edit.IsForced"
+                                                                ValueChanged="v => Set(edit, e => e.IsForced = v)"/>
+                                                }
+                                                <FlagButton Icon="bi-chat-quote"
+                                                            Tip="Commentary - director or crew commentary track"
+                                                            Value="edit.IsCommentary"
+                                                            ValueChanged="v => Set(edit, e => e.IsCommentary = v)"/>
+                                                <FlagButton Icon="bi-translate"
+                                                            Tip="Dubbed - translated audio (e.g. English dub of a Japanese show)"
+                                                            Value="edit.IsDub"
+                                                            ValueChanged="v => Set(edit, e => e.IsDub = v)"/>
+                                            </div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+
+                    @foreach (var warning in _preview.Skipped)
+                    {
+                        <div class="alert alert-warning py-2 small mt-3 mb-0">
+                            <ToolTip Tip="Muxarr reads these flags back off the track name, so the change would not survive a rescan. Clear or edit the track name to apply it.">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                            </ToolTip>@warning
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="col-xl-5">
+                <div class="border rounded p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-files text-primary me-2"></i>
+                        <h5 class="mb-0">Files</h5>
+                    </div>
+                    <div class="table-responsive" style="max-height: 420px; overflow: auto;">
+                        <table class="table table-sm align-middle mb-0">
+                            <tbody>
+                            @{ var selectedId = Selected?.File.Id; }
+                            @foreach (var result in _results)
+                            {
+                                <tr>
+                                    <td style="width: 30px;">
+                                        @if (_hasEdits)
+                                        {
+                                            <ToolTip Tip="@OutcomeTip(result.Outcome)">
+                                                <i class="bi @OutcomeIcon(result.Outcome)"></i>
+                                            </ToolTip>
+                                        }
+                                    </td>
+                                    <td>
+                                        <button type="button"
+                                                class="btn btn-link btn-sm p-0 text-start text-break @(result.File.Id == selectedId ? "fw-semibold" : null)"
+                                                @onclick="() => _selectedId = result.File.Id">
+                                            <span class="small">@result.File.GetName()</span>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-xl-7">
+                <div class="border rounded p-4">
+                    <div class="d-flex align-items-center mb-3">
+                        <i class="bi bi-eye text-primary me-2"></i>
+                        <h5 class="mb-0">Preview</h5>
+                    </div>
+                    @if (Selected is { } sample && sample.File.Snapshot != null)
+                    {
+                        <div class="text-muted small mb-1 text-break">@sample.File.GetName()</div>
+                        <div class="table-responsive">
+                            <MediaTrackDetailTable Tracks="sample.File.Snapshot.Tracks"
+                                                   PreviewTracks="sample.Plan?.Tracks"
+                                                   OriginalLanguage="@sample.File.OriginalLanguage"/>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted mb-0">No track data available.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <StickyBar>
+            @if (_hasEdits)
+            {
+                <span class="small text-body-secondary">@Summary</span>
+            }
+            <button type="button" class="btn btn-primary ms-auto"
+                    disabled="@(_preview.Changed == 0 || _isQueueing)" @onclick="Queue">
+                <i class="bi bi-check-lg me-2"></i>Queue @_preview.Changed file(s)
+            </button>
+            <a href="/library" class="btn btn-outline-secondary">Cancel</a>
+        </StickyBar>
+    }
+</div>
+
+@code {
+    [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
+    [Inject] public required NavigationManager NavigationManager { get; set; }
+    [Inject] public required MediaConverterService MediaConverter { get; set; }
+    [Inject] public required LibrarySelectionState Selection { get; set; }
+    [Inject] public required IToastService ToastService { get; set; }
+
+    // Two languages read as "mixed" already; three is where MediaTrackLabels folds too.
+    private const int TopValues = 3;
+
+    private List<MediaFile> _files = [];
+    private List<BatchSlotSummary> _slots = [];
+    private readonly Dictionary<TrackSlot, BatchSlotEdit> _edits = new();
+    private List<IsoLanguage> _languages = [];
+    private BatchPreview _preview = new([], 0, 0, 0, []);
+    private List<BatchApplyResult> _results = [];
+    private int _selectedId;
+    private bool _hasEdits;
+    private bool _isLoading = true;
+    private bool _isQueueing;
+
+    // Falls back so the panel always shows a real file, and the bold row in the
+    // list always matches what is on screen.
+    private BatchApplyResult? Selected =>
+        _results.FirstOrDefault(r => r.File.Id == _selectedId)
+        ?? _results.FirstOrDefault(r => r.Outcome == BatchOutcome.Changed)
+        ?? _results.FirstOrDefault();
+
+    private string Summary
+    {
+        get
+        {
+            var parts = new List<string> { $"{_preview.Changed} file(s) will change" };
+            if (_preview.Unchanged > 0)
+            {
+                parts.Add($"{_preview.Unchanged} already match");
+            }
+
+            if (_preview.NoMatchingTrack > 0)
+            {
+                parts.Add($"{_preview.NoMatchingTrack} have no track in this position");
+            }
+
+            return string.Join(", ", parts) + ".";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // No selection means the page was opened cold. It never resolves a scope
+        // of its own, so there is nothing to edit and nothing to queue.
+        if (Selection.Ids.Count == 0)
+        {
+            _isLoading = false;
+            return;
+        }
+
+        var ids = Selection.Ids.ToList();
+        await using (var context = await ContextFactory.CreateDbContextAsync())
+        {
+            _files = await context.MediaFiles
+                .Where(f => ids.Contains(f.Id))
+                .WithTracksAndProfile()
+                .ToListAsync();
+        }
+
+        _slots = Aggregate(_files);
+        foreach (var slot in _slots)
+        {
+            _edits[slot.Slot] = new BatchSlotEdit { Slot = slot.Slot };
+        }
+
+        // Languages already in the selection first, the full list after.
+        var present = _slots.SelectMany(s => s.Languages).Select(l => l.Value).ToHashSet();
+        _languages = IsoLanguage.Languages
+            .OrderByDescending(l => present.Contains(l.Name))
+            .ThenBy(l => l.Name)
+            .ToList();
+
+        Refresh();
+        _isLoading = false;
+    }
+
+    private void Refresh()
+    {
+        _hasEdits = _edits.Values.Any(e => e.HasAnyEdit);
+        _preview = Preview(_files, _edits.Values.ToList());
+
+        // Changed first, so the files that move are not buried under the ones that don't.
+        _results = _preview.Results
+            .OrderBy(r => r.Outcome)
+            .ThenBy(r => r.File.GetName())
+            .ToList();
+    }
+
+    private void Set(BatchSlotEdit edit, Action<BatchSlotEdit> mutate)
+    {
+        mutate(edit);
+        Refresh();
+    }
+
+    private void OnScopeChanged(BatchSlotEdit edit, string? language)
+    {
+        edit.OnlyWhereLanguage = string.IsNullOrEmpty(language) ? null : language;
+        Refresh();
+    }
+
+    private void OnLanguageChanged(BatchSlotEdit edit, string? language)
+    {
+        edit.LanguageName = string.IsNullOrEmpty(language) ? null : language;
+        Refresh();
+    }
+
+    private void OnNameChanged(BatchSlotEdit edit, string? name)
+    {
+        edit.Name = string.IsNullOrEmpty(name) ? null : name;
+        Refresh();
+    }
+
+    private void ToggleClearName(BatchSlotEdit edit)
+    {
+        edit.ClearName = !edit.ClearName;
+        if (edit.ClearName)
+        {
+            edit.Name = null;
+        }
+
+        Refresh();
+    }
+
+    // A slot is a tally, not a track, so MediaTrackLabel gets a stand-in. It keeps
+    // the badge colour, the type icon and the "Video" special case in one place.
+    private static TrackSnapshot Badge(MediaTrackType type, string language = "")
+    {
+        return new TrackSnapshot { Type = type, LanguageName = language };
+    }
+
+    private static bool Excluded(BatchSlotEdit edit, string language)
+    {
+        return edit.OnlyWhereLanguage != null && edit.OnlyWhereLanguage != language;
+    }
+
+    private static string Rest(List<ValueCount> values)
+    {
+        return string.Join(", ", values.Skip(TopValues).Select(v => $"{v.Value} ({v.Count})"));
+    }
+
+    private static string OutcomeIcon(BatchOutcome outcome)
+    {
+        return outcome switch
+        {
+            BatchOutcome.Changed => "bi-pencil-square text-info",
+            BatchOutcome.Unchanged => "bi-dash-circle text-muted",
+            _ => "bi-slash-circle text-muted"
+        };
+    }
+
+    private static string OutcomeTip(BatchOutcome outcome)
+    {
+        return outcome switch
+        {
+            BatchOutcome.Changed => "Will change",
+            BatchOutcome.Unchanged => "Already matches these edits",
+            _ => "No track in the edited position"
+        };
+    }
+
+    private async Task Queue()
+    {
+        _isQueueing = true;
+        try
+        {
+            var plans = _preview.Results
+                .Where(r => r.Outcome == BatchOutcome.Changed)
+                .Select(r => (r.File, r.Plan!))
+                .ToList();
+
+            var results = await MediaConverter.AddCustomBatchToQueue(plans);
+            var queued = results.Values.Count(r => r == QueueResult.Queued);
+            if (queued > 0)
+            {
+                ToastService.ShowSuccess($"Added {queued} file(s) to the conversion queue.");
+            }
+
+            ReportSkipped(results, QueueResult.Hardlinked, "hardlink protection is enabled in the profile");
+            ReportSkipped(results, QueueResult.AlreadyQueued, "a conversion is already queued or running");
+            ReportSkipped(results, QueueResult.FileMissing, "not accessible (mount may be offline)");
+            ReportSkipped(results, QueueResult.NotInLibrary, "no longer in the library");
+
+            Selection.Ids.Clear();
+            NavigationManager.NavigateTo("/library");
+        }
+        finally
+        {
+            _isQueueing = false;
+        }
+    }
+
+    private void ReportSkipped(Dictionary<int, QueueResult> results, QueueResult reason, string explanation)
+    {
+        var count = results.Values.Count(r => r == reason);
+        if (count > 0)
+        {
+            ToastService.ShowInfo($"{count} file(s) skipped, {explanation}.");
+        }
+    }
+
+}
