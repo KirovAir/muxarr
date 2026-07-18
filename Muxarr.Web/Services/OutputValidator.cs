@@ -77,12 +77,8 @@ public static class OutputValidator
 
         if (target.TrimToVideoLength)
         {
-            // mkvmerge stops after the video, so the video survives whole and is
-            // still a floor. ffmpeg's -shortest can cut the video itself, so on
-            // MP4 there is nothing honest left to measure against.
-            return source.Snapshot.ContainerType.ToContainerFamily() == ContainerFamily.Matroska
-                ? kept.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault()?.DurationMs ?? 0
-                : 0;
+            // mkvmerge stops after the video, so the video still comes out whole.
+            return kept.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault()?.DurationMs ?? 0;
         }
 
         if (kept.Count == source.Snapshot.Tracks.Count)
@@ -90,10 +86,8 @@ public static class OutputValidator
             return source.Snapshot.DurationMs;
         }
 
-        // A dropped track may be the one that set the container's length, so that
-        // is no longer the yardstick. Every kept track that reports a length is
-        // still a floor the output has to clear. Plenty of Matroska files report
-        // none at all, and 0 skips the check rather than inventing an expectation.
+        // A dropped track may be what set the container's length, so it is no
+        // longer the yardstick; a kept track that reports one is still a floor.
         return kept.LongestDurationMs();
     }
 }

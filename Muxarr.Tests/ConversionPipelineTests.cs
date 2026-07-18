@@ -1369,13 +1369,14 @@ public class ConversionPipelineTests
 
     // --- TrimToVideoLength ---
 
-    // The plan carries the request, not a cut point: both writers find the point
-    // themselves, and the planner leaves it off the remux decision.
+    // Only mkvmerge can stop after the video, so the resolver drops the request
+    // on anything else.
     [TestMethod]
-    [DataRow("Matroska", true)]
-    [DataRow("MP4/QuickTime", true)]
-    [DataRow("Matroska", false)]
-    public void TrimToVideoLength_CarriesTheProfileFlag(string container, bool enabled)
+    [DataRow("Matroska", true, true)]
+    [DataRow("Matroska", false, false)]
+    [DataRow("MP4/QuickTime", true, false)]
+    public void TrimToVideoLength_CarriesTheProfileFlagOnMatroskaOnly(
+        string container, bool enabled, bool expected)
     {
         var file = MakeFile(null, Video(0), Sub(1, "English"));
         file.Snapshot.ContainerType = container;
@@ -1383,7 +1384,7 @@ public class ConversionPipelineTests
         var profile = MakeProfile();
         profile.TrimToVideoLength = enabled;
 
-        Assert.AreEqual(enabled, file.BuildTargetFromProfile(profile).TrimToVideoLength);
+        Assert.AreEqual(expected, file.BuildTargetFromProfile(profile).TrimToVideoLength);
     }
 
     // --- ClearFileTitle ---

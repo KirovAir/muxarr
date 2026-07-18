@@ -204,9 +204,8 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
-    // Same drop, but on a file where no track reports a length. The expectation
-    // used to fall back to the container, which is the 10s subtitle being cut,
-    // so a correct 3s output looked truncated and rolled back.
+    // Same drop, on a file where no track reports a length. The expectation used
+    // to fall back to the container, which is the track being dropped.
     [TestMethod]
     public async Task Remux_DroppingTheLongestTrack_WithoutDurationTags_IsNotTruncation()
     {

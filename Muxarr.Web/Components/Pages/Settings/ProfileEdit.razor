@@ -98,19 +98,8 @@
                             <small class="form-text text-muted d-block">Discard audio and subtitle content that runs
                                 past the end of the video track. Only enable this when you have files with incorrect
                                 audio or subtitle tracks that make the file look longer than it really is and cause
-                                issues. Applied only when the file is already being converted for other reasons, so
-                                it never queues a conversion by itself.</small>
-                            @if (_profile.TrimToVideoLength)
-                            {
-                                <small class="form-text text-warning d-block">
-                                    <i class="bi bi-exclamation-triangle me-1"></i>Unsafe, use at your own risk. This
-                                    throws away real content and cannot be undone. If a file's video track is short
-                                    because it is damaged, everything after it is lost. On MP4 the cut lands on the
-                                    <em>shortest</em> track, so a subtitle or audio track that ends early takes the
-                                    rest of the video with it. This is RISKY, so understand your library and accept
-                                    the risk.
-                                </small>
-                            }
+                                issues. Matroska only, and applied only when the file is already being converted for
+                                other reasons, so it never queues a conversion by itself.</small>
                         </div>
                     }
                     else if (_tab == "video")

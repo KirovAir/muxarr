@@ -181,13 +181,6 @@ public static class FFmpeg
             sb.Append($" -metadata title={FFmpegHelper.EscapeValue(delta.Title)}");
         }
 
-        // -shortest stops at the shortest stream, so a stream ending before the
-        // video costs real video. The setting warns about that.
-        if (delta.TrimToVideoLength)
-        {
-            sb.Append(" -shortest");
-        }
-
         for (var outIdx = 0; outIdx < tracks.Count; outIdx++)
         {
             var track = tracks[outIdx];

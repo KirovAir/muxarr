@@ -270,19 +270,6 @@ public class OutputValidatorTests
         StringAssert.Contains(ex.Message, "truncated");
     }
 
-    // -shortest can cut the video itself, so on MP4 there is no floor to hold to.
-    [TestMethod]
-    public void TrimToVideoLength_Mp4_HasNoFloor()
-    {
-        var source = Media(durationMs: 600_000, trackTypes: MediaTrackType.Video);
-        var actual = Media(durationMs: 4_000, trackTypes: MediaTrackType.Video);
-
-        var plan = Expected(MediaTrackType.Video);
-        plan.TrimToVideoLength = true;
-
-        OutputValidator.ValidateOrThrow(actual, source, plan);
-    }
-
     [TestMethod]
     public void ClearFileTitle_OutputCleared_Passes()
     {

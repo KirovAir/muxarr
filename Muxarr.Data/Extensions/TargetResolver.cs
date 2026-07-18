@@ -26,6 +26,8 @@ public static class TargetResolver
 
         if (family != ContainerFamily.Matroska)
         {
+            // Only mkvmerge can stop after the video; -shortest cuts at the shortest track.
+            target.TrimToVideoLength = false;
             return;
         }
 

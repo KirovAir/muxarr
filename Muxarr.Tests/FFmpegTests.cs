@@ -40,8 +40,9 @@ public class FFmpegTests
         StringAssert.Contains(args, "-f mp4");
     }
 
+    // Trim is Matroska only; -shortest would cut at the shortest track, not the video.
     [TestMethod]
-    public void BuildArguments_TrimEmitsShortest()
+    public void BuildArguments_NeverEmitsShortest()
     {
         var plan = TestPlan.Of(new List<TrackPlan>
         {
@@ -51,7 +52,7 @@ public class FFmpegTests
 
         var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", plan);
 
-        StringAssert.Contains(args, "-shortest");
+        Assert.IsFalse(args.Contains("-shortest"), args);
     }
 
     [TestMethod]
