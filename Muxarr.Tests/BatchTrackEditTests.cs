@@ -78,6 +78,23 @@ public class BatchTrackEditTests
         Assert.AreEqual(BatchOutcome.NoMatchingTrack, Apply(english, edits).Outcome);
     }
 
+    // Find() folds every unrecognised value onto one Unknown, so scoping has to
+    // match the name Aggregate grouped on.
+    [TestMethod]
+    public void OnlyWhereLanguage_DoesNotMatchADifferentUnknownLanguage()
+    {
+        var file = MakeFileWithContainer("Matroska", Video(0), Audio(1, "English"));
+        file.Snapshot.Tracks[1].LanguageName = "Klingon";
+
+        var result = Apply(file, [AudioSlot(0, e =>
+        {
+            e.OnlyWhereLanguage = "Simlish";
+            e.LanguageName = "German";
+        })]);
+
+        Assert.AreEqual(BatchOutcome.NoMatchingTrack, result.Outcome);
+    }
+
     [TestMethod]
     public void FilesThatAlreadyMatch_AreNotQueued()
     {

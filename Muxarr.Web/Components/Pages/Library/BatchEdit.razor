@@ -24,7 +24,8 @@
     {
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
-            Nothing to edit. Pick files in the <a href="/library">library</a> and choose Edit tracks.
+            @(_expired ? "This selection expired." : "Nothing to edit.")
+            Pick files in the <a href="/library">library</a> and choose Edit tracks.
         </div>
     }
     else
@@ -224,7 +225,7 @@
                                     <td style="width: 30px;">
                                         @if (_hasEdits)
                                         {
-                                            <ToolTip Tip="@OutcomeTip(result.Outcome)">
+                                            <ToolTip Tip="@OutcomeTip(result)">
                                                 <i class="bi @OutcomeIcon(result.Outcome)"></i>
                                             </ToolTip>
                                         }
@@ -276,7 +277,7 @@
                     disabled="@(_preview.Changed == 0 || _isQueueing)" @onclick="Queue">
                 <i class="bi bi-check-lg me-2"></i>Queue @_preview.Changed file(s)
             </button>
-            <a href="/library" class="btn btn-outline-secondary">Cancel</a>
+            <a href="/library?sel=@SelectionToken" class="btn btn-outline-secondary">Cancel</a>
         </StickyBar>
     }
 </div>
@@ -285,8 +286,10 @@
     [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
     [Inject] public required NavigationManager NavigationManager { get; set; }
     [Inject] public required MediaConverterService MediaConverter { get; set; }
-    [Inject] public required LibrarySelectionState Selection { get; set; }
+    [Inject] public required LibrarySelectionStore Selections { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sel")] private string? SelectionToken { get; set; }
 
     // Two languages read as "mixed" already; three is where MediaTrackLabels folds too.
     private const int TopValues = 3;
@@ -301,6 +304,7 @@
     private bool _hasEdits;
     private bool _isLoading = true;
     private bool _isQueueing;
+    private bool _expired;
 
     // Falls back so the panel always shows a real file, and the bold row in the
     // list always matches what is on screen.
@@ -330,21 +334,27 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // No selection means the page was opened cold. It never resolves a scope
-        // of its own, so there is nothing to edit and nothing to queue.
-        if (Selection.Ids.Count == 0)
+        // No token means the page was opened cold. A token the store no longer
+        // knows means the selection sat around past its lifetime.
+        var ids = Selections.Get(SelectionToken);
+        if (ids == null || ids.Count == 0)
         {
+            _expired = !string.IsNullOrEmpty(SelectionToken);
             _isLoading = false;
             return;
         }
 
-        var ids = Selection.Ids.ToList();
         await using (var context = await ContextFactory.CreateDbContextAsync())
         {
-            _files = await context.MediaFiles
-                .Where(f => ids.Contains(f.Id))
-                .WithTracksAndProfile()
-                .ToListAsync();
+            // EF expands Contains to one SQL parameter per id and SQLite caps a
+            // statement at 32766, so a whole-library selection arrives in batches.
+            foreach (var chunk in ids.Chunk(10000))
+            {
+                _files.AddRange(await context.MediaFiles
+                    .Where(f => chunk.Contains(f.Id))
+                    .WithTracksAndProfile()
+                    .ToListAsync());
+            }
         }
 
         _slots = Aggregate(_files);
@@ -438,11 +448,13 @@
         };
     }
 
-    private static string OutcomeTip(BatchOutcome outcome)
+    private static string OutcomeTip(BatchApplyResult result)
     {
-        return outcome switch
+        return result.Outcome switch
         {
             BatchOutcome.Changed => "Will change",
+            // A refused edit leaves no delta, which is not the same as matching.
+            BatchOutcome.Unchanged when result.Skipped.Count > 0 => "Nothing here could be applied",
             BatchOutcome.Unchanged => "Already matches these edits",
             _ => "No track in the edited position"
         };
@@ -470,7 +482,7 @@
             ReportSkipped(results, QueueResult.FileMissing, "not accessible (mount may be offline)");
             ReportSkipped(results, QueueResult.NotInLibrary, "no longer in the library");
 
-            Selection.Ids.Clear();
+            Selections.Remove(SelectionToken);
             NavigationManager.NavigateTo("/library");
         }
         finally

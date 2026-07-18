@@ -6,15 +6,9 @@ using Muxarr.Data.Entities;
 
 namespace Muxarr.Data.Extensions;
 
-// Metadata edits applied to the same track position across many files. Tracks
-// are matched by position within their type ("the first audio track"), never by
-// Index: that is the raw ffprobe stream index, which skips data and cover-art
-// streams and so is neither contiguous nor comparable between files.
-//
-// Apply builds a sparse plan - every source track in source order, every field
-// null except the ones actually edited. Keeping the track list identical to the
-// source is what holds ConversionPlanner off the remux path, and leaving the
-// rest null lets each file keep its own values.
+// Metadata edits applied to the same track position across many files. Slots go
+// by position within a type, never by Index, which is the raw ffprobe stream
+// index and is not comparable between files.
 public static class BatchTrackEdit
 {
     public readonly record struct TrackSlot(MediaTrackType Type, int Ordinal);
@@ -33,8 +27,7 @@ public static class BatchTrackEdit
     {
         public TrackSlot Slot { get; init; }
 
-        // Restricts the edit to files whose track in this slot is currently this
-        // language. Null applies it everywhere.
+        // Null applies the edit to every file, not just one language.
         public string? OnlyWhereLanguage { get; set; }
 
         public string? LanguageName { get; set; }
@@ -135,8 +128,10 @@ public static class BatchTrackEdit
                 continue;
             }
 
+            // Match the name Aggregate grouped on. Resolving both sides would fold
+            // every unrecognised language onto the same Unknown.
             if (edit.OnlyWhereLanguage != null &&
-                IsoLanguage.Find(source.LanguageName) != IsoLanguage.Find(edit.OnlyWhereLanguage))
+                !string.Equals(source.LanguageName, edit.OnlyWhereLanguage, StringComparison.Ordinal))
             {
                 continue;
             }
@@ -152,8 +147,7 @@ public static class BatchTrackEdit
 
         TargetResolver.ResolveForContainer(plan, snapshot);
 
-        // Faststart is never diffed, so the whole-plan HasChanges always reports
-        // a change on MP4. Only the track deltas say whether this file moved.
+        // Whole-plan HasChanges always fires on MP4, so ask the track deltas.
         var delta = ConversionPlanExtensions.Delta(snapshot, plan);
         var changed = delta.Tracks.Any(ConversionPlanExtensions.HasChanges);
 
@@ -173,8 +167,7 @@ public static class BatchTrackEdit
             target.Name = edit.Name;
         }
 
-        // Flags and language are re-read from the track name on the next scan,
-        // so judge them against the name this edit leaves behind, not the old one.
+        // The next scan re-reads flags off the name this edit leaves behind.
         var name = target.Name ?? source.Name;
 
         if (edit.LanguageName != null)
@@ -190,8 +183,7 @@ public static class BatchTrackEdit
         target.IsCommentary = KeepIfItSticks(edit.IsCommentary, TrackNameFlags.ContainsCommentary(name),
             "Commentary", skipped);
 
-        // Matroska has no dub flag, so the resolver moves it into the title and
-        // the edit sticks. Everywhere else the title keeps overriding it.
+        // Matroska has no dub flag; the resolver moves it into the title instead.
         target.IsDub = KeepIfItSticks(edit.IsDub,
             family != ContainerFamily.Matroska && TrackNameFlags.ContainsDub(name),
             "Dub", skipped);
@@ -202,8 +194,7 @@ public static class BatchTrackEdit
     {
         var iso = IsoLanguage.Find(languageName);
 
-        // An untagged track has its language read back off the name, so tagging
-        // one und or unknown bounces on the next scan.
+        // An untagged track gets its language back off the name on the next scan.
         if (IsUnset(iso.Name) && source.Type != MediaTrackType.Video &&
             IsoLanguage.Find(name, true) != IsoLanguage.Unknown)
         {
@@ -214,10 +205,8 @@ public static class BatchTrackEdit
         target.LanguageCode = iso.ThreeLetterCode ?? source.LanguageCode;
     }
 
-    // Turning one of these off never sticks while the keyword is still in the
-    // track name: the next scan reads the flag straight back out of it, the
-    // in-place edit is judged to have failed, and the file gets a full remux
-    // that cannot fix it either. Drop the field instead so the file is left alone.
+    // A flag the name still implies cannot be turned off: the rescan reads it
+    // straight back, and the file falls through to a remux that cannot fix it.
     private static bool? KeepIfItSticks(bool? desired, bool nameImpliesOn, string label, List<string> skipped)
     {
         if (desired is not false || !nameImpliesOn)
@@ -234,10 +223,8 @@ public static class BatchTrackEdit
         return languageName == IsoLanguage.UnknownName || languageName == IsoLanguage.UndeterminedName;
     }
 
-    // Source order, deliberately unsorted: ConversionPlanner compares the plan
-    // against this same list positionally, so emitting any other order reads as
-    // a structural change and costs a full remux.
-    // Snapshot is null on a file that was never successfully scanned.
+    // Unsorted on purpose: ConversionPlanner compares the plan against this list
+    // positionally, so any other order reads as a structural change.
     private static List<TrackSnapshot> SourceOrder(MediaFile file)
     {
         return file.Snapshot?.Tracks.ToList() ?? [];
@@ -247,8 +234,7 @@ public static class BatchTrackEdit
     {
         var ordinals = new Dictionary<MediaTrackType, int>();
 
-        // Slots follow stream order, so "audio 1" is the first audio track in
-        // the file rather than whichever row the database handed back first.
+        // Stream order, so slot 1 is the file's first track of that type.
         foreach (var track in SourceOrder(file).OrderBy(t => t.Index))
         {
             ordinals.TryGetValue(track.Type, out var ordinal);

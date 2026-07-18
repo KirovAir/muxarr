@@ -233,7 +233,9 @@
     [Inject] public required NavigationManager NavigationManager { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
     [Inject] public required IModalService ModalService { get; set; }
-    [Inject] public required LibrarySelectionState Selection { get; set; }
+    [Inject] public required LibrarySelectionStore Selections { get; set; }
+
+    [SupplyParameterFromQuery(Name = "sel")] private string? SelectionToken { get; set; }
 
     // Basic filter
     [Filter] private string _fileFilter = "";
@@ -372,6 +374,10 @@
     private bool _showAdvanced;
     private bool _isQueueing;
     private bool _disposed;
+
+    // Ticks handed back by the batch editor. Consumed by the first list load,
+    // then dropped so paging and filtering don't keep re-ticking rows.
+    private HashSet<int>? _restoreIds;
     private LibraryStatsConfig? _filterOptions;
     private List<ProfileSummary> _profileSummaries = [];
 
@@ -410,6 +416,8 @@
         IsAscending = false;
 
         MediaScanner.ScanningStateChanged += OnScanningStateChanged;
+        _restoreIds = Selections.Get(SelectionToken);
+
         await LoadFilters();
 
         if (ApplyQueryParams())
@@ -417,12 +425,12 @@
             await UpdateList();
         }
 
+        // The restore above has run; from here the ticks are the user's business again.
+        _restoreIds = null;
+
         await using var context = await ContextFactory.CreateDbContextAsync();
         _filterOptions = context.Configs.Get<LibraryStatsConfig>();
         await LoadProfileSummaries(context);
-
-        // The restore above has run; from here the ticks are the user's business again.
-        Selection.Ids.Clear();
     }
 
     private async Task LoadProfileSummaries(AppDbContext context)
@@ -436,7 +444,10 @@
     private bool ApplyQueryParams()
     {
         var query = QueryHelpers.ParseQuery(new Uri(NavigationManager.Uri).Query);
-        if (query.Count == 0)
+
+        // Only a filter key counts. A returning ?sel token must not blank the
+        // filters the user left behind.
+        if (!QueryParamMap.Any(p => query.ContainsKey(p.Key)))
         {
             return false;
         }
@@ -472,9 +483,12 @@
         Items = await result.Data.WithTracks().ToListAsync().ConfigureAwait(false);
 
         // Ticks come back after a trip to the batch editor, which only ever holds ids.
-        foreach (var file in Items.Where(f => Selection.Ids.Contains(f.Id)))
+        if (_restoreIds != null)
         {
-            SelectedItems.Add(file);
+            foreach (var file in Items.Where(f => _restoreIds.Contains(f.Id)))
+            {
+                SelectedItems.Add(file);
+            }
         }
     }
 
@@ -673,25 +687,26 @@
     // Only the ids travel to the editor; it reloads the rows with their tracks itself.
     private async Task BatchEditTracks(Func<IQueryable<MediaFile>, IQueryable<MediaFile>> filter)
     {
+        List<int> ids;
         _isQueueing = true;
         StateHasChanged();
         try
         {
             await using var context = await ContextFactory.CreateDbContextAsync();
-            Selection.Set(await filter(context.MediaFiles.AsQueryable()).Select(f => f.Id).ToListAsync());
+            ids = await filter(context.MediaFiles.AsQueryable()).Select(f => f.Id).ToListAsync();
         }
         finally
         {
             _isQueueing = false;
         }
 
-        if (Selection.Ids.Count == 0)
+        if (ids.Count == 0)
         {
             ToastService.ShowInfo("No files to edit.");
             return;
         }
 
-        NavigationManager.NavigateTo("/library/batch");
+        NavigationManager.NavigateTo($"/library/batch?sel={Selections.Put(ids)}");
     }
 
     private async Task ClearLibrary()
