@@ -109,9 +109,11 @@
         }
         else if (Previous != null && Previous.DurationMs - Current.DurationMs > TrimSlackMs)
         {
-            rows.Add(new Row("bi-scissors", "Trimmed to video length",
+            // Dropping the longest track shortens the file too, so the snapshots
+            // cannot say a trim did this. Report the change, not a cause.
+            rows.Add(new Row("bi-clock", "Duration",
                 $"{FormatClock(Previous.DurationMs)} → {FormatClock(Current.DurationMs)}",
-                State.Gone, "Anything past the end of the video"));
+                State.Present, "Container duration"));
         }
     }
 
