@@ -220,6 +220,14 @@ public class MediaScannerService(
     private async Task ScanFileCore(string filePath, bool forceRescan, Profile profile,
         AppDbContext context, string? webhookTitle = null, string? webhookOriginalLanguage = null)
     {
+        // A webhook can fire before the file lands. Creating the row anyway leaves
+        // it with no snapshot, which the library page cannot render.
+        if (!File.Exists(filePath))
+        {
+            logger.LogWarning("Skipping scan; file not found on disk: {Path}", filePath);
+            return;
+        }
+
         var isHardlinked = HardLinkHelper.IsHardlinked(filePath);
 
         if (profile.SkipHardlinkedFiles && isHardlinked)
