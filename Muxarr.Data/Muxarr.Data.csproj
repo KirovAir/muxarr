@@ -13,6 +13,8 @@
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite"/>
+        <!-- Pinned past the bundled SQLite advisory in 2.1.11 (GHSA-2m69-gcr7-jv3q). -->
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3"/>
     </ItemGroup>
 
     <ItemGroup>
