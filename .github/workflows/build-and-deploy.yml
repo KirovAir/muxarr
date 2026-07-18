@@ -160,7 +160,7 @@ jobs:
                     touch "/tmp/digests/${digest#sha256:}"
 
             -   name: Upload digest
-                uses: actions/upload-artifact@v5
+                uses: actions/upload-artifact@v7
                 with:
                     name: digests-${{ matrix.arch }}
                     path: /tmp/digests/*
@@ -180,7 +180,7 @@ jobs:
                 run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
 
             -   name: Download digests
-                uses: actions/download-artifact@v5
+                uses: actions/download-artifact@v8
                 with:
                     path: /tmp/digests
                     pattern: digests-*
