@@ -30,10 +30,10 @@ public static class LocalNetwork
             var bytes = address.GetAddressBytes();
             return bytes[0] switch
             {
-                10 => true,                              // 10.0.0.0/8
+                10 => true, // 10.0.0.0/8
                 172 => bytes[1] >= 16 && bytes[1] <= 31, // 172.16.0.0/12
-                192 => bytes[1] == 168,                  // 192.168.0.0/16
-                169 => bytes[1] == 254,                  // 169.254.0.0/16 link-local
+                192 => bytes[1] == 168, // 192.168.0.0/16
+                169 => bytes[1] == 254, // 169.254.0.0/16 link-local
                 _ => false
             };
         }

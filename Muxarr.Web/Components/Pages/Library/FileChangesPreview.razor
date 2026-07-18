@@ -10,7 +10,8 @@
         @foreach (var change in _changes)
         {
             <ToolTip Tip="@change.Tooltip">
-                <span class="badge rounded-pill border @change.Css d-inline-flex align-items-center gap-1 fw-normal py-1 px-2">
+                <span
+                    class="badge rounded-pill border @change.Css d-inline-flex align-items-center gap-1 fw-normal py-1 px-2">
                     <i class="bi @change.Icon"></i>@change.Label
                 </span>
             </ToolTip>
@@ -59,4 +60,5 @@
 
         _changes = changes;
     }
+
 }

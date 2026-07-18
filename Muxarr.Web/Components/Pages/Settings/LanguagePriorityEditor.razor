@@ -57,7 +57,8 @@
             <div class="lpe-advanced-panel">
                 <div class="row g-2">
                     <div class="col-6">
-                        <ToolTip Tip="Limit the number of tracks kept for this language. The preferred track is kept first.">
+                        <ToolTip
+                            Tip="Limit the number of tracks kept for this language. The preferred track is kept first.">
                             <label class="lpe-advanced-label">Max tracks</label>
                         </ToolTip>
                         <select class="form-select form-select-sm"
@@ -79,8 +80,10 @@
                             <select class="form-select form-select-sm"
                                     value="@pref.QualityStrategy.ToString()"
                                     @onchange="e => SetQualityStrategy(pref, e.Value?.ToString())">
-                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Lossless first (default)</option>
-                                <option value="@nameof(AudioQualityStrategy.MostChannels)">Most channels (surround)</option>
+                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Lossless first (default)
+                                </option>
+                                <option value="@nameof(AudioQualityStrategy.MostChannels)">Most channels (surround)
+                                </option>
                                 <option value="@nameof(AudioQualityStrategy.SmallestSize)">Smallest size</option>
                             </select>
                         }
@@ -93,9 +96,11 @@
                             <select class="form-select form-select-sm"
                                     value="@pref.SubtitleStrategy.ToString()"
                                     @onchange="e => SetSubtitleStrategy(pref, e.Value?.ToString())">
-                                <option value="@nameof(SubtitleQualityStrategy.TextFirst)">Text first (SRT, default)</option>
+                                <option value="@nameof(SubtitleQualityStrategy.TextFirst)">Text first (SRT, default)
+                                </option>
                                 <option value="@nameof(SubtitleQualityStrategy.ImageFirst)">Image first (PGS)</option>
-                                <option value="@nameof(SubtitleQualityStrategy.Accessibility)">Accessibility (SDH)</option>
+                                <option value="@nameof(SubtitleQualityStrategy.Accessibility)">Accessibility (SDH)
+                                </option>
                             </select>
                         }
                     </div>

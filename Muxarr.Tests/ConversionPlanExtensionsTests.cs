@@ -93,9 +93,9 @@ public class ConversionPlanExtensionsTests
     public void StoredPlan_WithTheOldTrimField_StillDeserializes()
     {
         const string stored = """
-            {"Tracks":[{"Index":0,"Type":"Video"}],"Title":"","HasChapters":null,
-             "TrimToVideoLengthMs":3497411}
-            """;
+                              {"Tracks":[{"Index":0,"Type":"Video"}],"Title":"","HasChapters":null,
+                               "TrimToVideoLengthMs":3497411}
+                              """;
 
         var plan = JsonHelper.Deserialize<ConversionPlan>(stored);
 

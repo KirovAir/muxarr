@@ -123,5 +123,4 @@ public static class OutputValidator
             $"Could not establish an expected duration from {source}, so the output cannot be "
             + "checked for truncation. Refusing to replace the original.");
     }
-
 }
