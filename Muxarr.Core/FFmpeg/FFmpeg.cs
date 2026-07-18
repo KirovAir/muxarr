@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using Muxarr.Core.Models;
 using Muxarr.Core.Utilities;
@@ -42,6 +43,52 @@ public static class FFmpeg
         }
 
         return json;
+    }
+
+    // Seeks into the tail and takes the last packet time per stream, so a file
+    // carrying no DURATION tags still yields real lengths. Costs about 0.1s.
+    public static async Task<Dictionary<int, long>> MeasureTrackEndsMs(string file, long containerDurationMs)
+    {
+        const long windowMs = 120_000;
+        var seekSec = Math.Max(0, containerDurationMs - windowMs) / 1000.0;
+
+        var result = await ProcessExecutor.ExecuteProcessAsync(
+            FfprobeExecutable,
+            $"-v error -read_intervals \"{seekSec.ToString("0.###", CultureInfo.InvariantCulture)}%+#5000\" " +
+            $"-show_entries packet=stream_index,pts_time,duration_time -of csv=p=0 \"{file}\"",
+            TimeSpan.FromSeconds(60));
+
+        var ends = new Dictionary<int, long>();
+        if (!IsSuccess(result) || string.IsNullOrEmpty(result.Output))
+        {
+            return ends;
+        }
+
+        foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split(',');
+            if (parts.Length < 2
+                || !int.TryParse(parts[0], out var index)
+                || !double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var pts))
+            {
+                continue;
+            }
+
+            // A subtitle packet is timed at the cue start, so without its duration
+            // a trailing subtitle looks like it ends far too early.
+            var length = parts.Length > 2
+                         && double.TryParse(parts[2], NumberStyles.Any, CultureInfo.InvariantCulture, out var d)
+                ? d
+                : 0;
+
+            var ms = (long)((pts + length) * 1000);
+            if (ms > ends.GetValueOrDefault(index))
+            {
+                ends[index] = ms;
+            }
+        }
+
+        return ends;
     }
 
     public static async Task<ProcessResult> Remux(string input, string output, ConversionPlan delta,

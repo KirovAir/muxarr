@@ -355,6 +355,13 @@ public class MediaConverterService(
         var result = ConversionPlanner.Plan(conversion.BeforeSnapshot!, conversion.ConversionPlan);
         var delta = result.Delta;
 
+        // Dropping a track retires the container duration as the yardstick, so the
+        // kept tracks have to carry one before the original is replaced.
+        if (result.Strategy == ConversionPlanner.ConversionStrategy.Remux)
+        {
+            await conversion.MediaFile.MeasureMissingTrackDurations();
+        }
+
         if (result.Strategy == ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.StartedDate ??= DateTime.UtcNow;
