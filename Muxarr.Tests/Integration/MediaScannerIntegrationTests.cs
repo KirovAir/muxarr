@@ -1,6 +1,9 @@
-using Muxarr.Core.Models;
+using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Extensions;
+using Muxarr.Core.Language;
+using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
+using Muxarr.Data.Extensions;
 
 namespace Muxarr.Tests.Integration;
 
@@ -33,6 +36,91 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
         Assert.IsTrue(tracks.Any(t => t.Type == MediaTrackType.Audio && t.IsCommentary));
         Assert.IsTrue(tracks.Any(t => t.Type == MediaTrackType.Subtitles && t.IsForced));
         Assert.IsTrue(tracks.Any(t => t.Type == MediaTrackType.Subtitles && t.IsHearingImpaired));
+    }
+
+    // The stored profile has to follow the directory that matched, or the scan
+    // flags the file against one profile while the queue plans with another.
+    [TestMethod]
+    public async Task Rescan_UnderADifferentProfile_ReassignsTheFile()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var movies = await Fixture.SeedProfile("movies");
+        var series = await Fixture.SeedProfile("series");
+
+        var file = await Fixture.ScanAndPersist(path, movies);
+        Assert.AreEqual(movies.Id, file.ProfileId);
+
+        file = await Fixture.ScanAndPersist(path, series);
+        Assert.AreEqual(series.Id, file.ProfileId, "rescan must reassign the file to the matched profile");
+    }
+
+    // The scheduled scan never forces, and an unchanged file skips the probe
+    // block that owns the only SaveChanges. Reassignment has to survive that.
+    [TestMethod]
+    public async Task Rescan_WithoutForce_StillReassignsAnUnchangedFile()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var movies = await Fixture.SeedProfile("movies");
+        var series = await Fixture.SeedProfile("series");
+
+        await Fixture.ScanAndPersist(path, movies);
+
+        // Title and OriginalLanguage present is what makes an unchanged file
+        // skip the probe, and with it the save.
+        await Fixture.WithDbContext(async ctx =>
+        {
+            var seeded = await ctx.MediaFiles.FirstAsync(x => x.Path == path);
+            seeded.Title = "Test Show";
+            seeded.OriginalLanguage = "English";
+            return await ctx.SaveChangesAsync();
+        });
+
+        await Fixture.Scanner.ScanFile(path, false, series);
+
+        var file = await Fixture.WithDbContext(async ctx =>
+            await ctx.MediaFiles.FirstAsync(x => x.Path == path));
+        Assert.AreEqual(series.Id, file.ProfileId);
+    }
+
+    // Reassigning the profile without recomputing the flags leaves the row
+    // belonging to one profile while its queue-worthy flags describe another.
+    [TestMethod]
+    public async Task Rescan_UnderAStricterProfile_RecomputesTheFlags()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var keepAll = await Fixture.SeedProfile("keep-all");
+        var seeded = await Fixture.SeedProfile("strict");
+        var strict = await Fixture.WithDbContext(async ctx =>
+        {
+            var p = await ctx.Profiles.FirstAsync(x => x.Id == seeded.Id);
+            p.SubtitleSettings = new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English")]
+            };
+            await ctx.SaveChangesAsync();
+            return p;
+        });
+
+        var file = await Fixture.ScanAndPersist(path, keepAll);
+        Assert.IsFalse(file.HasRedundantTracks, "keep-all profile drops nothing");
+
+        // Same unchanged-file shape as the reassignment test: no force, so only
+        // the profile change can drive the recompute.
+        await Fixture.WithDbContext(async ctx =>
+        {
+            var row = await ctx.MediaFiles.FirstAsync(x => x.Path == path);
+            row.Title = "Test Show";
+            row.OriginalLanguage = "English";
+            return await ctx.SaveChangesAsync();
+        });
+
+        await Fixture.Scanner.ScanFile(path, false, strict);
+
+        file = await Fixture.WithDbContext(async ctx =>
+            await ctx.MediaFiles.WithTracks().FirstAsync(x => x.Path == path));
+        Assert.AreEqual(strict.Id, file.ProfileId);
+        Assert.IsTrue(file.HasRedundantTracks, "strict profile drops the non-English subtitles");
     }
 
     [TestMethod]

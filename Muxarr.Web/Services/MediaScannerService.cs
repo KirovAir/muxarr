@@ -240,14 +240,39 @@ public class MediaScannerService(
         {
             dbFile = new MediaFile
             {
-                ProfileId = profile.Id,
                 Path = filePath
             };
             context.Add(dbFile);
         }
 
+        // Follow the directory that matched, or the scan flags against one profile
+        // while the queue plans with another.
+        var profileChanged = dbFile.ProfileId != profile.Id;
+        dbFile.ProfileId = profile.Id;
         dbFile.IsHardlinked = isHardlinked;
         await ScanMediaFile(dbFile, forceRescan, context, profile, webhookTitle, webhookOriginalLanguage);
+
+        // A new profile moves the goalposts for the flags, and an unchanged file
+        // never reaches the probe that recomputes them.
+        if (profileChanged && dbFile.Snapshot is { Tracks.Count: > 0 })
+        {
+            ApplyProfileFlags(dbFile, profile);
+        }
+
+        // ScanMediaFile only saves when it probed, so an unchanged file on a
+        // scheduled scan would drop everything set above.
+        if (context.Entry(dbFile).State == EntityState.Modified)
+        {
+            await context.SaveChangesAsync();
+        }
+    }
+
+    private static void ApplyProfileFlags(MediaFile file, Profile? profile)
+    {
+        var target = file.BuildTargetFromProfile(profile);
+        file.HasRedundantTracks = profile != null && target.Tracks.Count < file.Snapshot.TrackCount;
+        file.HasNonStandardMetadata = file.CheckHasNonStandardMetadata(profile, target);
+        file.HasRemovableChapters = profile is { RemoveChapters: true } && file.Snapshot.HasChapters;
     }
 
     public async Task ScanMediaFile(MediaFile dbFile, bool forceRescan, AppDbContext context, Profile? profile,
@@ -302,11 +327,7 @@ public class MediaScannerService(
                     logger.LogInformation("ffprobe warning for '{Path}': {Warning}", dbFile.Path, probe.Error);
                 }
 
-                var target = dbFile.BuildTargetFromProfile(profile);
-                var trackCount = dbFile.Snapshot.TrackCount;
-                dbFile.HasRedundantTracks = profile != null && target.Tracks.Count < trackCount;
-                dbFile.HasNonStandardMetadata = dbFile.CheckHasNonStandardMetadata(profile, target);
-                dbFile.HasRemovableChapters = profile is { RemoveChapters: true } && dbFile.Snapshot.HasChapters;
+                ApplyProfileFlags(dbFile, profile);
             }
 
             dbFile.Size = fileInfo.Length;
