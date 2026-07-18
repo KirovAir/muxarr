@@ -655,9 +655,11 @@ public class MediaConverterService(
                     ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
                 }, token);
 
+            // The swap is done here; a failed backup delete must not roll it back.
+            swapCommitted = true;
+
             conversion.Log("Removing old file..", logger);
             File.Delete(backupFile);
-            swapCommitted = true;
         }
         catch
         {
