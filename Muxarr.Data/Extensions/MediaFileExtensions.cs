@@ -331,43 +331,32 @@ public static class MediaFileExtensions
         return null;
     }
 
-    // ffmpeg's tag dict is case-insensitive, so a Matroska global TITLE tag
-    // overwrites the segment title outright and only mkvmerge can still see it.
+    // ffprobe's format tags conflate the segment title with global tags, so ask
+    // mkvmerge. A value it disagrees with is a global tag no writer can clear,
+    // and clearing would destroy the real title while the visible one stayed.
     private static async Task<string?> ReadContainerTitle(string path, Dictionary<string, string>? tags,
         ContainerFamily family)
     {
-        var title = PickContainerTitle(tags, family);
-        if (family != ContainerFamily.Matroska || !MaskedByGlobalTag(tags))
+        var probed = PickContainerTitle(tags);
+        if (family != ContainerFamily.Matroska)
         {
-            return title;
+            return probed;
         }
 
-        var info = await MkvMerge.GetFileInfo(path);
-        return info.Result?.Container?.Properties?.Title ?? title;
+        var segment = (await MkvMerge.GetFileInfo(path)).Result?.Container?.Properties?.Title;
+        return string.Equals(segment ?? "", probed ?? "", StringComparison.Ordinal) ? segment : null;
     }
 
-    // An uppercase title key is a global tag, so the real segment title is hidden.
-    private static bool MaskedByGlobalTag(Dictionary<string, string>? tags)
-    {
-        return tags != null && tags.Keys.Any(k =>
-            string.Equals(k, "title", StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(k, "title", StringComparison.Ordinal));
-    }
-
-    private static string? PickContainerTitle(Dictionary<string, string>? tags, ContainerFamily family)
+    private static string? PickContainerTitle(Dictionary<string, string>? tags)
     {
         if (tags == null)
         {
             return null;
         }
 
-        var comparison = family == ContainerFamily.Matroska
-            ? StringComparison.Ordinal
-            : StringComparison.OrdinalIgnoreCase;
-
         foreach (var (key, value) in tags)
         {
-            if (string.Equals(key, "title", comparison) && !string.IsNullOrEmpty(value))
+            if (string.Equals(key, "title", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(value))
             {
                 return value;
             }

@@ -86,8 +86,9 @@ public static class OutputValidator
 
         if (target.TrimToVideoLength)
         {
+            // No video means nothing to trim to, so there is no floor to demand.
             var video = kept.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault();
-            return Required(video == null ? 0 : DurationOf(video, measured), "the video track");
+            return video == null ? 0 : Required(DurationOf(video, measured), "the video track");
         }
 
         if (kept.Count == source.Snapshot.Tracks.Count)
