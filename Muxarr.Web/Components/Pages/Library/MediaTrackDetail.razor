@@ -137,6 +137,11 @@
                 changes.Add(new FlagChange("Dub", isDub));
             }
 
+            if (Preview.IsOriginal is { } isOrig && isOrig != Track.IsOriginal)
+            {
+                changes.Add(new FlagChange("Original", isOrig));
+            }
+
             return changes;
         }
     }

@@ -258,6 +258,43 @@ public class ConversionPlannerTests
         Assert.IsTrue(audioDelta.IsDub);
     }
 
+    // --- IsOriginal: the mov muxer drops it, so asking would re-flag forever ---
+
+    [TestMethod]
+    public void IsOriginalChange_Mp4_DroppedByResolver()
+    {
+        var file = MakeFileWithContainer("MP4/QuickTime", null,
+            Video(0),
+            Audio(1, "English"));
+        var before = file.ToMediaSnapshot();
+
+        var target = TargetFromSnapshot(before);
+        target.Tracks.First(t => t.Type == MediaTrackType.Audio).IsOriginal = true;
+        TargetResolver.ResolveForContainer(target, before);
+
+        var result = ConversionPlanner.Plan(before, target);
+
+        Assert.IsNull(result.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio).IsOriginal,
+            "the mov muxer drops +original, so planning it would re-flag the file on every scan");
+    }
+
+    [TestMethod]
+    public void IsOriginalChange_Matroska_PreservedAsFlag()
+    {
+        var file = MakeFileWithContainer("Matroska", null,
+            Video(0),
+            Audio(1, "English"));
+        var before = file.ToMediaSnapshot();
+
+        var target = TargetFromSnapshot(before);
+        target.Tracks.First(t => t.Type == MediaTrackType.Audio).IsOriginal = true;
+        TargetResolver.ResolveForContainer(target, before);
+
+        var result = ConversionPlanner.Plan(before, target);
+
+        Assert.IsTrue(result.Delta.Tracks.First(t => t.Type == MediaTrackType.Audio).IsOriginal);
+    }
+
     [TestMethod]
     public void IsDubAlreadyInName_Matroska_NoNameChange()
     {

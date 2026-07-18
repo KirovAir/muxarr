@@ -399,7 +399,7 @@ public class ConversionPipelineTests
                 ]
             });
 
-        var outputs = RunPipeline(file, profile);
+        var outputs = RunMatroskaPipeline(file, profile);
 
         var korean = outputs.First(o => o.Type == MediaTrackType.Audio && o.LanguageCode == "kor");
         var english = outputs.First(o => o.Type == MediaTrackType.Audio && o.LanguageCode == "eng");
@@ -428,7 +428,7 @@ public class ConversionPipelineTests
                 ]
             });
 
-        var outputs = RunPipeline(file, profile);
+        var outputs = RunMatroskaPipeline(file, profile);
 
         var korean = outputs.First(o => o.LanguageCode == "kor");
         var english = outputs.First(o => o.LanguageCode == "eng");
@@ -451,7 +451,7 @@ public class ConversionPipelineTests
                 AllowedLanguages = [IsoLanguage.Find("English")]
             });
 
-        var outputs = RunPipeline(file, profile);
+        var outputs = RunMatroskaPipeline(file, profile);
 
         var english = outputs.First(o => o.Type == MediaTrackType.Audio);
         Assert.AreEqual(true, english.IsOriginal, "Source flag preserved when arr data missing");
@@ -479,7 +479,7 @@ public class ConversionPipelineTests
                 AllowedLanguages = [IsoLanguage.Find("English")]
             });
 
-        var outputs = RunPipeline(file, profile);
+        var outputs = RunMatroskaPipeline(file, profile);
 
         var sub = outputs.First(o => o.Type == MediaTrackType.Subtitles);
         Assert.AreEqual(false, sub.IsOriginal, "Subtitle IsOriginal is not touched by the profile pass");
@@ -1736,5 +1736,12 @@ public class ConversionPipelineTests
     {
         file.Profile = profile;
         return file.BuildTargetFromProfile(profile).Tracks;
+    }
+
+    // Only Matroska can store the original flag, so tests asserting it need a container.
+    private static List<TrackPlan> RunMatroskaPipeline(MediaFile file, Profile profile)
+    {
+        file.Snapshot.ContainerType = "Matroska";
+        return RunPipeline(file, profile);
     }
 }

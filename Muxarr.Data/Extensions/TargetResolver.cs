@@ -28,6 +28,14 @@ public static class TargetResolver
         {
             // Only mkvmerge can stop after the video; -shortest cuts at the shortest track.
             target.TrimToVideoLength = false;
+
+            // The mov muxer drops +original on stream-copy, so asking for it
+            // would re-flag the file as non-standard on every scan.
+            foreach (var track in target.Tracks)
+            {
+                track.IsOriginal = null;
+            }
+
             return;
         }
 

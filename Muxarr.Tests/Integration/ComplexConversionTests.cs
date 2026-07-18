@@ -259,8 +259,8 @@ public class ComplexConversionTests : IntegrationTestBase
 
         // MP4 mov muxer preserves dub / visual_impaired / hearing_impaired /
         // forced / comment but drops +original on stream-copy (checked with
-        // ffmpeg 6/7 - the atom isn't in the QT spec). Assert only flags
-        // that actually round-trip.
+        // ffmpeg 6/7/8; the atom isn't in the QT spec), which is why
+        // TargetResolver strips IsOriginal for non-Matroska.
         var probeEng = probed.Snapshot.Tracks.First(t => t.Index == english.Index);
         Assert.IsTrue(probeEng.IsDub, "MP4 must carry IsDub natively");
         Assert.IsTrue(probeEng.IsVisualImpaired, "MP4 must carry IsVisualImpaired natively");
