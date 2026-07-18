@@ -270,6 +270,39 @@ public class OutputValidatorTests
         StringAssert.Contains(ex.Message, "truncated");
     }
 
+    // Dropping a track retires the container as the yardstick. With nothing to
+    // replace it the swap would go unchecked, so fail rather than skip.
+    [TestMethod]
+    public void NoMeasurableFloor_WhenDroppingATrack_Throws()
+    {
+        var video = Track(0, MediaTrackType.Video, 0);
+        var sub = Track(1, MediaTrackType.Subtitles, 0);
+
+        var source = MediaWithTracks(3_600_000, video, sub);
+        var actual = MediaWithTracks(3_600_000, video);
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, Keeping(video)));
+
+        StringAssert.Contains(ex.Message, "Refusing to replace the original");
+    }
+
+    [TestMethod]
+    public void MeasuredEnds_SupplyTheFloorWhenTheTagsDoNot()
+    {
+        var video = Track(0, MediaTrackType.Video, 0);
+        var sub = Track(1, MediaTrackType.Subtitles, 0);
+
+        var source = MediaWithTracks(3_600_000, video, sub);
+        var actual = MediaWithTracks(5_000, video);
+
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, Keeping(video),
+                new Dictionary<int, long> { [0] = 1_800_000 }));
+
+        StringAssert.Contains(ex.Message, "truncated");
+    }
+
     [TestMethod]
     public void ClearFileTitle_OutputCleared_Passes()
     {

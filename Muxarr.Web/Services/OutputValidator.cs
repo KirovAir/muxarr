@@ -9,7 +9,8 @@ namespace Muxarr.Web.Services;
 // Catches container flips, track count or ordering drift, and truncation.
 public static class OutputValidator
 {
-    public static void ValidateOrThrow(MediaFile actual, MediaFile source, ConversionPlan target)
+    public static void ValidateOrThrow(MediaFile actual, MediaFile source, ConversionPlan target,
+        IReadOnlyDictionary<int, long>? measuredEnds = null)
     {
         var actualFamily = actual.Snapshot.ContainerType.ToContainerFamily();
         var sourceFamily = source.Snapshot.ContainerType.ToContainerFamily();
@@ -35,7 +36,7 @@ public static class OutputValidator
             }
         }
 
-        var expectedDuration = ExpectedDurationMs(source, target);
+        var expectedDuration = ExpectedDurationMs(source, target, measuredEnds);
         if (expectedDuration > 0)
         {
             var tolerance = Math.Max(500, expectedDuration / 100);
@@ -71,14 +72,15 @@ public static class OutputValidator
     // A container is as long as its longest track, so dropping a track that ran
     // past the rest legitimately shortens the output. Measure against the tracks
     // the plan keeps. Returns 0 to skip the check when nothing can be measured.
-    private static long ExpectedDurationMs(MediaFile source, ConversionPlan target)
+    private static long ExpectedDurationMs(MediaFile source, ConversionPlan target,
+        IReadOnlyDictionary<int, long>? measured)
     {
         var kept = source.Snapshot.Tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
 
         if (target.TrimToVideoLength)
         {
-            // mkvmerge stops after the video, so the video still comes out whole.
-            return kept.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault()?.DurationMs ?? 0;
+            var video = kept.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault();
+            return Required(video == null ? 0 : DurationOf(video, measured), "the video track");
         }
 
         if (kept.Count == source.Snapshot.Tracks.Count)
@@ -88,6 +90,27 @@ public static class OutputValidator
 
         // A dropped track may be what set the container's length, so it is no
         // longer the yardstick; a kept track that reports one is still a floor.
-        return kept.LongestDurationMs();
+        return Required(kept.Select(t => DurationOf(t, measured)).DefaultIfEmpty(0).Max(), "any kept track");
+    }
+
+    private static long DurationOf(TrackSnapshot track, IReadOnlyDictionary<int, long>? measured)
+    {
+        return track.DurationMs > 0 ? track.DurationMs
+            : measured != null && measured.TryGetValue(track.Index, out var end) ? end
+            : 0;
+    }
+
+    // We retired the container as the yardstick, so with nothing to replace it the
+    // file would be swapped in unchecked. Fail instead: the original is kept.
+    private static long Required(long durationMs, string source)
+    {
+        if (durationMs <= 0)
+        {
+            throw new Exception(
+                $"Could not establish an expected duration from {source}, so the output cannot be "
+                + "checked for truncation. Refusing to replace the original.");
+        }
+
+        return durationMs;
     }
 }

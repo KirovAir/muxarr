@@ -397,21 +397,11 @@ public static class MediaFileExtensions
 
     // Matroska only reports a per-track length through the DURATION tag and plenty
     // of remuxes carry none. Measure the tail so a dropped track leaves a yardstick.
-    public static async Task MeasureMissingTrackDurations(this MediaFile file)
+    public static async Task<Dictionary<int, long>> MeasureTrackEndsMs(this MediaFile file)
     {
-        if (file.Snapshot.Tracks.All(t => t.DurationMs > 0))
-        {
-            return;
-        }
-
-        var ends = await FFmpeg.MeasureTrackEndsMs(file.Path, file.Snapshot.DurationMs);
-        foreach (var track in file.Snapshot.Tracks.Where(t => t.DurationMs == 0))
-        {
-            if (ends.TryGetValue(track.Index, out var end))
-            {
-                track.DurationMs = end;
-            }
-        }
+        return file.Snapshot.Tracks.All(t => t.DurationMs > 0)
+            ? []
+            : await FFmpeg.MeasureTrackEndsMs(file.Path, file.Snapshot.DurationMs);
     }
 
     // Allowed tracks filtering

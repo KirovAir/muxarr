@@ -357,9 +357,12 @@ public class MediaConverterService(
 
         // Dropping a track retires the container duration as the yardstick, so the
         // kept tracks have to carry one before the original is replaced.
-        if (result.Strategy == ConversionPlanner.ConversionStrategy.Remux)
+        Dictionary<int, long> measuredEnds = [];
+        var dropsTracks = conversion.ConversionPlan.Tracks.Count < conversion.BeforeSnapshot!.Tracks.Count;
+        if (result.Strategy == ConversionPlanner.ConversionStrategy.Remux
+            && (dropsTracks || conversion.ConversionPlan.TrimToVideoLength))
         {
-            await conversion.MediaFile.MeasureMissingTrackDurations();
+            measuredEnds = await conversion.MediaFile.MeasureTrackEndsMs();
         }
 
         if (result.Strategy == ConversionPlanner.ConversionStrategy.Skip)
@@ -412,7 +415,7 @@ public class MediaConverterService(
                 await RunMkvMergeRemuxAsync(conversion, delta, tmp, context, conversionTimeout, token);
             }
 
-            await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, token);
+            await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, measuredEnds, token);
         }
         catch (OperationCanceledException)
         {
@@ -605,7 +608,7 @@ public class MediaConverterService(
     /// tempfile writers.
     /// </summary>
     private async Task FinalizeTemporaryOutputAsync(MediaConversion conversion, string tmp, AppDbContext context,
-        IServiceScope scope, CancellationToken token)
+        IServiceScope scope, IReadOnlyDictionary<int, long> measuredEnds, CancellationToken token)
     {
         var fileInfo = new FileInfo(tmp);
         if (!fileInfo.Exists || fileInfo.Length == 0)
@@ -623,7 +626,7 @@ public class MediaConverterService(
                 $"Could not probe output file with ffprobe. Error: {probe.Error?.Trim()}");
         }
 
-        OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.ConversionPlan);
+        OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.ConversionPlan, measuredEnds);
 
         conversion.Log("Validation of new file is ok!", logger);
         ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));

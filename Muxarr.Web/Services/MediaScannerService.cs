@@ -260,6 +260,14 @@ public class MediaScannerService(
         dbFile.IsHardlinked = isHardlinked;
         await ScanMediaFile(dbFile, forceRescan, context, profile, webhookTitle, webhookOriginalLanguage);
 
+        // The file can still vanish between the check above and the probe. Drop the
+        // new row rather than let a later save insert it with no snapshot.
+        if (dbFile.Snapshot is null && context.Entry(dbFile).State == EntityState.Added)
+        {
+            context.Entry(dbFile).State = EntityState.Detached;
+            return;
+        }
+
         // A new profile moves the goalposts for the flags, and an unchanged file
         // never reaches the probe that recomputes them.
         if (profileChanged && dbFile.Snapshot is { Tracks.Count: > 0 })

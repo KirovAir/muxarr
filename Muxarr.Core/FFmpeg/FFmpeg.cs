@@ -45,8 +45,8 @@ public static class FFmpeg
         return json;
     }
 
-    // Seeks into the tail and takes the last packet time per stream, so a file
-    // carrying no DURATION tags still yields real lengths. Costs about 0.1s.
+    // Seeks into the tail and reads to EOF, so a file carrying no DURATION tags
+    // still yields real lengths. A packet cap measured short, and slower.
     public static async Task<Dictionary<int, long>> MeasureTrackEndsMs(string file, long containerDurationMs)
     {
         const long windowMs = 120_000;
@@ -54,7 +54,7 @@ public static class FFmpeg
 
         var result = await ProcessExecutor.ExecuteProcessAsync(
             FfprobeExecutable,
-            $"-v error -read_intervals \"{seekSec.ToString("0.###", CultureInfo.InvariantCulture)}%+#5000\" " +
+            $"-v error -read_intervals \"{seekSec.ToString("0.###", CultureInfo.InvariantCulture)}%\" " +
             $"-show_entries packet=stream_index,pts_time,duration_time -of csv=p=0 \"{file}\"",
             TimeSpan.FromSeconds(60));
 

@@ -160,7 +160,7 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
     // Without per-track durations a dropped track leaves the validator nothing to
     // measure, so the tail of the file has to supply them.
     [TestMethod]
-    public async Task MeasureMissingTrackDurations_FillsAnUntaggedMatroska()
+    public async Task MeasureTrackEndsMs_MeasuresAnUntaggedMatroska()
     {
         var path = CopyFixture("untagged.mkv");
         var profile = await Fixture.SeedProfile();
@@ -168,11 +168,11 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
 
         Assert.IsTrue(file.Snapshot.Tracks.All(t => t.DurationMs == 0), "fixture carries no DURATION tags");
 
-        await file.MeasureMissingTrackDurations();
+        var ends = await file.MeasureTrackEndsMs();
 
         var audio = file.Snapshot.Tracks.Single(t => t.Type == MediaTrackType.Audio);
-        Assert.IsTrue(audio.DurationMs >= 9000,
-            $"the 10s audio should be measured off the file, got {audio.DurationMs}ms");
+        Assert.IsTrue(ends.TryGetValue(audio.Index, out var end) && end >= 9000,
+            $"the 10s audio should be measured off the file, got {end}ms");
     }
 
     [TestMethod]
