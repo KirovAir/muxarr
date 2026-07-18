@@ -35,7 +35,7 @@
                 lastType = track.Type;
                 <tr>
                     <td colspan="6" class="fw-semibold text-body-secondary small py-1">
-                        <i class="bi @GetGroupIcon(track.Type) me-1"></i>@GetGroupLabel(track.Type)
+                        <i class="bi @TrackTypeDisplay.Icon(track.Type) me-1"></i>@TrackTypeDisplay.Label(track.Type)
                     </td>
                 </tr>
             }
@@ -386,26 +386,6 @@
         await BlazoredModal.CloseAsync(ModalResult.Ok(target));
     }
 
-    private static string GetGroupIcon(MediaTrackType type)
-    {
-        return type switch
-        {
-            MediaTrackType.Video => "bi-camera-video",
-            MediaTrackType.Audio => "bi-volume-up",
-            MediaTrackType.Subtitles => "bi-badge-cc",
-            _ => "bi-question-circle"
-        };
-    }
 
-    private static string GetGroupLabel(MediaTrackType type)
-    {
-        return type switch
-        {
-            MediaTrackType.Video => "Video",
-            MediaTrackType.Audio => "Audio",
-            MediaTrackType.Subtitles => "Subtitles",
-            _ => "Other"
-        };
-    }
 
 }

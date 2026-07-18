@@ -1,0 +1,48 @@
+@* Tri-state flag toggle for the batch editor: no change, turn on, turn off.
+   The single-file modal's flags are plain booleans; across a batch "leave it
+   alone" has to be expressible, and is the default. *@
+<ToolTip Tip="@Describe()">
+    <button type="button" class="btn btn-sm @StateCss" @onclick="Cycle">
+        <i class="bi @Icon"></i>
+    </button>
+</ToolTip>
+
+@code {
+    [Parameter] [EditorRequired] public required string Icon { get; set; }
+    [Parameter] [EditorRequired] public required string Label { get; set; }
+    [Parameter] public string? Tip { get; set; }
+    [Parameter] public bool? Value { get; set; }
+    [Parameter] public EventCallback<bool?> ValueChanged { get; set; }
+
+    private string StateCss => Value switch
+    {
+        true => "btn-primary",
+        false => "btn-danger",
+        _ => "btn-outline-secondary"
+    };
+
+    private async Task Cycle()
+    {
+        Value = Value switch
+        {
+            null => true,
+            true => false,
+            _ => null
+        };
+
+        await ValueChanged.InvokeAsync(Value);
+    }
+
+    private string Describe()
+    {
+        var state = Value switch
+        {
+            true => $"{Label}: turn on",
+            false => $"{Label}: turn off",
+            _ => $"{Label}: leave unchanged"
+        };
+
+        return string.IsNullOrEmpty(Tip) ? state : $"{state}. {Tip}";
+    }
+
+}

@@ -209,48 +209,101 @@ public class MediaConverterService(
 
     public async Task<bool> AddMediaToQueue(MediaFile media, ConversionPlan customTarget)
     {
-        if (!File.Exists(media.Path))
-        {
-            logger.LogWarning("Media file '{Path}' is not accessible. Cannot queue for conversion.", media.Path);
-            return false;
-        }
-
         await MediaLibraryLocks.QueueMutation.WaitAsync();
         try
         {
-            return await AddMediaToQueueCore(media, customTarget);
+            using var scope = ServiceScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            if (await TryEnqueueCustom(context, media, customTarget, context.Profiles.ToList()) != QueueResult.Queued)
+            {
+                return false;
+            }
+
+            await context.SaveChangesAsync();
         }
         finally
         {
             MediaLibraryLocks.QueueMutation.Release();
         }
+
+        _ = RunAsync(CancellationToken.None);
+        return true;
     }
 
-    private async Task<bool> AddMediaToQueueCore(MediaFile media, ConversionPlan customTarget)
+    /// <summary>
+    ///     Queues a custom plan per file under a single lock, scope and save. The
+    ///     per-file overload does all three each time, which does not scale to a
+    ///     batch. Returns why each file was or was not queued, keyed by file id.
+    /// </summary>
+    public async Task<Dictionary<int, QueueResult>> AddCustomBatchToQueue(
+        IReadOnlyList<(MediaFile File, ConversionPlan Plan)> items)
     {
-        using var scope = ServiceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var results = new Dictionary<int, QueueResult>();
+        if (items.Count == 0)
+        {
+            return results;
+        }
+
+        await MediaLibraryLocks.QueueMutation.WaitAsync();
+        try
+        {
+            using var scope = ServiceScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var profiles = context.Profiles.ToList();
+
+            // HasActiveConversion only sees saved rows, and nothing is saved
+            // until the end, so a repeated file has to be caught here.
+            foreach (var (media, plan) in items.DistinctBy(x => x.File.Id))
+            {
+                results[media.Id] = await TryEnqueueCustom(context, media, plan, profiles);
+            }
+
+            await context.SaveChangesAsync();
+        }
+        finally
+        {
+            MediaLibraryLocks.QueueMutation.Release();
+        }
+
+        if (results.Values.Any(r => r == QueueResult.Queued))
+        {
+            _ = RunAsync(CancellationToken.None);
+        }
+
+        return results;
+    }
+
+    // Adds the conversion without saving so a batch can commit in one go.
+    private async Task<QueueResult> TryEnqueueCustom(AppDbContext context, MediaFile media,
+        ConversionPlan customTarget, List<Profile> profiles)
+    {
+        if (!File.Exists(media.Path))
+        {
+            logger.LogWarning("Media file '{Path}' is not accessible. Cannot queue for conversion.", media.Path);
+            return QueueResult.FileMissing;
+        }
 
         if (!await context.MediaFiles.AnyAsync(x => x.Id == media.Id))
         {
             logger.LogWarning("Media file '{Path}' is no longer in the library. Cannot queue for conversion.", media.Path);
-            return false;
+            return QueueResult.NotInLibrary;
         }
 
-        var profile = media.Profile ?? context.Profiles.ToList().GetBestCandidate(media.Path);
+        var profile = media.Profile ?? profiles.GetBestCandidate(media.Path);
         if (profile is { SkipHardlinkedFiles: true } && HardLinkHelper.IsHardlinked(media.Path))
         {
             logger.LogInformation("Skipping hardlinked file: {Path}", media.Path);
-            return false;
+            return QueueResult.Hardlinked;
         }
 
         if (await HasActiveConversion(context, media.Id))
         {
             logger.LogInformation("File {Path} is already in the conversion queue", media.Path);
-            return false;
+            return QueueResult.AlreadyQueued;
         }
 
-        var convert = new MediaConversion
+        context.Add(new MediaConversion
         {
             MediaFileId = media.Id,
             SizeBefore = media.Size,
@@ -259,12 +312,9 @@ public class MediaConverterService(
             State = ConversionState.New,
             Name = media.GetName(),
             IsCustomConversion = true
-        };
-        context.Add(convert);
-        await context.SaveChangesAsync();
+        });
 
-        _ = RunAsync(CancellationToken.None);
-        return true;
+        return QueueResult.Queued;
     }
 
     private static Task<bool> HasActiveConversion(AppDbContext context, int mediaFileId)
@@ -862,6 +912,15 @@ public class MediaConverterService(
             conversion.Log($"Post-processing failed: {e.Message}", logger, true);
         }
     }
+}
+
+public enum QueueResult
+{
+    Queued,
+    FileMissing,
+    NotInLibrary,
+    Hardlinked,
+    AlreadyQueued
 }
 
 public class ConverterProgressEvent(MediaConversion conversion)

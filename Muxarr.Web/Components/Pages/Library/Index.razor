@@ -59,6 +59,12 @@
                     Queue @SelectedItems.Count to conversion
                 </button>
             </div>
+            <div class="col-auto">
+                <button @onclick="BatchEditSelected" class="btn btn-outline-primary btn-sm" type="button"
+                        disabled="@_isQueueing">
+                    <i class="bi bi-sliders me-1"></i>Edit tracks on @SelectedItems.Count
+                </button>
+            </div>
         }
         @if (!string.IsNullOrEmpty(FileFilter) && TotalItems > 0)
         {
@@ -74,6 +80,12 @@
                         <i class="bi bi-collection-play me-1"></i>
                     }
                     Queue all @TotalItems to conversion
+                </button>
+            </div>
+            <div class="col-auto">
+                <button @onclick="BatchEditAllFiltered" class="btn btn-outline-primary btn-sm" type="button"
+                        disabled="@_isQueueing">
+                    <i class="bi bi-sliders me-1"></i>Edit tracks on all @TotalItems
                 </button>
             </div>
         }
@@ -632,6 +644,99 @@
         if (skippedInaccessible > 0)
         {
             ToastService.ShowWarning($"{skippedInaccessible} file(s) skipped — not accessible (mount may be offline).");
+        }
+    }
+
+    private Task BatchEditSelected()
+    {
+        // SelectedItems is compared by reference, so paging away and back leaves
+        // stale duplicates of the same row. Go back to the ids.
+        var ids = SelectedItems.Select(f => f.Id).Distinct().ToList();
+        return BatchEditTracks(q => q.Where(f => ids.Contains(f.Id)));
+    }
+
+    private Task BatchEditAllFiltered()
+    {
+        return BatchEditTracks(ApplyFilters);
+    }
+
+    private async Task BatchEditTracks(Func<IQueryable<MediaFile>, IQueryable<MediaFile>> filter)
+    {
+        _isQueueing = true;
+        StateHasChanged();
+        try
+        {
+            List<MediaFile> files;
+            await using (var context = await ContextFactory.CreateDbContextAsync())
+            {
+                files = await filter(context.MediaFiles.AsQueryable()).WithTracksAndProfile().ToListAsync();
+            }
+
+            if (files.Count == 0)
+            {
+                ToastService.ShowInfo("No files to edit.");
+                return;
+            }
+
+            var edits = await ModalService.ShowBatchTrackEdit(files);
+            if (edits == null)
+            {
+                return;
+            }
+
+            await QueueBatchEdit(files, edits);
+            SelectedItems.Clear();
+            await UpdateList();
+        }
+        finally
+        {
+            _isQueueing = false;
+        }
+    }
+
+    private async Task QueueBatchEdit(List<MediaFile> files, List<BatchTrackEdit.BatchSlotEdit> edits)
+    {
+        var preview = BatchTrackEdit.Preview(files, edits);
+        var plans = preview.Results
+            .Where(r => r.Outcome == BatchTrackEdit.BatchOutcome.Changed)
+            .Select(r => (r.File, r.Plan!))
+            .ToList();
+
+        var results = await MediaConverter.AddCustomBatchToQueue(plans);
+        var queued = results.Values.Count(r => r == QueueResult.Queued);
+
+        if (queued > 0)
+        {
+            ToastService.ShowSuccess($"Added {queued} file(s) to the conversion queue.");
+        }
+
+        if (preview.Unchanged > 0)
+        {
+            ToastService.ShowInfo($"{preview.Unchanged} file(s) skipped, they already match the requested changes.");
+        }
+
+        if (preview.NoMatchingTrack > 0)
+        {
+            ToastService.ShowInfo(
+                $"{preview.NoMatchingTrack} file(s) skipped, they have no track in the edited position.");
+        }
+
+        ReportSkipped(results, QueueResult.Hardlinked,
+            "hardlink protection is enabled in the profile");
+        ReportSkipped(results, QueueResult.AlreadyQueued,
+            "a conversion is already queued or running");
+        ReportSkipped(results, QueueResult.FileMissing,
+            "not accessible (mount may be offline)");
+        ReportSkipped(results, QueueResult.NotInLibrary,
+            "no longer in the library");
+    }
+
+    private void ReportSkipped(Dictionary<int, QueueResult> results, QueueResult reason, string explanation)
+    {
+        var count = results.Values.Count(r => r == reason);
+        if (count > 0)
+        {
+            ToastService.ShowInfo($"{count} file(s) skipped, {explanation}.");
         }
     }
 
