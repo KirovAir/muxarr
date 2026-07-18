@@ -311,6 +311,12 @@
     border-color: var(--mux-border) !important;
 }
 
+/* Blazored ships the overlay at z-index 100, which is under the sidebar.
+   Narrow modals never reach it; a wide one slides under the nav. */
+.bm-container {
+    z-index: 1055 !important;
+}
+
 /* Light theme sidebar stays dark */
 [data-bs-theme="light"] .mux-sidebar,
 [data-bs-theme="light"] .mux-mobile-header {

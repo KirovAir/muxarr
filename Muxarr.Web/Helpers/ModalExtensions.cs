@@ -63,7 +63,7 @@ public static class ModalExtensions
         var parameters = new ModalParameters()
             .Add(nameof(BatchTrackEditModal.Files), files);
 
-        var options = new ModalOptions { Size = ModalSize.ExtraLarge };
+        var options = new ModalOptions { Size = ModalSize.Large };
         var result = modal.Show<BatchTrackEditModal>($"Batch Track Edit - {files.Count} files", parameters, options);
         var modalResult = await result.Result;
 

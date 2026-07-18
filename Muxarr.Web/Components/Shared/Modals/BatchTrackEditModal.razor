@@ -35,7 +35,8 @@
             </div>
 
             <div class="small text-body-secondary mb-2">
-                Now: @Describe(slot.Languages) &middot; @Describe(slot.Names)
+                <div>Language: @Describe(slot.Languages)</div>
+                <div>Name: @Describe(slot.Names)</div>
             </div>
 
             @if (slot.Slot.Type != MediaTrackType.Video)
@@ -116,7 +117,8 @@
         </div>
     }
 
-    <div class="small text-body-secondary mt-1 mb-3">
+
+    <div class="small text-body-secondary mt-2 mb-3">
         Flag buttons cycle: no change, turn on, turn off.
     </div>
 
@@ -139,20 +141,27 @@
         }
 
         <div class="d-flex flex-wrap gap-2 mb-3">
-            <span class="badge rounded-pill border bg-info-subtle text-info-emphasis border-info-subtle fw-normal py-1 px-2">
-                @_preview.Changed will change
-            </span>
-            @if (_preview.Unchanged > 0)
+            @if (!_edits.Values.Any(e => e.HasAnyEdit))
             {
-                <span class="badge rounded-pill border bg-body-secondary text-body-secondary fw-normal py-1 px-2">
-                    @_preview.Unchanged already match
-                </span>
+                <span class="text-body-secondary small">Nothing to apply yet. Change a field above.</span>
             }
-            @if (_preview.NoMatchingTrack > 0)
+            else
             {
-                <span class="badge rounded-pill border bg-body-secondary text-body-secondary fw-normal py-1 px-2">
-                    @_preview.NoMatchingTrack have no matching track
+                <span class="badge rounded-pill border bg-info-subtle text-info-emphasis border-info-subtle fw-normal py-1 px-2">
+                    @_preview.Changed will change
                 </span>
+                @if (_preview.Unchanged > 0)
+                {
+                    <span class="badge rounded-pill border bg-body-secondary text-body-secondary fw-normal py-1 px-2">
+                        @_preview.Unchanged already match
+                    </span>
+                }
+                @if (_preview.NoMatchingTrack > 0)
+                {
+                    <span class="badge rounded-pill border bg-body-secondary text-body-secondary fw-normal py-1 px-2">
+                        @_preview.NoMatchingTrack have no matching track
+                    </span>
+                }
             }
         </div>
 
@@ -272,8 +281,9 @@
             return values[0].Value;
         }
 
-        return string.Join(" · ", values.Take(3).Select(v => $"{v.Value} {v.Count}"))
-               + (values.Count > 3 ? " · …" : "");
+        // "Korean 2" reads like a channel count, so mark the tally.
+        return string.Join(", ", values.Take(3).Select(v => $"{v.Value} ×{v.Count}"))
+               + (values.Count > 3 ? ", …" : "");
     }
 
     private async Task Cancel()
