@@ -357,7 +357,7 @@ public class MediaConverterService(
 
         // Dropping a track retires the container duration as the yardstick, so the
         // kept tracks have to carry one before the original is replaced.
-        Dictionary<int, long> measuredEnds = [];
+        Dictionary<int, long>? measuredEnds = [];
         var dropsTracks = conversion.ConversionPlan.Tracks.Count < conversion.BeforeSnapshot!.Tracks.Count;
         if (result.Strategy != ConversionPlanner.ConversionStrategy.Skip
             && (dropsTracks || conversion.ConversionPlan.TrimToVideoLength))
@@ -608,7 +608,7 @@ public class MediaConverterService(
     /// tempfile writers.
     /// </summary>
     private async Task FinalizeTemporaryOutputAsync(MediaConversion conversion, string tmp, AppDbContext context,
-        IServiceScope scope, IReadOnlyDictionary<int, long> measuredEnds, CancellationToken token)
+        IServiceScope scope, IReadOnlyDictionary<int, long>? measuredEnds, CancellationToken token)
     {
         var fileInfo = new FileInfo(tmp);
         if (!fileInfo.Exists || fileInfo.Length == 0)

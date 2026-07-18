@@ -47,33 +47,34 @@ public static class FFmpeg
 
     // Seeks into the tail and reads to EOF, so a file carrying no DURATION tags
     // still yields real lengths. A packet cap measured short, and slower.
-    public static async Task<Dictionary<int, long>> MeasureTrackEndsMs(string file, long containerDurationMs)
+    public static async Task<Dictionary<int, long>?> MeasureTrackEndsMs(string file, long containerDurationMs)
     {
         const long windowMs = 120_000;
         if (containerDurationMs <= 0)
         {
             // Without a duration there is no tail to seek to, and reading from 0
             // would dump every packet in the file.
-            return [];
+            return null;
         }
 
         var seekSec = Math.Max(0, containerDurationMs - windowMs) / 1000.0;
 
         var result = await ProcessExecutor.ExecuteProcessAsync(
             FfprobeExecutable,
-            $"-v error -read_intervals \"{seekSec.ToString("0.###", CultureInfo.InvariantCulture)}%\" " +
+            $"-v error -read_intervals \"{seekSec.ToString("0.###", CultureInfo.InvariantCulture)}%+{windowMs / 1000 * 2}\" " +
             $"-show_entries packet=stream_index,pts_time,duration_time -of csv=p=0 \"{file}\"",
             TimeSpan.FromSeconds(60));
 
-        var ends = new Dictionary<int, long>();
         if (!IsSuccess(result) || string.IsNullOrEmpty(result.Output))
         {
-            return ends;
+            return null;
         }
+
+        var ends = new Dictionary<int, long>();
 
         foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
-            var parts = line.Split(',');
+            var parts = line.Trim().Split(',');
             if (parts.Length < 2
                 || !int.TryParse(parts[0], out var index)
                 || !double.TryParse(parts[1], NumberStyles.Any, CultureInfo.InvariantCulture, out var pts))

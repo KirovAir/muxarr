@@ -282,9 +282,24 @@ public class OutputValidatorTests
         var actual = MediaWithTracks(3_600_000, video);
 
         var ex = Assert.ThrowsExactly<Exception>(() =>
-            OutputValidator.ValidateOrThrow(actual, source, Keeping(video)));
+            OutputValidator.ValidateOrThrow(actual, source, Keeping(video),
+                new Dictionary<int, long>()));
 
         StringAssert.Contains(ex.Message, "Refusing to replace the original");
+    }
+
+    // A probe that could not run at all leaves nothing to judge by, so skip the
+    // check rather than block a conversion that is probably fine.
+    [TestMethod]
+    public void UnavailableMeasurement_SkipsRatherThanFails()
+    {
+        var video = Track(0, MediaTrackType.Video, 0);
+        var sub = Track(1, MediaTrackType.Subtitles, 0);
+
+        var source = MediaWithTracks(3_600_000, video, sub);
+        var actual = MediaWithTracks(3_600_000, video);
+
+        OutputValidator.ValidateOrThrow(actual, source, Keeping(video));
     }
 
     [TestMethod]

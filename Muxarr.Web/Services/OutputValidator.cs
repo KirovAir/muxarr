@@ -9,6 +9,8 @@ namespace Muxarr.Web.Services;
 // Catches container flips, track count or ordering drift, and truncation.
 public static class OutputValidator
 {
+    // measuredEnds null means the probe could not run, so there is nothing to hold
+    // the output to and the duration check is skipped rather than failed.
     public static void ValidateOrThrow(MediaFile actual, MediaFile source, ConversionPlan target,
         IReadOnlyDictionary<int, long>? measuredEnds = null)
     {
@@ -75,8 +77,6 @@ public static class OutputValidator
     private static long ExpectedDurationMs(MediaFile source, ConversionPlan target,
         IReadOnlyDictionary<int, long>? measured)
     {
-        // With no container duration there was never a check to retire, so there is
-        // nothing to fail closed on either.
         if (source.Snapshot.DurationMs <= 0)
         {
             return 0;
@@ -88,7 +88,7 @@ public static class OutputValidator
         {
             // No video means nothing to trim to, so there is no floor to demand.
             var video = kept.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault();
-            return video == null ? 0 : Required(DurationOf(video, measured), "the video track");
+            return video == null ? 0 : Floor(DurationOf(video, measured), measured, "the video track");
         }
 
         if (kept.Count == source.Snapshot.Tracks.Count)
@@ -98,7 +98,8 @@ public static class OutputValidator
 
         // A dropped track may be what set the container's length, so it is no
         // longer the yardstick; a kept track that reports one is still a floor.
-        return Required(kept.Select(t => DurationOf(t, measured)).DefaultIfEmpty(0).Max(), "any kept track");
+        var longest = kept.Select(t => DurationOf(t, measured)).DefaultIfEmpty(0).Max();
+        return Floor(longest, measured, "any kept track");
     }
 
     private static long DurationOf(TrackSnapshot track, IReadOnlyDictionary<int, long>? measured)
@@ -108,17 +109,19 @@ public static class OutputValidator
             : 0;
     }
 
-    // We retired the container as the yardstick, so with nothing to replace it the
-    // file would be swapped in unchecked. Fail instead: the original is kept.
-    private static long Required(long durationMs, string source)
+    // A null measurement means the probe could not run, so there is nothing to hold
+    // the output to. An empty one means it ran and found nothing, and we retired the
+    // container as the yardstick, so the swap would go unchecked. Fail instead.
+    private static long Floor(long durationMs, IReadOnlyDictionary<int, long>? measured, string source)
     {
-        if (durationMs <= 0)
+        if (durationMs > 0 || measured == null)
         {
-            throw new Exception(
-                $"Could not establish an expected duration from {source}, so the output cannot be "
-                + "checked for truncation. Refusing to replace the original.");
+            return durationMs > 0 ? durationMs : 0;
         }
 
-        return durationMs;
+        throw new Exception(
+            $"Could not establish an expected duration from {source}, so the output cannot be "
+            + "checked for truncation. Refusing to replace the original.");
     }
+
 }
