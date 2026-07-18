@@ -14,17 +14,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <_ContentIncludedByDefault Remove="wwwroot\bootstrap\bootstrap.min.css"/>
-        <_ContentIncludedByDefault Remove="wwwroot\bootstrap\bootstrap.min.css.map"/>
-        <_ContentIncludedByDefault Remove="Components\Shared\Pagination\Pagination.razor"/>
-        <_ContentIncludedByDefault Remove="Components\Shared\Pagination\PaginationItem.razor"/>
-        <_ContentIncludedByDefault Remove="Components\Pages\Profiles\Index.razor"/>
-        <_ContentIncludedByDefault Remove="Components\Shared\Selectable\SelectAllCheckbox.razor"/>
-        <_ContentIncludedByDefault Remove="Components\Shared\Selectable\SelectionCheckbox.razor"/>
-        <_ContentIncludedByDefault Remove="publish\wwwroot\lib\bootstrap-icons\font\bootstrap-icons.json"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="Blazored.Modal"/>
         <PackageReference Include="Blazored.Toast"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
