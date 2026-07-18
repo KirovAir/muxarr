@@ -50,6 +50,13 @@ public static class FFmpeg
     public static async Task<Dictionary<int, long>> MeasureTrackEndsMs(string file, long containerDurationMs)
     {
         const long windowMs = 120_000;
+        if (containerDurationMs <= 0)
+        {
+            // Without a duration there is no tail to seek to, and reading from 0
+            // would dump every packet in the file.
+            return [];
+        }
+
         var seekSec = Math.Max(0, containerDurationMs - windowMs) / 1000.0;
 
         var result = await ProcessExecutor.ExecuteProcessAsync(

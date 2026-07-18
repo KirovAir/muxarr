@@ -75,6 +75,13 @@ public static class OutputValidator
     private static long ExpectedDurationMs(MediaFile source, ConversionPlan target,
         IReadOnlyDictionary<int, long>? measured)
     {
+        // With no container duration there was never a check to retire, so there is
+        // nothing to fail closed on either.
+        if (source.Snapshot.DurationMs <= 0)
+        {
+            return 0;
+        }
+
         var kept = source.Snapshot.Tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
 
         if (target.TrimToVideoLength)

@@ -253,7 +253,7 @@ public static class MediaFileExtensions
         {
             CapturedAt = DateTime.UtcNow,
             ContainerType = containerType,
-            Title = PickContainerTitle(probe.Format?.Tags, containerType.ToContainerFamily()),
+            Title = await ReadContainerTitle(file.Path, probe.Format?.Tags, containerType.ToContainerFamily()),
             Resolution = resolution,
             VideoBitDepth = videoBitDepth,
             DurationMs = durationMs,
@@ -331,8 +331,29 @@ public static class MediaFileExtensions
         return null;
     }
 
-    // Matroska keeps element casing, so a lowercase "title" is the segment title
-    // while an uppercase one is a global tag no writer can clear. MP4 lowercases.
+    // ffmpeg's tag dict is case-insensitive, so a Matroska global TITLE tag
+    // overwrites the segment title outright and only mkvmerge can still see it.
+    private static async Task<string?> ReadContainerTitle(string path, Dictionary<string, string>? tags,
+        ContainerFamily family)
+    {
+        var title = PickContainerTitle(tags, family);
+        if (family != ContainerFamily.Matroska || !MaskedByGlobalTag(tags))
+        {
+            return title;
+        }
+
+        var info = await MkvMerge.GetFileInfo(path);
+        return info.Result?.Container?.Properties?.Title ?? title;
+    }
+
+    // An uppercase title key is a global tag, so the real segment title is hidden.
+    private static bool MaskedByGlobalTag(Dictionary<string, string>? tags)
+    {
+        return tags != null && tags.Keys.Any(k =>
+            string.Equals(k, "title", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(k, "title", StringComparison.Ordinal));
+    }
+
     private static string? PickContainerTitle(Dictionary<string, string>? tags, ContainerFamily family)
     {
         if (tags == null)
@@ -360,7 +381,13 @@ public static class MediaFileExtensions
     // container's length on subtitles. MP4 has no tag but a real stream.duration.
     private static long ParseTrackDurationMs(FFprobeStream stream, ContainerFamily family)
     {
-        if (stream.Tags != null && stream.Tags.TryGetValue("DURATION", out var tagged))
+        // ffprobe suffixes a Matroska tag with its language, so this can arrive
+        // as DURATION-eng rather than DURATION.
+        var tagged = stream.Tags?.FirstOrDefault(t =>
+            t.Key.Equals("DURATION", StringComparison.OrdinalIgnoreCase)
+            || t.Key.StartsWith("DURATION-", StringComparison.OrdinalIgnoreCase)).Value;
+
+        if (!string.IsNullOrEmpty(tagged))
         {
             return ParseTagDurationMs(tagged);
         }

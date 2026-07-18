@@ -141,20 +141,19 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
             "no track carries a DURATION tag, so none may claim a length");
     }
 
-    // A global TITLE tag masks the segment title in ffprobe and no writer can
-    // clear it, so treating it as the title fails validation on every retry.
+    // ffmpeg's tag dict is case-insensitive, so a global TITLE tag overwrites the
+    // segment title outright. Only mkvmerge can still report the real one.
     [TestMethod]
-    public async Task Scan_GlobalTitleTag_IsNotTakenAsTheContainerTitle()
+    public async Task Scan_GlobalTitleTag_ReadsTheSegmentTitleNotTheTag()
     {
         var path = CopyFixture("globaltag.mkv");
         var profile = await Fixture.SeedProfile(clearFileTitle: true);
 
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        Assert.AreNotEqual("Global Tag Title", file.Snapshot.Title,
-            "a global tag is not the segment title and cannot be cleared");
-        Assert.IsFalse(file.CheckHasNonStandardMetadata(profile),
-            "an unclearable global tag must not queue the file forever");
+        Assert.AreEqual("Segment Title", file.Snapshot.Title);
+        Assert.IsTrue(file.CheckHasNonStandardMetadata(profile),
+            "the segment title is real and clearable, so the file must be queued");
     }
 
     // Without per-track durations a dropped track leaves the validator nothing to

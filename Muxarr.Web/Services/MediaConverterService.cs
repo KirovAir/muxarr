@@ -359,7 +359,7 @@ public class MediaConverterService(
         // kept tracks have to carry one before the original is replaced.
         Dictionary<int, long> measuredEnds = [];
         var dropsTracks = conversion.ConversionPlan.Tracks.Count < conversion.BeforeSnapshot!.Tracks.Count;
-        if (result.Strategy == ConversionPlanner.ConversionStrategy.Remux
+        if (result.Strategy != ConversionPlanner.ConversionStrategy.Skip
             && (dropsTracks || conversion.ConversionPlan.TrimToVideoLength))
         {
             measuredEnds = await conversion.MediaFile.MeasureTrackEndsMs();
