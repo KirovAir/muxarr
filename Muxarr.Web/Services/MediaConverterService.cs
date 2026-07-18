@@ -362,7 +362,13 @@ public class MediaConverterService(
         if (result.Strategy != ConversionPlanner.ConversionStrategy.Skip
             && (dropsTracks || conversion.ConversionPlan.TrimToVideoLength))
         {
-            measuredEnds = await conversion.MediaFile.MeasureTrackEndsMs();
+            var measured = await conversion.MediaFile.MeasureTrackEndsMs();
+            measuredEnds = measured.Ends;
+            if (measured.Ends == null)
+            {
+                conversion.Log("Could not measure track lengths, so this output cannot be checked "
+                               + $"for truncation ({measured.Error}).", logger);
+            }
         }
 
         if (result.Strategy == ConversionPlanner.ConversionStrategy.Skip)

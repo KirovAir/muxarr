@@ -169,8 +169,9 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
 
         Assert.IsTrue(file.Snapshot.Tracks.All(t => t.DurationMs == 0), "fixture carries no DURATION tags");
 
-        var ends = await file.MeasureTrackEndsMs();
+        var (ends, error) = await file.MeasureTrackEndsMs();
 
+        Assert.IsNotNull(ends, $"the probe should run on a readable file ({error})");
         var audio = file.Snapshot.Tracks.Single(t => t.Type == MediaTrackType.Audio);
         Assert.IsTrue(ends.TryGetValue(audio.Index, out var end) && end >= 9000,
             $"the 10s audio should be measured off the file, got {end}ms");

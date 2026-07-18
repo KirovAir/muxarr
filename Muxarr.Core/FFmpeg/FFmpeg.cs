@@ -47,14 +47,15 @@ public static class FFmpeg
 
     // Seeks into the tail and reads to EOF, so a file carrying no DURATION tags
     // still yields real lengths. A packet cap measured short, and slower.
-    public static async Task<Dictionary<int, long>?> MeasureTrackEndsMs(string file, long containerDurationMs)
+    public static async Task<(Dictionary<int, long>? Ends, string? Error)> MeasureTrackEndsMs(
+        string file, long containerDurationMs)
     {
         const long windowMs = 120_000;
         if (containerDurationMs <= 0)
         {
             // Without a duration there is no tail to seek to, and reading from 0
             // would dump every packet in the file.
-            return null;
+            return (null, "the source reports no duration");
         }
 
         var seekSec = Math.Max(0, containerDurationMs - windowMs) / 1000.0;
@@ -67,7 +68,7 @@ public static class FFmpeg
 
         if (!IsSuccess(result) || string.IsNullOrEmpty(result.Output))
         {
-            return null;
+            return (null, $"ffprobe exit {result.ExitCode}: {result.Error?.Trim()}");
         }
 
         var ends = new Dictionary<int, long>();
@@ -96,7 +97,7 @@ public static class FFmpeg
             }
         }
 
-        return ends;
+        return (ends, null);
     }
 
     public static async Task<ProcessResult> Remux(string input, string output, ConversionPlan delta,
