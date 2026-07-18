@@ -230,7 +230,8 @@
 
         TotalFiles = await context.MediaFiles.CountAsync();
         RedundantTrackFiles = await context.MediaFiles.CountAsync(f => f.HasRedundantTracks);
-        MetadataIssueFiles = await context.MediaFiles.CountAsync(f => f.HasNonStandardMetadata);
+        MetadataIssueFiles = await context.MediaFiles
+            .CountAsync(f => f.HasNonStandardMetadata || f.HasRemovableChapters);
         TotalConversions = await context.MediaConversions.CountAsync(c => c.State == ConversionState.Completed);
         ActiveConversions = await context.MediaConversions.CountAsync(c => c.State == ConversionState.Processing);
         var totalSavedBytes = await context.MediaConversions

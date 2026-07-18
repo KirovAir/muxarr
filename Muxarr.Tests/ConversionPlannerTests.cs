@@ -31,7 +31,7 @@ public class ConversionPlannerTests
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy);
     }
 
-    // An otherwise untouched file: the trim alone has to force a remux.
+    // An otherwise untouched file: the trim alone must not force a remux.
     [TestMethod]
     public void Strategy_TrimToVideoLength_AloneDoesNotForceARemux()
     {
