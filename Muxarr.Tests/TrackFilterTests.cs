@@ -729,4 +729,30 @@ public class TrackFilterTests
 
         Assert.AreEqual(0, result.Count, "No allowed languages and no keep original should result in empty");
     }
+
+    // Commentary filtering runs first, so the guard must vouch against what
+    // survived it. Otherwise the commentary track stands in for the alternative.
+    [TestMethod]
+    public void RemoveCommentaryAndImpaired_KeepsTheOnlyRemainingTrack()
+    {
+        var commentary = Sub(0, "English");
+        commentary.IsCommentary = true;
+        var sdh = Sub(1, "English");
+        sdh.IsHearingImpaired = true;
+
+        var file = MakeFile(null, Video(2), commentary, sdh);
+        var profile = MakeProfile();
+        profile.SubtitleSettings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveCommentary = true,
+            RemoveImpaired = true
+        };
+
+        var kept = file.BuildTargetFromProfile(profile).Tracks;
+
+        Assert.AreEqual(1, kept.Count(t => t.Type == MediaTrackType.Subtitles),
+            "dropping both would leave the language with no subtitles at all");
+    }
 }
