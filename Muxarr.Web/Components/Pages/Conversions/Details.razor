@@ -155,6 +155,14 @@
                             </div>
                         }
                     </div>
+
+                    @if (Conversion.BeforeSnapshot != null)
+                    {
+                        <div class="col-12">
+                            <FileChangesPreview Source="Conversion.BeforeSnapshot"
+                                                Plan="Conversion.ConversionPlan"/>
+                        </div>
+                    }
                 </div>
             </div>
         </div>
