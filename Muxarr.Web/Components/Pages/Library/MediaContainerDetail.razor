@@ -14,7 +14,7 @@
         <td>
             @if (row.State == State.Gone)
             {
-                <i class="bi bi-x-circle-fill text-danger me-1"></i>
+                <span class="me-1"><RemovedMark ShowLabel="false"/></span>
             }
             <span class="fw-medium">@row.Label</span>
         </td>
@@ -28,8 +28,7 @@
             }
             @if (row.State == State.Going)
             {
-                <i class="bi bi-x-circle-fill text-danger"></i>
-                <span class="ms-1">will be removed</span>
+                <RemovedMark/>
             }
         </td>
     </tr>

@@ -1,0 +1,12 @@
+@* The one place that says something is being dropped, so the preview, the
+   before/after and anything added later cannot word it differently. *@
+<i class="bi bi-x-circle-fill text-danger"></i>
+@if (ShowLabel)
+{
+    <span class="ms-1">will be removed</span>
+}
+
+@code {
+    /// <summary>Off when the row already reads as gone, so the icon stands alone.</summary>
+    [Parameter] public bool ShowLabel { get; set; } = true;
+}
