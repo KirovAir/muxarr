@@ -137,13 +137,14 @@
                 </div>
                 @if (_showPreview && Preview != null)
                 {
-                    <FileChangesPreview Source="File.Snapshot" Plan="Preview"/>
                 }
                 <div class="table-responsive">
                     @if (File.Snapshot.Tracks.Any())
                     {
                         <MediaTrackDetailTable Tracks="File.Snapshot.Tracks"
                                                PreviewTracks="_showPreview ? Preview?.Tracks : null"
+                                               Current="File.Snapshot"
+                                               Plan="_showPreview ? Preview : null"
                                                OriginalLanguage="@File.OriginalLanguage"/>
                     }
                     else

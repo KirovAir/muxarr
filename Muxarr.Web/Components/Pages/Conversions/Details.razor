@@ -168,6 +168,7 @@
                 </div>
                 <div class="table-responsive">
                     <MediaTrackDetailTable Tracks="Conversion.BeforeSnapshot?.Tracks ?? []"
+                                           Current="Conversion.BeforeSnapshot"
                                            OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
                 </div>
             </div>
@@ -181,14 +182,10 @@
                 </div>
                 @if (Conversion.AfterSnapshot is { Tracks.Count: > 0 })
                 {
-                    @if (Conversion.BeforeSnapshot != null)
-                    {
-                        <FileChangesPreview Source="Conversion.BeforeSnapshot"
-                                            After="Conversion.AfterSnapshot"/>
-                    }
-
                     <div class="table-responsive">
                         <MediaTrackDetailTable Tracks="Conversion.AfterSnapshot.Tracks"
+                                               Current="Conversion.AfterSnapshot"
+                                               Previous="Conversion.BeforeSnapshot"
                                                OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
                     </div>
                 }

@@ -8,6 +8,10 @@
     </tr>
     </thead>
     <tbody>
+    @if (Current != null)
+    {
+        <MediaContainerDetail Current="Current" Plan="Plan" Previous="Previous"/>
+    }
     @foreach (var item in KeptTracks)
     {
         <MediaTrackDetail Track="item.Original"
@@ -33,6 +37,11 @@
     [Parameter] [EditorRequired] public IEnumerable<IMediaTrack> Tracks { get; set; } = default!;
     [Parameter] public List<TrackPlan>? PreviewTracks { get; set; }
     [Parameter] [EditorRequired] public string? OriginalLanguage { get; set; }
+
+    /// <summary>Container properties for this state, shown as rows above the tracks.</summary>
+    [Parameter] public MediaSnapshot? Current { get; set; }
+    [Parameter] public ConversionPlan? Plan { get; set; }
+    [Parameter] public MediaSnapshot? Previous { get; set; }
 
     private record TrackWithPreview(IMediaTrack Original, TrackPlan? Preview, int? MovedFromPosition);
 

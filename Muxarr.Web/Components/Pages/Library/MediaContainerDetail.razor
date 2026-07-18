@@ -1,0 +1,143 @@
+@using Muxarr.Core.Models
+@using Muxarr.Data.Entities
+
+@* Whole-container properties as rows in the track table, so a cleared title or
+   a dropped chapter reads the same way a dropped track does. *@
+@foreach (var row in _rows)
+{
+    <tr class="@(row.State == State.Present ? null : "opacity-50")">
+        <td>
+            <ToolTip Tip="@row.Tip">
+                <i class="bi @row.Icon text-muted"></i>
+            </ToolTip>
+        </td>
+        <td>
+            @if (row.State == State.Gone)
+            {
+                <i class="bi bi-x-circle-fill text-danger me-1"></i>
+            }
+            <span class="fw-medium">@row.Label</span>
+        </td>
+        <td></td>
+        <td>
+            @if (!string.IsNullOrEmpty(row.Detail))
+            {
+                <span class="text-muted small @(row.State == State.Going ? "text-decoration-line-through me-1" : null)">
+                    @row.Detail
+                </span>
+            }
+            @if (row.State == State.Going)
+            {
+                <i class="bi bi-x-circle-fill text-danger"></i>
+                <span class="ms-1">will be removed</span>
+            }
+        </td>
+    </tr>
+}
+
+@code {
+    /// <summary>The state this table is showing.</summary>
+    [Parameter] [EditorRequired] public MediaSnapshot Current { get; set; } = default!;
+
+    /// <summary>Set to preview what a conversion will change.</summary>
+    [Parameter] public ConversionPlan? Plan { get; set; }
+
+    /// <summary>Set to report what a finished conversion changed.</summary>
+    [Parameter] public MediaSnapshot? Previous { get; set; }
+
+    private enum State
+    {
+        Present,
+        Going,
+        Gone
+    }
+
+    private sealed record Row(string Icon, string Label, string? Detail, State State, string Tip);
+
+    private List<Row> _rows = [];
+
+    protected override void OnParametersSet()
+    {
+        var rows = new List<Row>();
+
+        AddChapters(rows);
+        AddTitle(rows);
+        AddDuration(rows);
+        AddAttachments(rows);
+
+        _rows = rows;
+    }
+
+    private void AddChapters(List<Row> rows)
+    {
+        if (Plan?.HasChapters == false && Current.HasChapters)
+        {
+            rows.Add(new Row("bi-bookmark", "Chapters", null, State.Going, "Chapter markers"));
+        }
+        else if (Previous is { HasChapters: true } && !Current.HasChapters)
+        {
+            rows.Add(new Row("bi-bookmark", "No chapters", null, State.Gone, "Chapter markers"));
+        }
+        else if (Current.HasChapters)
+        {
+            rows.Add(new Row("bi-bookmark", "Chapters", null, State.Present, "Chapter markers"));
+        }
+    }
+
+    private void AddTitle(List<Row> rows)
+    {
+        if (Plan?.Title == "" && !string.IsNullOrEmpty(Current.Title))
+        {
+            rows.Add(new Row("bi-type", "File title", Current.Title, State.Going, "Container title"));
+        }
+        else if (Previous != null && !string.IsNullOrEmpty(Previous.Title) && string.IsNullOrEmpty(Current.Title))
+        {
+            rows.Add(new Row("bi-type", "No file title", null, State.Gone, "Container title"));
+        }
+        else if (!string.IsNullOrEmpty(Current.Title))
+        {
+            rows.Add(new Row("bi-type", "File title", Current.Title, State.Present, "Container title"));
+        }
+    }
+
+    // Only worth a row when it actually moves, or every file grows one.
+    private void AddDuration(List<Row> rows)
+    {
+        if (Plan is { TrimToVideoLength: true })
+        {
+            rows.Add(new Row("bi-scissors", "Trim to video length", FormatClock(Current.DurationMs),
+                State.Going, "Anything past the end of the video"));
+        }
+        else if (Previous != null && Previous.DurationMs - Current.DurationMs > TrimSlackMs)
+        {
+            rows.Add(new Row("bi-scissors", "Trimmed to video length",
+                $"{FormatClock(Previous.DurationMs)} → {FormatClock(Current.DurationMs)}",
+                State.Gone, "Anything past the end of the video"));
+        }
+    }
+
+    // No profile option removes attachments, so this is informational only.
+    private void AddAttachments(List<Row> rows)
+    {
+        if (Previous is { HasAttachments: true } && !Current.HasAttachments)
+        {
+            rows.Add(new Row("bi-paperclip", "No attachments", null, State.Gone, "Fonts, cover art"));
+        }
+        else if (Current.HasAttachments)
+        {
+            rows.Add(new Row("bi-paperclip", "Attachments", null, State.Present, "Fonts, cover art"));
+        }
+    }
+
+    // Containers run a touch long past the last video frame even untrimmed.
+    private const long TrimSlackMs = 1000;
+
+    private static string FormatClock(long ms)
+    {
+        var t = TimeSpan.FromMilliseconds(ms);
+        return t.TotalHours >= 1
+            ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}"
+            : $"{t.Minutes}:{t.Seconds:D2}";
+    }
+
+}
