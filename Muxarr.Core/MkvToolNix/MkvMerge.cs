@@ -78,10 +78,8 @@ public static class MkvMerge
             command += " --no-attachments";
         }
 
-        if (delta.TrimToVideoLengthMs != null)
+        if (delta.TrimToVideoLength)
         {
-            // mkvmerge recomputes the cut itself; it lands on the same primary
-            // video track VideoEndTrimPointMs measured, so the value is unused here.
             command += " --stop-after-video-ends";
         }
 

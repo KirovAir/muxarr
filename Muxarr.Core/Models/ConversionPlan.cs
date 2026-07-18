@@ -18,10 +18,10 @@ public class ConversionPlan : IMedia<TrackPlan>
     // null = inherit source, "" = clear. Mirrors TrackPlan.Name semantics.
     public string? Title { get; set; }
 
-    // Where the video track ends, when something runs past it and the profile
-    // asked for that to be cut. mkvmerge finds the point itself; ffmpeg has to
-    // be handed it, so the plan carries the timestamp rather than a flag.
-    public long? TrimToVideoLengthMs { get; set; }
+    // Cut anything running past the video. Both writers find the point
+    // themselves, so this is a request, not a timestamp. Only applied when a
+    // remux is already happening: it never causes one on its own.
+    public bool TrimToVideoLength { get; set; }
 
     bool IMedia<TrackPlan>.HasChapters => HasChapters ?? false;
     bool IMedia<TrackPlan>.HasAttachments => HasAttachments ?? false;

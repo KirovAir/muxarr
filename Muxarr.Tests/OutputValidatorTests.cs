@@ -216,75 +216,71 @@ public class OutputValidatorTests
         StringAssert.Contains(ex.Message, "truncated");
     }
 
+    // Dropping a track retires the container as the yardstick, but a kept track
+    // that does report an hour still proves a 5s output is truncated.
     [TestMethod]
-    public void TrimToVideoLength_MeasuresAgainstVideoTrack()
+    public void KeptTrackDuration_IsStillAFloorWhenATrackIsDropped()
     {
-        var video = Track(0, MediaTrackType.Video, 5_000);
-        var audio = Track(1, MediaTrackType.Audio, 5_038);
-        var longSub = Track(2, MediaTrackType.Subtitles, 24_000);
+        var video = Track(0, MediaTrackType.Video, 0);
+        var audio = Track(1, MediaTrackType.Audio, 3_600_000);
+        var subs = Track(2, MediaTrackType.Subtitles, 0);
 
-        var source = MediaWithTracks(25_000, video, audio, longSub);
-        var actual = MediaWithTracks(5_000, video, audio, longSub);
+        var source = MediaWithTracks(3_600_000, video, audio, subs);
+        var actual = MediaWithTracks(5_000, video, audio);
 
-        var plan = Keeping(video, audio, longSub);
-        plan.TrimToVideoLengthMs = 5_000;
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateOrThrow(actual, source, Keeping(video, audio)));
 
-        OutputValidator.ValidateOrThrow(actual, source, plan);
+        StringAssert.Contains(ex.Message, "truncated");
     }
 
-    // If the writer silently ignored the trim request, the output is the full
-    // untrimmed length - "not shorter than expected" alone would wave that through.
+    // Trimming cuts the overlong audio back to the video, which is not truncation.
     [TestMethod]
-    public void TrimToVideoLength_OutputLongerThanTrim_Throws()
+    public void TrimToVideoLength_CutBackToTheVideo_Passes()
     {
         var video = Track(0, MediaTrackType.Video, 5_000);
         var audio = Track(1, MediaTrackType.Audio, 25_000);
 
         var source = MediaWithTracks(25_000, video, audio);
-        var actual = MediaWithTracks(25_000, video, audio);
+        var actual = MediaWithTracks(5_000, video, audio);
 
         var plan = Keeping(video, audio);
-        plan.TrimToVideoLengthMs = 5_000;
+        plan.TrimToVideoLength = true;
 
-        var ex = Assert.ThrowsExactly<Exception>(() =>
-            OutputValidator.ValidateOrThrow(actual, source, plan));
-
-        StringAssert.Contains(ex.Message, "Trim may not have applied");
+        OutputValidator.ValidateOrThrow(actual, source, plan);
     }
 
-    // A percentage tolerance sized for a 2h film would hide a completely
-    // un-trimmed 60s overrun. The trim check needs a small fixed bound instead.
+    // mkvmerge stops after the video, so the video still has to come out whole.
+    // Exempting the whole check would wave a gutted two-hour remux through.
     [TestMethod]
-    public void TrimToVideoLength_LongFile_UntrimmedOverrun_StillThrows()
+    public void TrimToVideoLength_Matroska_StillCatchesALostVideo()
     {
         var video = Track(0, MediaTrackType.Video, 7_200_000);
         var audio = Track(1, MediaTrackType.Audio, 7_260_000);
 
         var source = MediaWithTracks(7_260_000, video, audio);
-        var actual = MediaWithTracks(7_260_000, video, audio); // trim never happened
+        var actual = MediaWithTracks(4_000, video, audio);
 
         var plan = Keeping(video, audio);
-        plan.TrimToVideoLengthMs = 7_200_000;
+        plan.TrimToVideoLength = true;
 
         var ex = Assert.ThrowsExactly<Exception>(() =>
             OutputValidator.ValidateOrThrow(actual, source, plan));
 
-        StringAssert.Contains(ex.Message, "Trim may not have applied");
+        StringAssert.Contains(ex.Message, "truncated");
     }
 
+    // -shortest can cut the video itself, so on MP4 there is no floor to hold to.
     [TestMethod]
-    public void TrimToVideoLength_StillCatchesTruncatedVideo()
+    public void TrimToVideoLength_Mp4_HasNoFloor()
     {
-        var video = Track(0, MediaTrackType.Video, 5_000);
-        var longSub = Track(1, MediaTrackType.Subtitles, 24_000);
+        var source = Media(durationMs: 600_000, trackTypes: MediaTrackType.Video);
+        var actual = Media(durationMs: 4_000, trackTypes: MediaTrackType.Video);
 
-        var source = MediaWithTracks(25_000, video, longSub);
-        var actual = MediaWithTracks(2_000, video, longSub);
+        var plan = Expected(MediaTrackType.Video);
+        plan.TrimToVideoLength = true;
 
-        var plan = Keeping(video, longSub);
-        plan.TrimToVideoLengthMs = 5_000;
-
-        Assert.ThrowsExactly<Exception>(() => OutputValidator.ValidateOrThrow(actual, source, plan));
+        OutputValidator.ValidateOrThrow(actual, source, plan);
     }
 
     [TestMethod]

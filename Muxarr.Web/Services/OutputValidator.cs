@@ -45,20 +45,6 @@ public static class OutputValidator
                     $"Output duration {actual.Snapshot.DurationMs}ms is shorter than the expected {expectedDuration}ms " +
                     $"(tolerance {tolerance}ms). File may be truncated.");
             }
-
-            // A trim is a hard cut: an output still at full length means the writer
-            // ignored it. A skipped trim leaves over a second of overrun (that is
-            // what makes a file worth trimming), so a sub-second bound reliably
-            // tells a real cut from a skipped one - and unlike the percentage floor
-            // above, it stays tight on a multi-hour file.
-            const long trimToleranceMs = 500;
-            if (target.TrimToVideoLengthMs != null &&
-                actual.Snapshot.DurationMs > expectedDuration + trimToleranceMs)
-            {
-                throw new Exception(
-                    $"Output duration {actual.Snapshot.DurationMs}ms is longer than the requested trim point " +
-                    $"{expectedDuration}ms (tolerance {trimToleranceMs}ms). Trim may not have applied.");
-            }
         }
 
         if (actual.HasScanWarning && !source.HasScanWarning)
@@ -84,18 +70,30 @@ public static class OutputValidator
 
     // A container is as long as its longest track, so dropping a track that ran
     // past the rest legitimately shortens the output. Measure against the tracks
-    // the plan keeps; but a missing per-track duration would drag the expectation
-    // down and hide real truncation, so fall back to the container unless all reported.
+    // the plan keeps. Returns 0 to skip the check when nothing can be measured.
     private static long ExpectedDurationMs(MediaFile source, ConversionPlan target)
     {
-        if (target.TrimToVideoLengthMs is { } trimMs)
+        var kept = source.Snapshot.Tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
+
+        if (target.TrimToVideoLength)
         {
-            return trimMs;
+            // mkvmerge stops after the video, so the video survives whole and is
+            // still a floor. ffmpeg's -shortest can cut the video itself, so on
+            // MP4 there is nothing honest left to measure against.
+            return source.Snapshot.ContainerType.ToContainerFamily() == ContainerFamily.Matroska
+                ? kept.GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault()?.DurationMs ?? 0
+                : 0;
         }
 
-        var kept = source.Snapshot.Tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
-        return kept.Count > 0 && kept.All(t => t.DurationMs > 0)
-            ? kept.LongestDurationMs()
-            : source.Snapshot.DurationMs;
+        if (kept.Count == source.Snapshot.Tracks.Count)
+        {
+            return source.Snapshot.DurationMs;
+        }
+
+        // A dropped track may be the one that set the container's length, so that
+        // is no longer the yardstick. Every kept track that reports a length is
+        // still a floor the output has to clear. Plenty of Matroska files report
+        // none at all, and 0 skips the check rather than inventing an expectation.
+        return kept.LongestDurationMs();
     }
 }

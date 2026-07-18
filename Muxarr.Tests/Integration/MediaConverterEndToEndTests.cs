@@ -204,37 +204,57 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
-    // mkvmerge is told to stop after the video; ffmpeg is handed the same cut
-    // point as -t. Both must land on the 3s video without shortening it.
+    // Same drop, but on a file where no track reports a length. The expectation
+    // used to fall back to the container, which is the 10s subtitle being cut,
+    // so a correct 3s output looked truncated and rolled back.
     [TestMethod]
-    [DataRow("asymmetric.mkv")]
-    [DataRow("asymmetric.mp4")]
-    public async Task Remux_TrimToVideoLength_TrimsOverlongAudio(string fixture)
+    public async Task Remux_DroppingTheLongestTrack_WithoutDurationTags_IsNotTruncation()
     {
-        var path = CopyFixture(fixture);
-        var profile = await Fixture.SeedProfile(trimToVideoLength: true);
+        var path = CopyFixture("untagged.mkv");
+        var profile = await Fixture.SeedProfile();
         var file = await Fixture.ScanAndPersist(path, profile);
 
-        // Nothing about the tracks needs changing - the trim alone must be
-        // enough to pull this off the Skip path and into a real remux.
-        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromProfile(profile));
+        var keep = file.Snapshot.Tracks
+            .Where(t => t.Type != MediaTrackType.Audio)
+            .ToSnapshots();
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromCustom(keep), true);
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
 
         var probed = await FileAssertions.ProbeAsync(path);
-        Assert.AreEqual(2, probed.Snapshot.Tracks.Count, "trimming must not drop tracks");
+        Assert.AreEqual(2, probed.Snapshot.Tracks.Count);
         Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
-            $"audio should be cut back to the 3s video, got {probed.Snapshot.DurationMs}ms");
+            $"output should be the 3s video, got {probed.Snapshot.DurationMs}ms");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
 
-        // The whole safety promise: the video itself comes out untouched.
-        var video = probed.Snapshot.Tracks.Single(t => t.Type == MediaTrackType.Video);
-        Assert.IsTrue(video.DurationMs >= 2900,
-            $"the video must not be shortened, got {video.DurationMs}ms");
+    // Trim rides along on a remux it did not cause: the subtitle is what needs
+    // dropping, and the 10s audio gets cut back to the video while it happens.
+    [TestMethod]
+    public async Task Remux_TrimToVideoLength_RidesAlongAndCutsOverlongAudio()
+    {
+        var path = CopyFixture("untagged.mkv");
+        var profile = await Fixture.SeedProfile(trimToVideoLength: true);
+        var file = await Fixture.ScanAndPersist(path, profile);
 
-        Assert.IsNull(probed.BuildTargetFromProfile(profile).TrimToVideoLengthMs,
-            "a trimmed file must not ask to be trimmed again");
+        var keep = file.Snapshot.Tracks
+            .Where(t => t.Type != MediaTrackType.Subtitles)
+            .ToSnapshots();
+        var target = file.BuildTargetFromCustom(keep);
+        target.TrimToVideoLength = true;
+
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.AreEqual(2, probed.Snapshot.Tracks.Count, "only the subtitle was dropped");
+        Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
+            $"the 10s audio should be cut back to the 3s video, got {probed.Snapshot.DurationMs}ms");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 

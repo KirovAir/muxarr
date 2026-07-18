@@ -123,6 +123,24 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
         Assert.IsTrue(file.HasRedundantTracks, "strict profile drops the non-English subtitles");
     }
 
+    // stream.duration on Matroska is the segment length, so borrowing it handed
+    // every subtitle the container's length and invented a duration nothing had.
+    [TestMethod]
+    public async Task Scan_UntaggedMatroska_ReportsNoPerTrackDurations()
+    {
+        var path = CopyFixture("untagged.mkv");
+        var profile = await Fixture.SeedProfile();
+
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.IsTrue(file.Snapshot.DurationMs >= 9000,
+            $"container should still report the 10s subtitle, got {file.Snapshot.DurationMs}ms");
+        CollectionAssert.AreEqual(
+            new long[] { 0, 0, 0 },
+            file.Snapshot.Tracks.OrderBy(t => t.Index).Select(t => t.DurationMs).ToArray(),
+            "no track carries a DURATION tag, so none may claim a length");
+    }
+
     [TestMethod]
     public async Task Scan_DerivedMp4_PersistsAsMp4Container()
     {

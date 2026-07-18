@@ -41,20 +41,17 @@ public class FFmpegTests
     }
 
     [TestMethod]
-    public void BuildArguments_TrimsAtTheVideoEnd_NeverWithShortest()
+    public void BuildArguments_TrimEmitsShortest()
     {
         var plan = TestPlan.Of(new List<TrackPlan>
         {
             new() { Index = 0, Type = MediaTrackType.Video }
         });
-        plan.TrimToVideoLengthMs = 5_000;
+        plan.TrimToVideoLength = true;
 
         var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", plan);
 
-        // Integer ms, so no locale can turn the cut point into "5,0".
-        StringAssert.Contains(args, "-t 5000ms");
-        Assert.IsFalse(args.Contains("-shortest"),
-            "-shortest stops at the shortest stream and will happily cut the video short");
+        StringAssert.Contains(args, "-shortest");
     }
 
     [TestMethod]

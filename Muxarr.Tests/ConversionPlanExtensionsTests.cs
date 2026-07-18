@@ -1,5 +1,6 @@
 using System.Reflection;
 using Muxarr.Core.Models;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 using static Muxarr.Tests.TestData;
@@ -84,5 +85,23 @@ public class ConversionPlanExtensionsTests
         }
 
         throw new NotSupportedException(u.Name);
+    }
+
+    // Plans queued before trim became a bool are still sitting in the database
+    // with a TrimToVideoLengthMs number on them. They have to keep loading.
+    [TestMethod]
+    public void StoredPlan_WithTheOldTrimField_StillDeserializes()
+    {
+        const string stored = """
+            {"Tracks":[{"Index":0,"Type":"Video"}],"Title":"","HasChapters":null,
+             "TrimToVideoLengthMs":3497411}
+            """;
+
+        var plan = JsonHelper.Deserialize<ConversionPlan>(stored);
+
+        Assert.IsNotNull(plan);
+        Assert.AreEqual(1, plan.Tracks.Count);
+        Assert.AreEqual("", plan.Title);
+        Assert.IsFalse(plan.TrimToVideoLength, "a dropped field must not resurrect as a trim request");
     }
 }

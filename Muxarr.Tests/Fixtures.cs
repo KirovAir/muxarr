@@ -40,6 +40,7 @@ public static class Fixtures
         await GenerateMp4FromMkvAsync("test_complex.mkv", "test_complex.mp4");
         await GenerateAsymmetricMkvAsync("asymmetric.mkv");
         await GenerateAsymmetricMp4Async("asymmetric.mp4");
+        await GenerateUntaggedMkvAsync("untagged.mkv");
         await GenerateTruncatedMkvAsync("truncated.mkv");
         await GenerateRichMp4Async("test_rich.mp4");
         await GenerateChapteredAsync("chapters.mkv", "mpeg4", "ac3", "matroska", 10);
@@ -190,6 +191,51 @@ public static class Fixtures
             $"\"{target}\"";
         var result = await ProcessExecutor.ExecuteProcessAsync("ffmpeg", args, TimeSpan.FromSeconds(60));
         if (!result.Success || !File.Exists(target))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}: {result.Error?.Trim()}");
+        }
+    }
+
+    /// <summary>
+    /// 3s video + 10s audio + a 1s subtitle, carrying no per-track DURATION
+    /// tags at all - the shape a lot of real remuxes arrive in, where only the
+    /// subtitle reports a length to ffprobe and it reports the container's.
+    /// Built from elementary streams so ffmpeg never gets to tag anything.
+    /// </summary>
+    private static async Task GenerateUntaggedMkvAsync(string targetName)
+    {
+        var target = Path.Combine(PoolDir, targetName);
+        if (File.Exists(target))
+        {
+            return;
+        }
+
+        var video = Path.Combine(PoolDir, "untagged.m4v");
+        var audio = Path.Combine(PoolDir, "untagged.ac3");
+        var subs = Path.Combine(PoolDir, "untagged.srt");
+
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"testsrc=duration=3:size=160x120:rate=10\" " +
+                                          $"-c:v mpeg4 \"{video}\"", targetName);
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"sine=duration=10:frequency=440\" " +
+                                          $"-c:a ac3 \"{audio}\"", targetName);
+        await File.WriteAllTextAsync(subs, "1\n00:00:00,000 --> 00:00:01,000\nhi\n\n");
+
+        // mkvmerge writes DURATION statistics tags unless told not to.
+        await RunOrInconclusive("mkvmerge", "--disable-track-statistics-tags " +
+                                            $"-o \"{target}\" \"{video}\" \"{audio}\" \"{subs}\"", targetName);
+
+        if (!File.Exists(target))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}");
+        }
+    }
+
+    private static async Task RunOrInconclusive(string exe, string args, string targetName)
+    {
+        var result = await ProcessExecutor.ExecuteProcessAsync(exe, args, TimeSpan.FromSeconds(60));
+        if (!result.Success)
         {
             Assert.Inconclusive($"Failed to generate {targetName}: {result.Error?.Trim()}");
         }

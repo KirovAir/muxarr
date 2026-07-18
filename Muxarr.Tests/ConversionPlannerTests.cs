@@ -33,19 +33,20 @@ public class ConversionPlannerTests
 
     // An otherwise untouched file: the trim alone has to force a remux.
     [TestMethod]
-    public void Strategy_TrimToVideoLength_ReturnsRemux()
+    public void Strategy_TrimToVideoLength_AloneDoesNotForceARemux()
     {
         var file = MakeFileWithContainer("Matroska", null,
             Video(0),
             Audio(1, "English"));
         var before = file.ToMediaSnapshot();
         var target = TargetFromSnapshot(before);
-        target.TrimToVideoLengthMs = 5_000;
+        target.TrimToVideoLength = true;
 
         var result = ConversionPlanner.Plan(before, target);
 
-        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, result.Strategy);
-        Assert.AreEqual(5_000L, result.Delta.TrimToVideoLengthMs, "delta must carry the trim through to the writer");
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, result.Strategy,
+            "trim rides along on a remux, it never causes one");
+        Assert.IsTrue(result.Delta.TrimToVideoLength, "delta must still carry it through to the writer");
     }
 
     // --- Strategy: MetadataEdit (Matroska only) ---

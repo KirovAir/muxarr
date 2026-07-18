@@ -1369,62 +1369,21 @@ public class ConversionPipelineTests
 
     // --- TrimToVideoLength ---
 
+    // The plan carries the request, not a cut point: both writers find the point
+    // themselves, and the planner leaves it off the remux decision.
     [TestMethod]
-    [DataRow("Matroska", true, 24_000, true)] // the 24s sub is what makes the container overrun
-    [DataRow("MP4/QuickTime", true, 24_000, true)] // ffmpeg trims at the same point
-    [DataRow("Matroska", true, 5_500, false)] // within slack, not worth a remux
-    [DataRow("Matroska", false, 24_000, false)] // opt-in only
-    public void TrimToVideoLength_SetOnlyWhenTheSourceNeedsIt(
-        string container, bool enabled, int subDurationMs, bool expected)
+    [DataRow("Matroska", true)]
+    [DataRow("MP4/QuickTime", true)]
+    [DataRow("Matroska", false)]
+    public void TrimToVideoLength_CarriesTheProfileFlag(string container, bool enabled)
     {
-        var video = Video(0);
-        video.DurationMs = 5_000;
-        var sub = Sub(1, "English");
-        sub.DurationMs = subDurationMs;
-
-        var file = MakeFile(null, video, sub);
+        var file = MakeFile(null, Video(0), Sub(1, "English"));
         file.Snapshot.ContainerType = container;
 
         var profile = MakeProfile();
         profile.TrimToVideoLength = enabled;
 
-        var target = file.BuildTargetFromProfile(profile);
-
-        Assert.AreEqual(expected ? 5_000L : null, target.TrimToVideoLengthMs);
-    }
-
-    // mkvmerge cuts at the first video track, not the longest, so the plan must
-    // pick 5s here (track 0) not 10s - or the two writers would disagree.
-    [TestMethod]
-    public void TrimToVideoLength_MultipleVideoTracks_UsesFirstNotLongest()
-    {
-        var firstVideo = Video(0);
-        firstVideo.DurationMs = 5_000;
-        var secondVideo = Video(1);
-        secondVideo.DurationMs = 10_000;
-        var audio = Audio(2, "English");
-        audio.DurationMs = 10_000;
-
-        var file = MakeFile(null, firstVideo, secondVideo, audio);
-        file.Snapshot.ContainerType = "Matroska";
-
-        var profile = MakeProfile();
-        profile.TrimToVideoLength = true;
-
-        Assert.AreEqual(5_000L, file.BuildTargetFromProfile(profile).TrimToVideoLengthMs);
-    }
-
-    // No per-track duration means nothing to compare, so the trim stays off.
-    [TestMethod]
-    public void TrimToVideoLength_NotSet_WhenProbeCarriedNoTrackDurations()
-    {
-        var file = MakeFile(null, Video(0), Sub(1, "English"));
-        file.Snapshot.ContainerType = "Matroska";
-
-        var profile = MakeProfile();
-        profile.TrimToVideoLength = true;
-
-        Assert.IsNull(file.BuildTargetFromProfile(profile).TrimToVideoLengthMs);
+        Assert.AreEqual(enabled, file.BuildTargetFromProfile(profile).TrimToVideoLength);
     }
 
     // --- ClearFileTitle ---

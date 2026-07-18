@@ -40,31 +40,23 @@
             if (Plan.Title == "" && !string.IsNullOrEmpty(Source.Title))
             {
                 changes.Add(new Change("bi-x-circle-fill", "File title",
-                    $"File title \"{Source.Title}\" will be removed", Removed));
+                    $"File title \"{Source.Title}\" removed", Removed));
             }
 
             if (Plan.HasChapters == false && Source.HasChapters)
             {
                 changes.Add(new Change("bi-x-circle-fill", "Chapters",
-                    "Chapter markers will be removed", Removed));
+                    "Chapter markers removed", Removed));
             }
 
-            if (Plan.TrimToVideoLengthMs is { } trimMs && Source.DurationMs > trimMs)
+            if (Plan.TrimToVideoLength)
             {
-                changes.Add(new Change("bi-scissors",
-                    $"{FormatClock(Source.DurationMs)} → {FormatClock(trimMs)}",
-                    "Audio and subtitles past the end of the video will be discarded", Changed));
+                changes.Add(new Change("bi-scissors", "Trim to video length",
+                    "Anything running past the end of the video is discarded, "
+                    + "if this conversion needs a remux", Changed));
             }
         }
 
         _changes = changes;
-    }
-
-    private static string FormatClock(long ms)
-    {
-        var t = TimeSpan.FromMilliseconds(ms);
-        return t.TotalHours >= 1
-            ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}"
-            : $"{t.Minutes}:{t.Seconds:D2}";
     }
 }
