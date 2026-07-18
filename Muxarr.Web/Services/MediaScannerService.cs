@@ -244,7 +244,6 @@ public class MediaScannerService(
         }
 
         var dbFile = await context.MediaFiles.WithTracks().FirstOrDefaultAsync(x => x.Path == filePath);
-        var isNewFile = dbFile == null;
         if (dbFile == null)
         {
             dbFile = new MediaFile
@@ -256,7 +255,6 @@ public class MediaScannerService(
 
         // Follow the directory that matched, or the scan flags against one profile
         // while the queue plans with another.
-        var profileChanged = !isNewFile && dbFile.ProfileId != profile.Id;
         dbFile.ProfileId = profile.Id;
         dbFile.IsHardlinked = isHardlinked;
         await ScanMediaFile(dbFile, forceRescan, context, profile, webhookTitle, webhookOriginalLanguage);
@@ -269,9 +267,10 @@ public class MediaScannerService(
             return;
         }
 
-        // A new profile moves the goalposts for the flags, and an unchanged file
-        // never reaches the probe that recomputes them.
-        if (profileChanged && dbFile.Snapshot is { Tracks.Count: > 0 })
+        // Editing a profile moves the goalposts for the flags, and an unchanged
+        // file never reaches the probe that recomputes them. Pure in-memory work
+        // over tracks we already loaded, so it is cheap enough to always run.
+        if (dbFile.Snapshot is { Tracks.Count: > 0 })
         {
             ApplyProfileFlags(dbFile, profile);
         }
