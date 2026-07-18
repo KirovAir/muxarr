@@ -155,14 +155,6 @@
                             </div>
                         }
                     </div>
-
-                    @if (Conversion.BeforeSnapshot != null)
-                    {
-                        <div class="col-12">
-                            <FileChangesPreview Source="Conversion.BeforeSnapshot"
-                                                Plan="Conversion.ConversionPlan"/>
-                        </div>
-                    }
                 </div>
             </div>
         </div>
@@ -189,6 +181,12 @@
                 </div>
                 @if (Conversion.AfterSnapshot is { Tracks.Count: > 0 })
                 {
+                    @if (Conversion.BeforeSnapshot != null)
+                    {
+                        <FileChangesPreview Source="Conversion.BeforeSnapshot"
+                                            After="Conversion.AfterSnapshot"/>
+                    }
+
                     <div class="table-responsive">
                         <MediaTrackDetailTable Tracks="Conversion.AfterSnapshot.Tracks"
                                                OriginalLanguage="@Conversion.MediaFile?.OriginalLanguage"/>
