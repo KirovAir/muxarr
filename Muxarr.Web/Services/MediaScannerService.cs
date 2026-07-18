@@ -244,6 +244,7 @@ public class MediaScannerService(
         }
 
         var dbFile = await context.MediaFiles.WithTracks().FirstOrDefaultAsync(x => x.Path == filePath);
+        var isNewFile = dbFile == null;
         if (dbFile == null)
         {
             dbFile = new MediaFile
@@ -255,7 +256,7 @@ public class MediaScannerService(
 
         // Follow the directory that matched, or the scan flags against one profile
         // while the queue plans with another.
-        var profileChanged = dbFile.ProfileId != profile.Id;
+        var profileChanged = !isNewFile && dbFile.ProfileId != profile.Id;
         dbFile.ProfileId = profile.Id;
         dbFile.IsHardlinked = isHardlinked;
         await ScanMediaFile(dbFile, forceRescan, context, profile, webhookTitle, webhookOriginalLanguage);
@@ -304,8 +305,7 @@ public class MediaScannerService(
         }
 
         // ReSharper disable once EntityFramework.NPlusOne.IncompleteDataUsage
-        if (forceRescan || string.IsNullOrEmpty(dbFile.Path) || dbFile.NeedsArrProbe() ||
-            dbFile.NeedsFileProbe(fileInfo))
+        if (forceRescan || dbFile.NeedsArrProbe() || dbFile.NeedsFileProbe(fileInfo))
         {
             if (forceRescan || dbFile.NeedsArrProbe())
             {

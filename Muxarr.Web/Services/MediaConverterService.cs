@@ -355,22 +355,6 @@ public class MediaConverterService(
         var result = ConversionPlanner.Plan(conversion.BeforeSnapshot!, conversion.ConversionPlan);
         var delta = result.Delta;
 
-        // Dropping a track retires the container duration as the yardstick, so the
-        // kept tracks have to carry one before the original is replaced.
-        Dictionary<int, long>? measuredEnds = [];
-        var dropsTracks = conversion.ConversionPlan.Tracks.Count < conversion.BeforeSnapshot!.Tracks.Count;
-        if (result.Strategy != ConversionPlanner.ConversionStrategy.Skip
-            && (dropsTracks || conversion.ConversionPlan.TrimToVideoLength))
-        {
-            var measured = await conversion.MediaFile.MeasureTrackEndsMs();
-            measuredEnds = measured.Ends;
-            if (measured.Ends == null)
-            {
-                conversion.Log("Could not measure track lengths, so this output cannot be checked "
-                               + $"for truncation ({measured.Error}).", logger);
-            }
-        }
-
         if (result.Strategy == ConversionPlanner.ConversionStrategy.Skip)
         {
             conversion.StartedDate ??= DateTime.UtcNow;
@@ -392,6 +376,20 @@ public class MediaConverterService(
             await context.SaveChangesAsync(token);
             ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
             return;
+        }
+
+        // Only a remux uses this, and a dropped track retires the container duration.
+        Dictionary<int, long>? measuredEnds = null;
+        var dropsTracks = conversion.ConversionPlan.Tracks.Count < conversion.BeforeSnapshot!.Tracks.Count;
+        if (dropsTracks || conversion.ConversionPlan.TrimToVideoLength)
+        {
+            var measured = await conversion.MediaFile.MeasureTrackEndsMs();
+            measuredEnds = measured.Ends;
+            if (measured.Ends == null)
+            {
+                conversion.Log("Could not measure track lengths, so this output cannot be checked "
+                               + $"for truncation ({measured.Error}).", logger);
+            }
         }
 
         // Matroska writes go through mkvmerge. Everything else goes through
