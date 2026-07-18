@@ -41,6 +41,7 @@ public static class Fixtures
         await GenerateAsymmetricMkvAsync("asymmetric.mkv");
         await GenerateAsymmetricMp4Async("asymmetric.mp4");
         await GenerateUntaggedMkvAsync("untagged.mkv");
+        await GenerateGlobalTagMkvAsync("globaltag.mkv");
         await GenerateTruncatedMkvAsync("truncated.mkv");
         await GenerateRichMp4Async("test_rich.mp4");
         await GenerateChapteredAsync("chapters.mkv", "mpeg4", "ac3", "matroska", 10);
@@ -225,6 +226,38 @@ public static class Fixtures
         // mkvmerge writes DURATION statistics tags unless told not to.
         await RunOrInconclusive("mkvmerge", "--disable-track-statistics-tags " +
                                             $"-o \"{target}\" \"{video}\" \"{audio}\" \"{subs}\"", targetName);
+
+        if (!File.Exists(target))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}");
+        }
+    }
+
+    /// <summary>
+    /// A segment title alongside a Matroska global TITLE tag. ffprobe surfaces the
+    /// global tag and masks the segment title, and no writer can clear it.
+    /// </summary>
+    private static async Task GenerateGlobalTagMkvAsync(string targetName)
+    {
+        var target = Path.Combine(PoolDir, targetName);
+        if (File.Exists(target))
+        {
+            return;
+        }
+
+        var video = Path.Combine(PoolDir, "globaltag.m4v");
+        var tags = Path.Combine(PoolDir, "globaltag.xml");
+
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"testsrc=duration=2:size=160x120:rate=10\" " +
+                                          $"-c:v mpeg4 \"{video}\"", targetName);
+        await File.WriteAllTextAsync(tags,
+            "<?xml version=\"1.0\"?><Tags><Tag><Simple>" +
+            "<Name>TITLE</Name><String>Global Tag Title</String>" +
+            "</Simple></Tag></Tags>");
+
+        await RunOrInconclusive("mkvmerge",
+            $"-o \"{target}\" --title \"Segment Title\" --global-tags \"{tags}\" \"{video}\"", targetName);
 
         if (!File.Exists(target))
         {

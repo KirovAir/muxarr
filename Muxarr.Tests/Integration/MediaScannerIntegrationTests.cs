@@ -141,6 +141,40 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
             "no track carries a DURATION tag, so none may claim a length");
     }
 
+    // A global TITLE tag masks the segment title in ffprobe and no writer can
+    // clear it, so treating it as the title fails validation on every retry.
+    [TestMethod]
+    public async Task Scan_GlobalTitleTag_IsNotTakenAsTheContainerTitle()
+    {
+        var path = CopyFixture("globaltag.mkv");
+        var profile = await Fixture.SeedProfile(clearFileTitle: true);
+
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.AreNotEqual("Global Tag Title", file.Snapshot.Title,
+            "a global tag is not the segment title and cannot be cleared");
+        Assert.IsFalse(file.CheckHasNonStandardMetadata(profile),
+            "an unclearable global tag must not queue the file forever");
+    }
+
+    // Without per-track durations a dropped track leaves the validator nothing to
+    // measure, so the tail of the file has to supply them.
+    [TestMethod]
+    public async Task MeasureMissingTrackDurations_FillsAnUntaggedMatroska()
+    {
+        var path = CopyFixture("untagged.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.IsTrue(file.Snapshot.Tracks.All(t => t.DurationMs == 0), "fixture carries no DURATION tags");
+
+        await file.MeasureMissingTrackDurations();
+
+        var audio = file.Snapshot.Tracks.Single(t => t.Type == MediaTrackType.Audio);
+        Assert.IsTrue(audio.DurationMs >= 9000,
+            $"the 10s audio should be measured off the file, got {audio.DurationMs}ms");
+    }
+
     [TestMethod]
     public async Task Scan_DerivedMp4_PersistsAsMp4Container()
     {

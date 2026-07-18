@@ -253,7 +253,7 @@ public static class MediaFileExtensions
         {
             CapturedAt = DateTime.UtcNow,
             ContainerType = containerType,
-            Title = PickContainerTitle(probe.Format?.Tags),
+            Title = PickContainerTitle(probe.Format?.Tags, containerType.ToContainerFamily()),
             Resolution = resolution,
             VideoBitDepth = videoBitDepth,
             DurationMs = durationMs,
@@ -331,18 +331,22 @@ public static class MediaFileExtensions
         return null;
     }
 
-    // Container title from ffprobe's format.tags. ffprobe casing varies by
-    // container (MKV keeps element casing, MP4 lowercases), so match loosely.
-    private static string? PickContainerTitle(Dictionary<string, string>? tags)
+    // Matroska keeps element casing, so a lowercase "title" is the segment title
+    // while an uppercase one is a global tag no writer can clear. MP4 lowercases.
+    private static string? PickContainerTitle(Dictionary<string, string>? tags, ContainerFamily family)
     {
         if (tags == null)
         {
             return null;
         }
 
+        var comparison = family == ContainerFamily.Matroska
+            ? StringComparison.Ordinal
+            : StringComparison.OrdinalIgnoreCase;
+
         foreach (var (key, value) in tags)
         {
-            if (string.Equals(key, "title", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(value))
+            if (string.Equals(key, "title", comparison) && !string.IsNullOrEmpty(value))
             {
                 return value;
             }
@@ -389,6 +393,25 @@ public static class MediaFileExtensions
         return double.TryParse(duration, NumberStyles.Any, CultureInfo.InvariantCulture, out var seconds)
             ? (long)(seconds * 1000)
             : 0;
+    }
+
+    // Matroska only reports a per-track length through the DURATION tag and plenty
+    // of remuxes carry none. Measure the tail so a dropped track leaves a yardstick.
+    public static async Task MeasureMissingTrackDurations(this MediaFile file)
+    {
+        if (file.Snapshot.Tracks.All(t => t.DurationMs > 0))
+        {
+            return;
+        }
+
+        var ends = await FFmpeg.MeasureTrackEndsMs(file.Path, file.Snapshot.DurationMs);
+        foreach (var track in file.Snapshot.Tracks.Where(t => t.DurationMs == 0))
+        {
+            if (ends.TryGetValue(track.Index, out var end))
+            {
+                track.DurationMs = end;
+            }
+        }
     }
 
     // Allowed tracks filtering
