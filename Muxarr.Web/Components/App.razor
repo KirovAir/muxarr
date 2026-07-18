@@ -24,7 +24,37 @@
 
 <body>
 <Routes @rendermode="renderMode"/>
+<div id="components-reconnect-modal">
+    Connection lost, reconnecting..
+</div>
 <script src="_framework/blazor.web.js"></script>
+<script>
+    // A circuit the server no longer has rejects every reconnect, and Blazor then
+    // leaves the page dead until the tab is closed. Reload instead.
+    (function () {
+        const modal = document.getElementById("components-reconnect-modal");
+        let retries = 0;
+
+        modal.addEventListener("components-reconnect-state-changed", function (event) {
+            switch (event.detail.state) {
+                case "hide":
+                    retries = 0;
+                    break;
+                case "failed":
+                    // Blazor has already exhausted its own attempts. Bounded, or a
+                    // server that stays down would be hammered forever.
+                    if (retries++ < 3) {
+                        Blazor.reconnect();
+                    }
+
+                    break;
+                case "rejected":
+                    location.reload();
+                    break;
+            }
+        });
+    })();
+</script>
 <script src="lib/bootstrap/js/bootstrap.bundle.min.js"></script>
 </body>
 

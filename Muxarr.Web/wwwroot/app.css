@@ -410,3 +410,25 @@
         opacity: 1;
     }
 }
+
+/* Blazor's reconnect banner. Hidden until the circuit drops. */
+#components-reconnect-modal {
+    display: none;
+}
+
+#components-reconnect-modal.components-reconnect-show,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-rejected {
+    display: block;
+    position: fixed;
+    top: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10001;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
+    background-color: #212529;
+    color: #fff;
+    border: 1px solid rgb(255 255 255 / 15%);
+    box-shadow: 0 3px 6px 2px rgb(0 0 0 / 30%);
+}
