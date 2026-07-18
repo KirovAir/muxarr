@@ -107,7 +107,8 @@
             rows.Add(new Row("bi-scissors", "Trim to video length", FormatClock(Current.DurationMs),
                 State.Going, "Anything past the end of the video"));
         }
-        else if (Previous != null && Previous.DurationMs - Current.DurationMs > TrimSlackMs)
+        else if (Previous is { DurationMs: > 0 } && Current.DurationMs > 0
+                 && Previous.DurationMs != Current.DurationMs)
         {
             // Dropping the longest track shortens the file too, so the snapshots
             // cannot say a trim did this. Report the change, not a cause.
@@ -129,9 +130,6 @@
             rows.Add(new Row("bi-paperclip", "Attachments", null, State.Present, "Fonts, cover art"));
         }
     }
-
-    // Containers run a touch long past the last video frame even untrimmed.
-    private const long TrimSlackMs = 1000;
 
     private static string FormatClock(long ms)
     {
