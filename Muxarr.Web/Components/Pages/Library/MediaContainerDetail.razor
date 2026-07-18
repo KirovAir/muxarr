@@ -104,7 +104,7 @@
     {
         if (Plan is { TrimToVideoLength: true })
         {
-            rows.Add(new Row("bi-scissors", "Trim to video length", FormatClock(Current.DurationMs),
+            rows.Add(new Row("bi-scissors", "Trim all tracks to video length", FormatClock(Current.DurationMs),
                 State.Going, "Anything past the end of the video"));
         }
         else if (Previous is { DurationMs: > 0 } && Current.DurationMs > 0
