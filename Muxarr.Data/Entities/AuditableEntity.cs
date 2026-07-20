@@ -3,6 +3,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Muxarr.Data.Entities;
 
+public interface IHasId
+{
+    int Id { get; }
+}
+
 public abstract class AuditableEntity
 {
     public DateTime CreatedDate { get; set; }

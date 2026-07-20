@@ -43,7 +43,7 @@
     </div>
 
     <div class="row mb-3 g-2 mux-filter-row">
-        @if (SelectedItems.Count > 0)
+        @if (SelectedIds.Count > 0)
         {
             <div class="col-auto">
                 <button @onclick="QueueSelected" class="btn btn-success btn-sm" type="button"
@@ -56,13 +56,13 @@
                     {
                         <i class="bi bi-plus-circle me-1"></i>
                     }
-                    Queue @SelectedItems.Count to conversion
+                    Queue @SelectedIds.Count to conversion
                 </button>
             </div>
             <div class="col-auto">
                 <button @onclick="BatchEditSelected" class="btn btn-outline-primary btn-sm" type="button"
                         disabled="@_isQueueing">
-                    <i class="bi bi-sliders me-1"></i>Edit tracks on @SelectedItems.Count
+                    <i class="bi bi-sliders me-1"></i>Edit tracks on @SelectedIds.Count
                 </button>
             </div>
         }
@@ -375,9 +375,6 @@
     private bool _isQueueing;
     private bool _disposed;
 
-    // Ticks handed back by the batch editor. Consumed by the first list load,
-    // then dropped so paging and filtering don't keep re-ticking rows.
-    private HashSet<int>? _restoreIds;
     private LibraryStatsConfig? _filterOptions;
     private List<ProfileSummary> _profileSummaries = [];
 
@@ -416,7 +413,12 @@
         IsAscending = false;
 
         MediaScanner.ScanningStateChanged += OnScanningStateChanged;
-        _restoreIds = Selections.Get(SelectionToken);
+
+        // Ticks handed back by the batch editor; ids, so no page needs to be loaded.
+        if (Selections.Get(SelectionToken) is { } restored)
+        {
+            SelectedIds.UnionWith(restored);
+        }
 
         await LoadFilters();
 
@@ -424,9 +426,6 @@
         {
             await UpdateList();
         }
-
-        // The restore above has run; from here the ticks are the user's business again.
-        _restoreIds = null;
 
         await using var context = await ContextFactory.CreateDbContextAsync();
         _filterOptions = context.Configs.Get<LibraryStatsConfig>();
@@ -481,15 +480,6 @@
         TotalItems = result.Total;
         TotalPages = result.TotalPages;
         Items = await result.Data.WithTracks().ToListAsync().ConfigureAwait(false);
-
-        // Ticks come back after a trip to the batch editor, which only ever holds ids.
-        if (_restoreIds != null)
-        {
-            foreach (var file in Items.Where(f => _restoreIds.Contains(f.Id)))
-            {
-                SelectedItems.Add(file);
-            }
-        }
     }
 
     private IQueryable<MediaFile> ApplyFilters(IQueryable<MediaFile> query)
@@ -621,8 +611,15 @@
         StateHasChanged();
         try
         {
-            await QueueFiles(SelectedItems);
-            SelectedItems.Clear();
+            // Selected rows may span pages and reloads, so fetch them fresh.
+            List<MediaFile> files;
+            await using (var context = await ContextFactory.CreateDbContextAsync())
+            {
+                files = await context.MediaFiles.WithTracksAndProfile().WhereIdsAsync(SelectedIds);
+            }
+
+            await QueueFiles(files);
+            SelectedIds.Clear();
         }
         finally
         {
@@ -671,12 +668,10 @@
         }
     }
 
-    private Task BatchEditSelected()
+    private void BatchEditSelected()
     {
-        // SelectedItems is compared by reference, so paging away and back leaves
-        // stale duplicates of the same row. Go back to the ids.
-        var ids = SelectedItems.Select(f => f.Id).Distinct().ToList();
-        return BatchEditTracks(q => q.Where(f => ids.Contains(f.Id)));
+        // The selection already is the id set the editor needs.
+        NavigationManager.NavigateTo($"/library/batch?sel={Selections.Put(SelectedIds)}");
     }
 
     private Task BatchEditAllFiltered()

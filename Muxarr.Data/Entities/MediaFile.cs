@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Muxarr.Data.Entities;
 
-public class MediaFile : AuditableEntity
+public class MediaFile : AuditableEntity, IHasId
 {
     public int Id { get; set; }
     public int ProfileId { get; set; }

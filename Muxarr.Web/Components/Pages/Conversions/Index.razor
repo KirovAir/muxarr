@@ -118,11 +118,11 @@
     }
 
     <div class="row mb-3 g-2 mux-filter-row">
-        @if (SelectedItems.Count > 0)
+        @if (SelectedIds.Count > 0)
         {
             <div class="col-auto">
                 <button class="btn btn-danger btn-sm" @onclick="OnDeleteSelected">
-                    <i class="bi bi-trash me-1"></i>Delete @SelectedItems.Count selected
+                    <i class="bi bi-trash me-1"></i>Delete @SelectedIds.Count selected
                 </button>
             </div>
         }
@@ -353,24 +353,28 @@
 
     private async Task OnDeleteSelected()
     {
-        var deletable = SelectedItems.Where(c => c.State != ConversionState.Processing).ToList();
-        if (deletable.Count == 0)
+        // Check the state at delete time; the selected rows may be stale.
+        var ids = SelectedIds.ToList();
+        await using var context = await ContextFactory.CreateDbContextAsync();
+        var deletable = await context.MediaConversions
+            .CountAsync(c => ids.Contains(c.Id) && c.State != ConversionState.Processing);
+        if (deletable == 0)
         {
             return;
         }
 
         if (!await ModalService.ShowConfirm(
-                $"Are you sure you want to delete {deletable.Count} conversion(s)? This will affect conversion statistics.", "Delete Conversions"))
+                $"Are you sure you want to delete {deletable} conversion(s)? This will affect conversion statistics.", "Delete Conversions"))
         {
             return;
         }
 
-        var ids = deletable.Select(c => c.Id).ToList();
-        await using var context = await ContextFactory.CreateDbContextAsync();
-        await context.MediaConversions.Where(c => ids.Contains(c.Id)).ExecuteDeleteAsync();
-        SelectedItems.Clear();
+        var deleted = await context.MediaConversions
+            .Where(c => ids.Contains(c.Id) && c.State != ConversionState.Processing)
+            .ExecuteDeleteAsync();
+        SelectedIds.Clear();
         await UpdateList();
-        ToastService.ShowSuccess($"Deleted {deletable.Count} conversion(s).");
+        ToastService.ShowSuccess($"Deleted {deleted} conversion(s).");
     }
 
     private void OnQueueStateChanged()

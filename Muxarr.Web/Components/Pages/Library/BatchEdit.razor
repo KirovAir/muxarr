@@ -346,15 +346,7 @@
 
         await using (var context = await ContextFactory.CreateDbContextAsync())
         {
-            // EF expands Contains to one SQL parameter per id and SQLite caps a
-            // statement at 32766, so a whole-library selection arrives in batches.
-            foreach (var chunk in ids.Chunk(10000))
-            {
-                _files.AddRange(await context.MediaFiles
-                    .Where(f => chunk.Contains(f.Id))
-                    .WithTracksAndProfile()
-                    .ToListAsync());
-            }
+            _files = await context.MediaFiles.WithTracksAndProfile().WhereIdsAsync(ids);
         }
 
         _slots = Aggregate(_files);

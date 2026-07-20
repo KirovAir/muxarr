@@ -1,11 +1,26 @@
 using System.Linq.Expressions;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Muxarr.Data.Entities;
 
 namespace Muxarr.Data.Extensions;
 
 public static class PagingExtensions
 {
+    // EF expands Contains to one parameter per id and SQLite caps a statement
+    // at 32766, so large id sets load in chunks.
+    public static async Task<List<T>> WhereIdsAsync<T>(this IQueryable<T> query, IReadOnlyCollection<int> ids)
+        where T : class, IHasId
+    {
+        var result = new List<T>(ids.Count);
+        foreach (var chunk in ids.Chunk(10_000))
+        {
+            result.AddRange(await query.Where(e => chunk.Contains(e.Id)).ToListAsync());
+        }
+
+        return result;
+    }
+
     public static async Task<(IQueryable<T> Data, int Total, int TotalPages)> FindPagedAsync<T>(
         this IQueryable<T> collection,
         int pageNumber,

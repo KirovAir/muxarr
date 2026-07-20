@@ -22,10 +22,11 @@ public class LibrarySelectionStore(IMemoryCache cache)
     }
 
     // Null means the token is unknown or has expired, which is not the same as
-    // arriving without one.
+    // arriving without one. Copied so callers cannot mutate the stored set.
     public HashSet<int>? Get(string? token)
     {
-        return string.IsNullOrEmpty(token) ? null : cache.Get<HashSet<int>>(Key(token));
+        var ids = string.IsNullOrEmpty(token) ? null : cache.Get<HashSet<int>>(Key(token));
+        return ids == null ? null : [..ids];
     }
 
     public void Remove(string? token)

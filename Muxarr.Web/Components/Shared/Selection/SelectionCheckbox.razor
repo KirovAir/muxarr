@@ -1,8 +1,9 @@
-﻿@typeparam TType where TType : class
+@using Muxarr.Data.Entities
+@typeparam TType where TType : class, IHasId
 <div class="form-check">
     <input type="checkbox"
            class="form-check-input"
-           checked="@Parent.SelectedItems.Contains(Item)"
+           checked="@Parent.SelectedIds.Contains(Item.Id)"
            @onchange="HandleSelectionChange"/>
 </div>
 
@@ -16,11 +17,11 @@
         {
             if (selected)
             {
-                Parent.SelectedItems.Add(Item);
+                Parent.SelectedIds.Add(Item.Id);
             }
             else
             {
-                Parent.SelectedItems.Remove(Item);
+                Parent.SelectedIds.Remove(Item.Id);
             }
 
             await Parent.OnSelect();

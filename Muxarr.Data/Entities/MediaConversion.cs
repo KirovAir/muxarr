@@ -5,7 +5,7 @@ using Muxarr.Data.Extensions;
 
 namespace Muxarr.Data.Entities;
 
-public class MediaConversion : AuditableEntity
+public class MediaConversion : AuditableEntity, IHasId
 {
     public int Id { get; set; }
     public int? MediaFileId { get; set; }
