@@ -1005,9 +1005,11 @@ public static class MediaFileExtensions
             Tracks = userEditedTracks.Select(t =>
             {
                 var plan = t.ToTargetTrack(true);
-                // UI may have edited LanguageName without syncing LanguageCode; re-resolve.
+                // UI may have edited LanguageName without syncing LanguageCode; re-resolve,
+                // but leave an equivalent code alone (deu must not become ger).
                 var iso = IsoLanguage.Find(t.LanguageName);
-                if (iso != IsoLanguage.Unknown && iso.ThreeLetterCode is { } code)
+                if (iso != IsoLanguage.Unknown && iso.ThreeLetterCode is { } code
+                    && IsoLanguage.Find(t.LanguageCode) != iso)
                 {
                     plan.LanguageCode = code;
                 }

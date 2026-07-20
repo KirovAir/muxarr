@@ -530,6 +530,20 @@ public class ConversionPipelineTests
         Assert.IsTrue(audio1.NameLocked, "Custom tracks have locked names (user-authored)");
     }
 
+    // IsoLanguage prefers the bibliographic code, so re-resolving an untouched
+    // track must not rewrite deu to ger.
+    [TestMethod]
+    public void Pipeline_CustomConversion_KeepsAnEquivalentLanguageCode()
+    {
+        var file = MakeFile(null,
+            Video(0),
+            Audio(1, "German", languageCode: "deu"));
+
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.ToSnapshots());
+
+        Assert.AreEqual("deu", target.Tracks.First(t => t.Index == 1).LanguageCode);
+    }
+
     [TestMethod]
     public void Pipeline_CustomConversion_IgnoresProfileSettings()
     {

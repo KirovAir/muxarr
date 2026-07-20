@@ -147,9 +147,8 @@ public static class BatchTrackEdit
 
         TargetResolver.ResolveForContainer(plan, snapshot);
 
-        // Whole-plan HasChanges always fires on MP4, so ask the track deltas.
         var delta = ConversionPlanExtensions.Delta(snapshot, plan);
-        var changed = delta.Tracks.Any(ConversionPlanExtensions.HasChanges);
+        var changed = ConversionPlanExtensions.HasChanges(delta);
 
         return new BatchApplyResult(file, plan,
             changed ? BatchOutcome.Changed : BatchOutcome.Unchanged, skipped);
