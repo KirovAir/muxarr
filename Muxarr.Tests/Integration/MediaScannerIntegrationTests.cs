@@ -218,6 +218,26 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
             $"the 10s audio should be measured off the file, got {end}ms");
     }
 
+    // A runaway subtitle pushes the container's end far outside a single tail
+    // window; the probe has to widen backwards until the other tracks turn up.
+    [TestMethod]
+    public async Task MeasureTrackEndsMs_FindsTracksEndingFarBeforeTheTail()
+    {
+        var path = CopyFixture("runaway.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.IsTrue(file.Snapshot.DurationMs >= 140_000,
+            $"the runaway subtitle should stretch the container to ~150s, got {file.Snapshot.DurationMs}ms");
+
+        var (ends, error) = await file.MeasureTrackEndsMs();
+
+        Assert.IsNotNull(ends, $"the probe should run on a readable file ({error})");
+        var video = file.Snapshot.Tracks.Single(t => t.Type == MediaTrackType.Video);
+        Assert.IsTrue(ends.TryGetValue(video.Index, out var end) && end is >= 2000 and <= 5000,
+            $"the 3s video should be measured despite ending ~147s before the container, got {end}ms");
+    }
+
     [TestMethod]
     public async Task Scan_DerivedMp4_PersistsAsMp4Container()
     {

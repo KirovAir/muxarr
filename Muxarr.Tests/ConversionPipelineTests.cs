@@ -1369,13 +1369,15 @@ public class ConversionPipelineTests
 
     // --- TrimToVideoLength ---
 
-    // Only mkvmerge can stop after the video, so the resolver drops the request
-    // on anything else.
+    // mkvmerge stops after the video natively and ffmpeg gets -t on mp4, so the
+    // resolver only drops the request on containers with no writer for it.
     [TestMethod]
     [DataRow("Matroska", true, true)]
     [DataRow("Matroska", false, false)]
-    [DataRow("MP4/QuickTime", true, false)]
-    public void TrimToVideoLength_CarriesTheProfileFlagOnMatroskaOnly(
+    [DataRow("MP4/QuickTime", true, true)]
+    [DataRow("MP4/QuickTime", false, false)]
+    [DataRow("UnknownContainer", true, false)]
+    public void TrimToVideoLength_CarriesTheProfileFlagOnKnownContainersOnly(
         string container, bool enabled, bool expected)
     {
         var file = MakeFile(null, Video(0), Sub(1, "English"));

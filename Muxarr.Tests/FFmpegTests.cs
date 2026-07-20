@@ -294,6 +294,24 @@ public class FFmpegTests
     }
 
     [TestMethod]
+    public void BuildArguments_TrimCut_AppendsTAtTheVideoEnd()
+    {
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp",
+            TestPlan.Of(new List<TrackPlan>()), trimToMs: 3005);
+
+        StringAssert.Contains(args, " -t 3005ms");
+    }
+
+    [TestMethod]
+    public void BuildArguments_NoTrimCut_OmitsT()
+    {
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp",
+            TestPlan.Of(new List<TrackPlan>()));
+
+        Assert.IsFalse(args.Contains(" -t "), "an untrimmed remux must not cut the output");
+    }
+
+    [TestMethod]
     public void BuildArguments_MovMuxer_EmitsDashFMov()
     {
         var args = FFmpeg.BuildRemuxArguments("/in.mov", "/out.muxtmp",

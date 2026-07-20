@@ -26,8 +26,8 @@ public static class TargetResolver
 
         if (family != ContainerFamily.Matroska)
         {
-            // Only mkvmerge can stop after the video; -shortest cuts at the shortest track.
-            target.TrimToVideoLength = false;
+            // mkvmerge stops after the video itself; ffmpeg needs a -t cut only mp4 can supply.
+            target.TrimToVideoLength = target.TrimToVideoLength && family == ContainerFamily.Mp4;
 
             // The mov muxer drops +original on stream-copy, so asking for it
             // would re-flag the file as non-standard on every scan.
