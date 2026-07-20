@@ -9,3 +9,4 @@ Muxarr.sln.DotSettings.user
 **/muxarr.db*
 **/wwwroot/lib
 .DS_Store
+publish/
