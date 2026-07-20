@@ -21,4 +21,8 @@
         <ProjectReference Include="..\Muxarr.Core\Muxarr.Core.csproj"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Muxarr.Tests"/>
+    </ItemGroup>
+
 </Project>

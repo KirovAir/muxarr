@@ -32,12 +32,14 @@ services:
       - PUID=1000
       - PGID=1000
     volumes:
-      - /path/to/data:/data
-      - /path/to/media:/media
+      - /path/to/appdata:/config
+      - /path/to/media:/data
     ports:
       - 8183:8183
     restart: unless-stopped
 ```
+
+Upgrading from an older version? See [Upgrading](#upgrading-from-older-versions) before changing your mounts.
 
 ## Features
 
@@ -94,11 +96,25 @@ docker run -d \
   -e PUID=1000 \
   -e PGID=1000 \
   -p 8183:8183 \
-  -v /path/to/data:/data \
-  -v /path/to/media:/media \
+  -v /path/to/appdata:/config \
+  -v /path/to/media:/data \
   --restart unless-stopped \
   ghcr.io/kirovair/muxarr:latest
 ```
+
+### Upgrading from older versions
+
+Older versions stored the database in `/data`. To upgrade an existing install, point your appdata volume at `/config` instead of `/data` and keep the same host path:
+
+```yaml
+    volumes:
+      - /path/to/appdata:/config  # was - /path/to/appdata:/data
+      - /path/to/media:/media     # keep media mounts exactly as they were
+```
+
+Do not move your media mounts. Your profiles and Sonarr/Radarr path mappings reference the old container paths, so `/media` stays `/media`. The `/data` media convention only applies to new installs.
+
+Without a `/config` mount, Muxarr keeps running from the old `/data` location and logs a reminder. Nothing is moved or deleted automatically.
 
 ## Configuration
 
@@ -114,8 +130,8 @@ docker run -d \
 
 | Path | Description |
 |---|---|
-| `/data` | Database and configuration |
-| `/media` | Media files (use multiple `-v` mounts as needed) |
+| `/config` | Database and configuration |
+| `/data` | Media files (any mount path works, use multiple `-v` mounts as needed) |
 
 ### Setup
 

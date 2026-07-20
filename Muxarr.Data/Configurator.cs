@@ -24,6 +24,9 @@ public static class Configurator
                                ?? throw new InvalidOperationException(
                                    "Connection string 'DefaultConnection' not found.");
 
+        connectionString = ContainerAppData.ResolveConnectionString(connectionString,
+            sp.GetService<ILoggerFactory>()?.CreateLogger(typeof(ContainerAppData)));
+
         options.UseSqlite(connectionString, o => o.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery))
             .AddInterceptors(new SqlitePerformanceInterceptor());
     }
