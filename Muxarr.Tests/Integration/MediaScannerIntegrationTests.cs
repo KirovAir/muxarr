@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Core.Models;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -216,6 +217,38 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
         var audio = file.Snapshot.Tracks.Single(t => t.Type == MediaTrackType.Audio);
         Assert.IsTrue(ends.TryGetValue(audio.Index, out var end) && end >= 9000,
             $"the 10s audio should be measured off the file, got {end}ms");
+    }
+
+    // Files edited outside muxarr must be re-probed before planning against
+    // them; untouched files must not be.
+    [TestMethod]
+    public async Task ScanChangedFiles_RefreshesOnlyWhatChangedOnDisk()
+    {
+        var changed = CopyFixture("test.mkv");
+        var untouched = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+        await Fixture.ScanAndPersist(changed, profile);
+        var untouchedBefore = (await Fixture.ScanAndPersist(untouched, profile)).Snapshot.CapturedAt;
+
+        var stamp = await ProcessExecutor.ExecuteProcessAsync("mkvpropedit",
+            $"\"{changed}\" --edit info --set title=\"Changed Outside\"", TimeSpan.FromSeconds(30));
+        Assert.IsTrue(stamp.Success, stamp.Error);
+
+        await Fixture.WithDbContext(async ctx =>
+        {
+            var files = await ctx.MediaFiles.WithTracksAndProfile().ToListAsync();
+            await Fixture.Scanner.ScanChangedFiles(files, ctx);
+            return 0;
+        });
+
+        var after = await Fixture.WithDbContext(async ctx =>
+            await ctx.MediaFiles.WithTracks().FirstAsync(f => f.Path == changed));
+        Assert.AreEqual("Changed Outside", after.Snapshot.Title, "the edited file should be re-probed");
+
+        var untouchedAfter = await Fixture.WithDbContext(async ctx =>
+            await ctx.MediaFiles.WithTracks().FirstAsync(f => f.Path == untouched));
+        Assert.AreEqual(untouchedBefore, untouchedAfter.Snapshot.CapturedAt,
+            "an untouched file should not be re-probed");
     }
 
     // A runaway subtitle pushes the container's end far outside a single tail

@@ -367,10 +367,10 @@ public class MediaConverterService(
             // Custom conversion: user input is authoritative. No profile
             // mutations applied here (flag-from-title correction,
             // und-resolution, name standardization). Only rejects targets
-            // whose tracks no longer exist on the rescanned source.
-            var availableTrackNumbers = conversion.MediaFile.Snapshot.Tracks.Select(t => t.Index).ToHashSet();
+            // whose tracks no longer exist, or changed type, on the rescanned source.
+            var availableTracks = conversion.MediaFile.Snapshot.Tracks.ToDictionary(t => t.Index, t => t.Type);
             var missingTracks = conversion.ConversionPlan.Tracks
-                .Where(t => !availableTrackNumbers.Contains(t.Index))
+                .Where(t => !availableTracks.TryGetValue(t.Index, out var type) || type != t.Type)
                 .Select(t => t.Index)
                 .ToList();
 
@@ -378,7 +378,7 @@ public class MediaConverterService(
             {
                 conversion.Log(
                     $"Source file has changed since this custom conversion was queued. " +
-                    $"Missing tracks: {string.Join(", ", missingTracks)}. Requeue the conversion to pick fresh tracks.",
+                    $"Missing or changed tracks: {string.Join(", ", missingTracks)}. Requeue the conversion to pick fresh tracks.",
                     logger, true);
                 conversion.State = ConversionState.Failed;
                 context.Update(conversion);

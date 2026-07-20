@@ -473,6 +473,29 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // A restore outside muxarr can swap a track's type at the same index; the
+    // guard has to reject that before a doomed mux runs.
+    [TestMethod]
+    public async Task CustomConversion_TrackTypeChanged_FailsWithClearMessage()
+    {
+        var path = CopyFixture("test.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+        tracks.First(t => t.Type == MediaTrackType.Subtitles).Type = MediaTrackType.Audio;
+        var target = file.BuildTargetFromCustom(tracks);
+
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
+        StringAssert.Contains(result.Log, "has changed since",
+            $"log should explain the source changed. Log: {result.Log}");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
     [TestMethod]
     public async Task CustomConversion_StaleTarget_FailsWithClearMessage()
     {

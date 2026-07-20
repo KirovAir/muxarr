@@ -25,7 +25,7 @@
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
             @(_expired ? "This selection expired." : "Nothing to edit.")
-            Pick files in the <a href="/library">library</a> and choose Edit tracks.
+            Pick files in the <a href="/library">library</a> and choose Batch edit.
         </div>
     }
     else
@@ -286,6 +286,7 @@
     [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
     [Inject] public required NavigationManager NavigationManager { get; set; }
     [Inject] public required MediaConverterService MediaConverter { get; set; }
+    [Inject] public required MediaScannerService Scanner { get; set; }
     [Inject] public required LibrarySelectionStore Selections { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
 
@@ -347,6 +348,7 @@
         await using (var context = await ContextFactory.CreateDbContextAsync())
         {
             _files = await context.MediaFiles.WithTracksAndProfile().WhereIdsAsync(ids);
+            await Scanner.ScanChangedFiles(_files, context);
         }
 
         _slots = Aggregate(_files);

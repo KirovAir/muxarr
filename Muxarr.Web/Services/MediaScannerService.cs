@@ -291,6 +291,19 @@ public class MediaScannerService(
         file.HasRemovableChapters = profile is { RemoveChapters: true } && file.Snapshot.HasChapters;
     }
 
+    // A file edited or restored outside muxarr would plan against the wrong snapshot.
+    public async Task ScanChangedFiles(IEnumerable<MediaFile> files, AppDbContext context)
+    {
+        foreach (var file in files)
+        {
+            var info = new FileInfo(file.Path);
+            if (info.Exists && file.NeedsFileProbe(info))
+            {
+                await ScanMediaFile(file, true, context, file.Profile);
+            }
+        }
+    }
+
     public async Task ScanMediaFile(MediaFile dbFile, bool forceRescan, AppDbContext context, Profile? profile,
         string? webhookTitle = null, string? webhookOriginalLanguage = null)
     {
