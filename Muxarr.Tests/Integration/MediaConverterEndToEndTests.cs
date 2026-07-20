@@ -37,6 +37,28 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // An MP4 target always inherits Faststart from the source via the resolver;
+    // the planner must still recognize it as unchanged and skip.
+    [TestMethod]
+    public async Task Skip_Mp4_TargetEqualsCurrent_LeavesFileByteIdentical()
+    {
+        var path = CopyFixture("test_complex.mp4");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var hashBefore = FileAssertions.Sha256(path);
+
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.ToSnapshots());
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+        Assert.AreEqual(0, result.SizeDifference);
+        FileAssertions.AssertSha256Equals(path, hashBefore, "Skip path must not touch the file");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
     [TestMethod]
     public async Task MetadataEdit_Matroska_FlipsDefaultFlagInPlace()
     {
@@ -171,6 +193,53 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertSha256Equals(path, hashBefore,
             "restored file must be byte-identical to the pre-conversion source");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // A .muxbak that cannot be deleted (AV scanner, indexer) must not roll the
+    // finished swap back over the validated output.
+    [TestMethod]
+    public async Task Remux_BackupDeleteFails_KeepsTheFinishedSwap()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Relies on ReadOnly blocking File.Delete, which only Windows enforces");
+        }
+
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var droppedSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
+        var keptTracks = file.Snapshot.Tracks
+            .Where(t => t.Index != droppedSub.Index)
+            .ToSnapshots();
+        var target = file.BuildTargetFromCustom(keptTracks);
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        // A rename carries the ReadOnly attribute to the .muxbak where it makes
+        // File.Delete throw, while the swap's moves themselves go through.
+        File.SetAttributes(path, FileAttributes.ReadOnly);
+        var backup = path + ".muxbak";
+        try
+        {
+            await Fixture.Converter.RunAsync(CancellationToken.None);
+
+            var result = await Fixture.ReloadConversion(conversion.Id);
+            Assert.AreEqual(ConversionState.Failed, result.State,
+                $"backup cleanup failure still fails the conversion. Log:\n{result.Log}");
+            Assert.IsTrue(File.Exists(backup), "the undeletable backup should still be present");
+
+            var probed = await FileAssertions.ProbeAsync(path);
+            Assert.AreEqual(file.Snapshot.Tracks.Count - 1, probed.Snapshot.Tracks.Count,
+                "the finished swap must survive the failed backup delete");
+        }
+        finally
+        {
+            if (File.Exists(backup))
+            {
+                File.SetAttributes(backup, FileAttributes.Normal);
+            }
+        }
     }
 
     // asymmetric.mkv is 3s video + 10s audio, so its container reports 10s.

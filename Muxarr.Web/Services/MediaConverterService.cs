@@ -550,6 +550,10 @@ public class MediaConverterService(
         conversion.Log($"Starting ffmpeg stream copy for {mediaFile.GetName()}..", logger);
         await context.SaveChangesAsync(token);
 
+        // The delta nulls Faststart when it matches the source, but a remux
+        // rewrites the layout either way, so the writer needs the absolute state.
+        delta.Faststart ??= mediaFile.Snapshot.HasFaststart;
+
         var reportProgress = BuildProgressReporter(conversion);
         var result = await FFmpeg.Remux(mediaFile.Path, tmp, delta, mediaFile.Snapshot.DurationMs,
             (line, progress) =>

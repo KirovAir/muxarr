@@ -19,7 +19,7 @@ public static class ConversionPlanExtensions
         {
             HasChapters = DiffBool(source.HasChapters, desired.HasChapters),
             HasAttachments = DiffBool(source.HasAttachments, desired.HasAttachments),
-            Faststart = desired.Faststart,
+            Faststart = DiffBool(source.HasFaststart, desired.Faststart),
             TrimToVideoLength = desired.TrimToVideoLength,
             Title = DiffString(source.Title, desired.Title),
             Tracks = new List<TrackPlan>(desired.Tracks.Count)

@@ -123,6 +123,47 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
         Assert.IsTrue(file.HasRedundantTracks, "strict profile drops the non-English subtitles");
     }
 
+    // Editing the settings of the profile a file already has moves the goalposts
+    // just the same; the recompute must not depend on the profile id changing.
+    [TestMethod]
+    public async Task Rescan_AfterEditingTheSameProfile_RecomputesTheFlags()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile("keep-all");
+
+        var file = await Fixture.ScanAndPersist(path, profile);
+        Assert.IsFalse(file.HasRedundantTracks, "keep-all profile drops nothing");
+
+        // Unchanged-file shape: Title and OriginalLanguage present skip the
+        // probe, so only the always-on recompute can see the edited settings.
+        await Fixture.WithDbContext(async ctx =>
+        {
+            var row = await ctx.MediaFiles.FirstAsync(x => x.Path == path);
+            row.Title = "Test Show";
+            row.OriginalLanguage = "English";
+            return await ctx.SaveChangesAsync();
+        });
+
+        var edited = await Fixture.WithDbContext(async ctx =>
+        {
+            var p = await ctx.Profiles.FirstAsync(x => x.Id == profile.Id);
+            p.SubtitleSettings = new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English")]
+            };
+            await ctx.SaveChangesAsync();
+            return p;
+        });
+
+        await Fixture.Scanner.ScanFile(path, false, edited);
+
+        file = await Fixture.WithDbContext(async ctx =>
+            await ctx.MediaFiles.WithTracks().FirstAsync(x => x.Path == path));
+        Assert.IsTrue(file.HasRedundantTracks,
+            "the stricter subtitle rules must be reflected without a profile change");
+    }
+
     // stream.duration on Matroska is the segment length, so borrowing it handed
     // every subtitle the container's length and invented a duration nothing had.
     [TestMethod]
