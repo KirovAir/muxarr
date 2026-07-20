@@ -334,6 +334,64 @@ public class OutputValidatorTests
         StringAssert.Contains(ex.Message, "truncated");
     }
 
+    // --- TrimCutMs: the ffmpeg writer's cut, same sources as the floor above ---
+
+    [TestMethod]
+    public void TrimCutMs_TaggedVideoDuration_IsTheCut()
+    {
+        var video = Track(0, MediaTrackType.Video, 5_000);
+        var audio = Track(1, MediaTrackType.Audio, 25_000);
+        var source = MediaWithTracks(25_000, video, audio);
+
+        Assert.AreEqual(5_000, OutputValidator.TrimCutMs(source, Keeping(video, audio), null));
+    }
+
+    [TestMethod]
+    public void TrimCutMs_UntaggedVideo_FallsBackToTheMeasuredEnd()
+    {
+        var video = Track(0, MediaTrackType.Video, 0);
+        var audio = Track(1, MediaTrackType.Audio, 25_000);
+        var source = MediaWithTracks(25_000, video, audio);
+
+        var cut = OutputValidator.TrimCutMs(source, Keeping(video, audio),
+            new Dictionary<int, long> { [0] = 4_800 });
+
+        Assert.AreEqual(4_800, cut);
+    }
+
+    [TestMethod]
+    public void TrimCutMs_UnknowableVideoEnd_ReturnsNull()
+    {
+        var video = Track(0, MediaTrackType.Video, 0);
+        var audio = Track(1, MediaTrackType.Audio, 25_000);
+        var source = MediaWithTracks(25_000, video, audio);
+
+        Assert.IsNull(OutputValidator.TrimCutMs(source, Keeping(video, audio), null),
+            "no probe ran, nothing to cut at");
+        Assert.IsNull(OutputValidator.TrimCutMs(source, Keeping(video, audio), new Dictionary<int, long>()),
+            "probe ran and found nothing");
+    }
+
+    [TestMethod]
+    public void TrimCutMs_NoVideoKept_ReturnsNull()
+    {
+        var audio = Track(0, MediaTrackType.Audio, 25_000);
+        var source = MediaWithTracks(25_000, audio);
+
+        Assert.IsNull(OutputValidator.TrimCutMs(source, Keeping(audio), null));
+    }
+
+    [TestMethod]
+    public void TrimCutMs_DroppedFirstVideo_CutsAtTheKeptOne()
+    {
+        var video1 = Track(0, MediaTrackType.Video, 9_000);
+        var video2 = Track(1, MediaTrackType.Video, 5_000);
+        var audio = Track(2, MediaTrackType.Audio, 25_000);
+        var source = MediaWithTracks(25_000, video1, video2, audio);
+
+        Assert.AreEqual(5_000, OutputValidator.TrimCutMs(source, Keeping(video2, audio), null));
+    }
+
     [TestMethod]
     public void ClearFileTitle_OutputCleared_Passes()
     {

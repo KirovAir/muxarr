@@ -71,6 +71,18 @@ public static class OutputValidator
         }
     }
 
+    // The ffmpeg writer's trim cut: the first kept video track's end, from the
+    // same sources the validator holds the output to. Null when unknowable.
+    public static long? TrimCutMs(MediaFile source, ConversionPlan target,
+        IReadOnlyDictionary<int, long>? measured)
+    {
+        var video = source.Snapshot.Tracks
+            .Where(t => t.IsAllowed(target.Tracks))
+            .GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault();
+        var end = video == null ? 0 : DurationOf(video, measured);
+        return end > 0 ? end : null;
+    }
+
     // A container is as long as its longest track, so dropping a track that ran
     // past the rest legitimately shortens the output. Measure against the tracks
     // the plan keeps. Returns 0 to skip the check when nothing can be measured.

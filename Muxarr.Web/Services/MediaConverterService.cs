@@ -605,22 +605,12 @@ public class MediaConverterService(
         // rewrites the layout either way, so the writer needs the absolute state.
         delta.Faststart ??= mediaFile.Snapshot.HasFaststart;
 
-        // mkvmerge finds the trim point itself; ffmpeg is handed it, read from
-        // the same sources the validator will hold the output to.
+        // mkvmerge finds the trim point itself; ffmpeg is handed it.
         long? trimToMs = null;
         if (conversion.ConversionPlan.TrimToVideoLength)
         {
-            var video = mediaFile.Snapshot.Tracks
-                .Where(t => t.IsAllowed(conversion.ConversionPlan.Tracks))
-                .GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault();
-            var end = video == null ? 0
-                : video.DurationMs > 0 ? video.DurationMs
-                : measuredEnds?.GetValueOrDefault(video.Index) ?? 0;
-            if (end > 0)
-            {
-                trimToMs = end;
-            }
-            else if (video != null)
+            trimToMs = OutputValidator.TrimCutMs(mediaFile, conversion.ConversionPlan, measuredEnds);
+            if (trimToMs == null)
             {
                 conversion.Log("Cannot tell where the video ends, so this output will not be trimmed.", logger);
             }
