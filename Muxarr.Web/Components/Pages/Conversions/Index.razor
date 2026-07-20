@@ -310,7 +310,6 @@
     private async Task FilterByState(string state)
     {
         _stateFilter = state;
-        Page = 1;
         await UpdateList();
     }
 

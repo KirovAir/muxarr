@@ -9,7 +9,7 @@ public abstract class DisposableComponent : ComponentBase, IDisposable
         // This one is needed for possible event hooks we need to remove. 
     }
 
-    public async Task InvokeStateHasChanged()
+    public virtual async Task InvokeStateHasChanged()
     {
         await InvokeAsync(StateHasChanged);
     }
