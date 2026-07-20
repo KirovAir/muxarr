@@ -1,5 +1,6 @@
 <p align="center">
   <img src="docs/logo.png" alt="Muxarr" width="120"/><br/>
+  <a href="https://muxarr.app"><img src="https://img.shields.io/badge/muxarr.app-website-6f42c1" alt="Website"/></a>
   <a href="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml"><img src="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml/badge.svg" alt="Build and Deploy"/></a>
   <a href="https://github.com/KirovAir/muxarr/pkgs/container/muxarr"><img src="https://img.shields.io/badge/ghcr.io-kirovair%2Fmuxarr-blue?logo=docker" alt="Docker Image"/></a>
   <a href="https://github.com/KirovAir/muxarr/stargazers"><img src="https://img.shields.io/github/stars/KirovAir/muxarr?style=flat" alt="GitHub Stars"/></a>

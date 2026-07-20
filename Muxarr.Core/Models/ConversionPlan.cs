@@ -18,8 +18,8 @@ public class ConversionPlan : IMedia<TrackPlan>
     // null = inherit source, "" = clear. Mirrors TrackPlan.Name semantics.
     public string? Title { get; set; }
 
-    // Cut anything running past the video. mkvmerge finds the point itself, so
-    // this is a request, not a timestamp, and it only rides an existing remux.
+    // Cut anything running past the video. A request, not a timestamp: both
+    // writers get their cut at execution time, and it only rides an existing remux.
     public bool TrimToVideoLength { get; set; }
 
     bool IMedia<TrackPlan>.HasChapters => HasChapters ?? false;

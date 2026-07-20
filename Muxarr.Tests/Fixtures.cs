@@ -41,6 +41,7 @@ public static class Fixtures
         await GenerateAsymmetricMkvAsync("asymmetric.mkv");
         await GenerateAsymmetricMp4Async("asymmetric.mp4");
         await GenerateUntaggedMkvAsync("untagged.mkv");
+        await GenerateRunawayMkvAsync("runaway.mkv");
         await GenerateGlobalTagMkvAsync("globaltag.mkv", "TITLE");
         await GenerateGlobalTagMkvAsync("globaltag-lower.mkv", "title");
         await GenerateTruncatedMkvAsync("truncated.mkv");
@@ -225,6 +226,40 @@ public static class Fixtures
         await File.WriteAllTextAsync(subs, "1\n00:00:00,000 --> 00:00:01,000\nhi\n\n");
 
         // mkvmerge writes DURATION statistics tags unless told not to.
+        await RunOrInconclusive("mkvmerge", "--disable-track-statistics-tags " +
+                                            $"-o \"{target}\" \"{video}\" \"{audio}\" \"{subs}\"", targetName);
+
+        if (!File.Exists(target))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}");
+        }
+    }
+
+    /// <summary>
+    /// The issue #18 shape: an untagged file whose subtitle runs minutes past a
+    /// 3s video and audio, pushing the container's end far outside a single
+    /// tail-window probe of everything else.
+    /// </summary>
+    private static async Task GenerateRunawayMkvAsync(string targetName)
+    {
+        var target = Path.Combine(PoolDir, targetName);
+        if (File.Exists(target))
+        {
+            return;
+        }
+
+        var video = Path.Combine(PoolDir, "runaway.m4v");
+        var audio = Path.Combine(PoolDir, "runaway.ac3");
+        var subs = Path.Combine(PoolDir, "runaway.srt");
+
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"testsrc=duration=3:size=160x120:rate=10\" " +
+                                          $"-c:v mpeg4 \"{video}\"", targetName);
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"sine=duration=3:frequency=440\" " +
+                                          $"-c:a ac3 \"{audio}\"", targetName);
+        await File.WriteAllTextAsync(subs, "1\n00:02:28,000 --> 00:02:30,000\nrunaway\n\n");
+
         await RunOrInconclusive("mkvmerge", "--disable-track-statistics-tags " +
                                             $"-o \"{target}\" \"{video}\" \"{audio}\" \"{subs}\"", targetName);
 

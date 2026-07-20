@@ -1,5 +1,7 @@
 using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
+using Muxarr.Core.FFmpeg;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -34,6 +36,28 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         Assert.IsTrue(File.Exists(path), "original file should still exist");
         FileAssertions.AssertSha256Equals(path, hashBefore, "Skip path must not touch the file");
         Assert.AreEqual(sizeBefore, new FileInfo(path).Length);
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // An MP4 target always inherits Faststart from the source via the resolver;
+    // the planner must still recognize it as unchanged and skip.
+    [TestMethod]
+    public async Task Skip_Mp4_TargetEqualsCurrent_LeavesFileByteIdentical()
+    {
+        var path = CopyFixture("test_complex.mp4");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var hashBefore = FileAssertions.Sha256(path);
+
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.ToSnapshots());
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+        Assert.AreEqual(0, result.SizeDifference);
+        FileAssertions.AssertSha256Equals(path, hashBefore, "Skip path must not touch the file");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
@@ -134,6 +158,37 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // The delta nulls an unchanged Faststart and the converter restores it for
+    // the writer; losing that restore would strip the layout on every remux.
+    [TestMethod]
+    public async Task Remux_Mp4_FaststartSource_KeepsFaststartLayout()
+    {
+        var source = CopyFixture("test_complex.mp4", "faststart_src.mp4");
+        var path = TempPath("faststart.mp4");
+        var make = await ProcessExecutor.ExecuteProcessAsync("ffmpeg",
+            $"-y -loglevel error -i \"{source}\" -c copy -movflags +faststart \"{path}\"",
+            TimeSpan.FromSeconds(60));
+        Assert.IsTrue(make.Success, make.Error);
+
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+        Assert.IsTrue(file.Snapshot.HasFaststart, "the prepared source should scan as faststart");
+
+        var droppedAudio = file.Snapshot.Tracks.Last(t => t.Type == MediaTrackType.Audio);
+        var keep = file.Snapshot.Tracks
+            .Where(t => t.Index != droppedAudio.Index)
+            .ToSnapshots();
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromCustom(keep), true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        Assert.IsTrue(FFmpeg.IsFaststartLayout(path),
+            "a remux of a faststart source must keep the progressive layout");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
     [TestMethod]
     public async Task Remux_OutputTooShort_ValidatorRejects_RestoresFromBackup()
     {
@@ -171,6 +226,53 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertSha256Equals(path, hashBefore,
             "restored file must be byte-identical to the pre-conversion source");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // A .muxbak that cannot be deleted (AV scanner, indexer) must not roll the
+    // finished swap back over the validated output.
+    [TestMethod]
+    public async Task Remux_BackupDeleteFails_KeepsTheFinishedSwap()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Relies on ReadOnly blocking File.Delete, which only Windows enforces");
+        }
+
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var droppedSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
+        var keptTracks = file.Snapshot.Tracks
+            .Where(t => t.Index != droppedSub.Index)
+            .ToSnapshots();
+        var target = file.BuildTargetFromCustom(keptTracks);
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        // A rename carries the ReadOnly attribute to the .muxbak where it makes
+        // File.Delete throw, while the swap's moves themselves go through.
+        File.SetAttributes(path, FileAttributes.ReadOnly);
+        var backup = path + ".muxbak";
+        try
+        {
+            await Fixture.Converter.RunAsync(CancellationToken.None);
+
+            var result = await Fixture.ReloadConversion(conversion.Id);
+            Assert.AreEqual(ConversionState.Failed, result.State,
+                $"backup cleanup failure still fails the conversion. Log:\n{result.Log}");
+            Assert.IsTrue(File.Exists(backup), "the undeletable backup should still be present");
+
+            var probed = await FileAssertions.ProbeAsync(path);
+            Assert.AreEqual(file.Snapshot.Tracks.Count - 1, probed.Snapshot.Tracks.Count,
+                "the finished swap must survive the failed backup delete");
+        }
+        finally
+        {
+            if (File.Exists(backup))
+            {
+                File.SetAttributes(backup, FileAttributes.Normal);
+            }
+        }
     }
 
     // asymmetric.mkv is 3s video + 10s audio, so its container reports 10s.
@@ -254,6 +356,63 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         Assert.AreEqual(2, probed.Snapshot.Tracks.Count, "only the subtitle was dropped");
         Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
             $"the 10s audio should be cut back to the 3s video, got {probed.Snapshot.DurationMs}ms");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // The issue #18 shape: a runaway subtitle ends minutes past an untagged
+    // video, outside any single tail window. The swap used to be refused.
+    [TestMethod]
+    public async Task Remux_DroppingTheRunawaySubtitle_FarPastTheVideo_Completes()
+    {
+        var path = CopyFixture("runaway.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var keep = file.Snapshot.Tracks
+            .Where(t => t.Type != MediaTrackType.Subtitles)
+            .ToSnapshots();
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromCustom(keep), true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.AreEqual(2, probed.Snapshot.Tracks.Count);
+        Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
+            $"output should be the 3s video+audio, got {probed.Snapshot.DurationMs}ms");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // The mp4 counterpart: ffmpeg cuts with -t at the video's end instead of
+    // mkvmerge stopping after the video.
+    [TestMethod]
+    public async Task Remux_Mp4_TrimToVideoLength_RidesAlongAndCutsOverlongAudio()
+    {
+        var path = CopyFixture("asymmetric.mp4");
+        var profile = await Fixture.SeedProfile(trimToVideoLength: true);
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.IsTrue(file.Snapshot.DurationMs >= 9000,
+            $"asymmetric fixture should report >=9s container duration, got {file.Snapshot.DurationMs}ms");
+
+        // Renaming the audio is the ride-along change that forces the remux.
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+        tracks.First(t => t.Type == MediaTrackType.Audio).Name = "Fixed";
+        var target = file.BuildTargetFromCustom(tracks);
+        target.TrimToVideoLength = true;
+
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.AreEqual(2, probed.Snapshot.Tracks.Count, "no track may be dropped by the trim");
+        Assert.IsTrue(probed.Snapshot.DurationMs < 5000,
+            $"the 10s audio should be cut back to the 3s video, got {probed.Snapshot.DurationMs}ms");
+        await FileAssertions.AssertContainerFamily(path, ContainerFamily.Mp4);
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 

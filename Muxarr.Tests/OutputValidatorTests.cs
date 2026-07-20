@@ -270,6 +270,22 @@ public class OutputValidatorTests
         StringAssert.Contains(ex.Message, "truncated");
     }
 
+    // An audio-only file has nothing to trim to, so trim must not demand a
+    // floor it can never have.
+    [TestMethod]
+    public void TrimToVideoLength_NoVideoKept_SkipsTheFloor()
+    {
+        var audio = Track(0, MediaTrackType.Audio, 25_000);
+
+        var source = MediaWithTracks(25_000, audio);
+        var actual = MediaWithTracks(25_000, audio);
+
+        var plan = Keeping(audio);
+        plan.TrimToVideoLength = true;
+
+        OutputValidator.ValidateOrThrow(actual, source, plan, new Dictionary<int, long>());
+    }
+
     // Dropping a track retires the container as the yardstick. With nothing to
     // replace it the swap would go unchecked, so fail rather than skip.
     [TestMethod]

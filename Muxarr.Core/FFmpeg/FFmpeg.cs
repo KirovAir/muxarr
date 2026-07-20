@@ -48,7 +48,7 @@ public static class FFmpeg
     // Seeks into the tail and reads to EOF, so a file carrying no DURATION tags
     // still yields real lengths. A packet cap measured short, and slower.
     public static async Task<(Dictionary<int, long>? Ends, string? Error)> MeasureTrackEndsMs(
-        string file, long containerDurationMs)
+        string file, long containerDurationMs, IReadOnlyCollection<int>? mustFindIndexes = null)
     {
         const long windowMs = 120_000;
         if (containerDurationMs <= 0)
@@ -58,20 +58,49 @@ public static class FFmpeg
             return (null, "the source reports no duration");
         }
 
-        var seekSec = Math.Max(0, containerDurationMs - windowMs) / 1000.0;
+        // A runaway track can end minutes past everything else, so walk the
+        // window backwards until every wanted track produced a packet.
+        var ends = new Dictionary<int, long>();
+        var fromMs = Math.Max(0, containerDurationMs - windowMs);
+        var toMs = containerDurationMs + windowMs;
+        var lookbackMs = windowMs;
+
+        while (true)
+        {
+            var error = await ReadPacketEnds(file, fromMs, toMs, ends);
+            if (error != null)
+            {
+                // A partial result is still a yardstick for the tracks it reached.
+                return ends.Count == 0 ? (null, error) : (ends, null);
+            }
+
+            if (fromMs == 0 || mustFindIndexes == null || mustFindIndexes.All(ends.ContainsKey))
+            {
+                return (ends, null);
+            }
+
+            lookbackMs *= 4;
+            toMs = fromMs;
+            fromMs = Math.Max(0, containerDurationMs - lookbackMs);
+        }
+    }
+
+    private static async Task<string?> ReadPacketEnds(string file, long fromMs, long toMs,
+        Dictionary<int, long> ends)
+    {
+        var from = (fromMs / 1000.0).ToString("0.###", CultureInfo.InvariantCulture);
+        var span = ((toMs - fromMs) / 1000.0).ToString("0.###", CultureInfo.InvariantCulture);
 
         var result = await ProcessExecutor.ExecuteProcessAsync(
             FfprobeExecutable,
-            $"-v error -read_intervals \"{seekSec.ToString("0.###", CultureInfo.InvariantCulture)}%+{windowMs / 1000 * 2}\" " +
+            $"-v error -read_intervals \"{from}%+{span}\" " +
             $"-show_entries packet=stream_index,pts_time,duration_time -of csv=p=0 \"{file}\"",
             TimeSpan.FromSeconds(60));
 
         if (!IsSuccess(result) || string.IsNullOrEmpty(result.Output))
         {
-            return (null, $"ffprobe exit {result.ExitCode}: {result.Error?.Trim()}");
+            return $"ffprobe exit {result.ExitCode}: {result.Error?.Trim()}";
         }
-
-        var ends = new Dictionary<int, long>();
 
         foreach (var line in result.Output.Split('\n', StringSplitOptions.RemoveEmptyEntries))
         {
@@ -97,11 +126,12 @@ public static class FFmpeg
             }
         }
 
-        return (ends, null);
+        return null;
     }
 
     public static async Task<ProcessResult> Remux(string input, string output, ConversionPlan delta,
-        long sourceDurationMs = 0, Action<string, int>? onProgress = null, TimeSpan? timeout = null)
+        long sourceDurationMs = 0, Action<string, int>? onProgress = null, TimeSpan? timeout = null,
+        long? trimToMs = null)
     {
         if (string.IsNullOrEmpty(input))
         {
@@ -123,9 +153,10 @@ public static class FFmpeg
             throw new ArgumentException("At least one track is required.", nameof(delta));
         }
 
-        var args = BuildRemuxArguments(input, output, delta, GetMp4MuxerFormat(input));
+        var args = BuildRemuxArguments(input, output, delta, GetMp4MuxerFormat(input), trimToMs);
 
-        return await ExecuteAsync(args, sourceDurationMs, onProgress, timeout);
+        // A trimmed output stops at the cut, so that is what progress runs to.
+        return await ExecuteAsync(args, trimToMs ?? sourceDurationMs, onProgress, timeout);
     }
 
     internal static string GetMp4MuxerFormat(string path)
@@ -207,7 +238,7 @@ public static class FFmpeg
     }
 
     public static string BuildRemuxArguments(string input, string output, ConversionPlan delta,
-        string muxerFormat = "mp4")
+        string muxerFormat = "mp4", long? trimToMs = null)
     {
         var tracks = delta.Tracks;
         var faststart = delta.Faststart ?? false;
@@ -229,6 +260,13 @@ public static class FFmpeg
 
         var movflags = faststart ? "+use_metadata_tags+faststart" : "+use_metadata_tags";
         sb.Append($" -c copy -map_metadata 0 -movflags {movflags}");
+
+        // Never -shortest: it anchors on the shortest stream, which on a
+        // subtitled file is the last cue. The ms suffix is locale-proof.
+        if (trimToMs is { } cut)
+        {
+            sb.Append($" -t {cut}ms");
+        }
 
         // -map_metadata 0 copies the source container title through, so an empty
         // value here is needed to actually drop it. Must come after the copy.

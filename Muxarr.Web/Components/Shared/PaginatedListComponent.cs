@@ -9,7 +9,9 @@ public class FilterAttribute : Attribute;
 
 public abstract class PaginatedListComponentBase : AuthStateComponent
 {
+    private List<MemberInfo>? _filterMembers;
     private Dictionary<MemberInfo, object?>? _filterProperties;
+    private Dictionary<MemberInfo, string?>? _lastQueried;
 
     [Inject]
     public required IMemoryCache Cache { get; set; }
@@ -41,7 +43,6 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
     public async Task ChangePageSize(int pageSize)
     {
         PageSize = pageSize;
-        Page = 1;
         await UpdateList();
     }
 
@@ -54,7 +55,6 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
     public async Task Search(string term)
     {
         SearchTerm = term;
-        Page = 1;
         await UpdateList();
     }
 
@@ -66,12 +66,32 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
 
     protected virtual async Task UpdateList()
     {
+        // A changed filter starts a new result set, where the old page number
+        // may point past the end.
+        if (_lastQueried != null && FilterMembers.Any(m =>
+                m.Name != nameof(Page) && _lastQueried.GetValueOrDefault(m) != GetValue(m)?.ToString()))
+        {
+            Page = 1;
+        }
+
         IsLoading = true;
         await InvokeStateHasChanged();
 
         try
         {
             await UpdateListCore();
+
+            // Shrinking data can also strand the page past the end; land on the last one.
+            if (Page > Math.Max(1, TotalPages))
+            {
+                Page = Math.Max(1, TotalPages);
+                if (TotalItems > 0)
+                {
+                    await UpdateListCore();
+                }
+            }
+
+            _lastQueried = FilterMembers.ToDictionary(m => m, m => GetValue(m)?.ToString());
             SaveFilters();
         }
         finally
@@ -88,6 +108,15 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
         return GetType().Name + CacheKey;
     }
 
+    private List<MemberInfo> FilterMembers => _filterMembers ??= GetType()
+        .GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
+        .Where(f => f.GetCustomAttribute<FilterAttribute>() != null)
+        .Union<MemberInfo>(
+            GetType().GetProperties()
+                .Where(p => p.GetCustomAttribute<FilterAttribute>() != null)
+        )
+        .ToList();
+
     private void LoadDefaults()
     {
         if (_filterProperties != null)
@@ -95,16 +124,9 @@ public abstract class PaginatedListComponentBase : AuthStateComponent
             return;
         }
 
-        var props = GetType().GetFields(BindingFlags.NonPublic | BindingFlags.Instance)
-            .Where(f => f.GetCustomAttribute<FilterAttribute>() != null)
-            .Union<MemberInfo>(
-                GetType().GetProperties()
-                    .Where(p => p.GetCustomAttribute<FilterAttribute>() != null)
-            );
-
         _filterProperties = new Dictionary<MemberInfo, object?>();
 
-        foreach (var property in props)
+        foreach (var property in FilterMembers)
         {
             _filterProperties[property] = GetValue(property);
         }

@@ -462,7 +462,7 @@ public class MediaConverterService(
 
             if (useFFmpeg)
             {
-                await RunFFmpegRemuxAsync(conversion, delta, tmp, context, conversionTimeout, token);
+                await RunFFmpegRemuxAsync(conversion, delta, tmp, context, conversionTimeout, measuredEnds, token);
             }
             else
             {
@@ -594,11 +594,37 @@ public class MediaConverterService(
     }
 
     private async Task RunFFmpegRemuxAsync(MediaConversion conversion, ConversionPlan delta,
-        string tmp, AppDbContext context, TimeSpan? timeout, CancellationToken token)
+        string tmp, AppDbContext context, TimeSpan? timeout, IReadOnlyDictionary<int, long>? measuredEnds,
+        CancellationToken token)
     {
         var mediaFile = conversion.MediaFile!;
         conversion.Log($"Starting ffmpeg stream copy for {mediaFile.GetName()}..", logger);
         await context.SaveChangesAsync(token);
+
+        // The delta nulls Faststart when it matches the source, but a remux
+        // rewrites the layout either way, so the writer needs the absolute state.
+        delta.Faststart ??= mediaFile.Snapshot.HasFaststart;
+
+        // mkvmerge finds the trim point itself; ffmpeg is handed it, read from
+        // the same sources the validator will hold the output to.
+        long? trimToMs = null;
+        if (conversion.ConversionPlan.TrimToVideoLength)
+        {
+            var video = mediaFile.Snapshot.Tracks
+                .Where(t => t.IsAllowed(conversion.ConversionPlan.Tracks))
+                .GetVideoTracks().OrderBy(t => t.Index).FirstOrDefault();
+            var end = video == null ? 0
+                : video.DurationMs > 0 ? video.DurationMs
+                : measuredEnds?.GetValueOrDefault(video.Index) ?? 0;
+            if (end > 0)
+            {
+                trimToMs = end;
+            }
+            else if (video != null)
+            {
+                conversion.Log("Cannot tell where the video ends, so this output will not be trimmed.", logger);
+            }
+        }
 
         var reportProgress = BuildProgressReporter(conversion);
         var result = await FFmpeg.Remux(mediaFile.Path, tmp, delta, mediaFile.Snapshot.DurationMs,
@@ -613,7 +639,7 @@ public class MediaConverterService(
 
                 reportProgress(progress);
             },
-            timeout);
+            timeout, trimToMs);
 
         token.ThrowIfCancellationRequested();
 

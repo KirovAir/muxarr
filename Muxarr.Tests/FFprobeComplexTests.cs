@@ -1,6 +1,7 @@
 using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -130,6 +131,39 @@ public class FFprobeComplexTests : FixtureTestBase
 
         Assert.IsTrue(file.Snapshot.Tracks.LongestDurationMs() <= file.Snapshot.DurationMs,
             "no track may outlast the container it sits in");
+    }
+
+    // Statistics tags written with a language surface as DURATION-eng, not DURATION.
+    [TestMethod]
+    public async Task SetFileDataFromFFprobe_ParsesLanguageSuffixedDurationTag()
+    {
+        var tagsXml = TempPath("tags.xml");
+        await File.WriteAllTextAsync(tagsXml, """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <Tags>
+              <Tag>
+                <Simple>
+                  <Name>DURATION</Name>
+                  <String>00:00:05.005000000</String>
+                  <TagLanguage>eng</TagLanguage>
+                </Simple>
+              </Tag>
+            </Tags>
+            """);
+
+        // Replaces the first audio track's tags, so its plain DURATION is gone
+        // and only the language-suffixed read can supply a length.
+        var result = await ProcessExecutor.ExecuteProcessAsync("mkvpropedit",
+            $"\"{_workingCopy}\" --tags track:2:\"{tagsXml}\"", TimeSpan.FromSeconds(30));
+        Assert.IsTrue(result.Success, result.Error);
+
+        var file = new MediaFile { Path = _workingCopy };
+        await file.SetFileDataFromFFprobe();
+
+        var audio = file.Snapshot.Tracks.OrderBy(t => t.Index).ToList()[1];
+        Assert.AreEqual(MediaTrackType.Audio, audio.Type);
+        Assert.AreEqual(5005, audio.DurationMs,
+            "a language-suffixed DURATION tag must still supply the track duration");
     }
 
     // --- End-to-end: ffprobe -> filter -> verify (parity with MkvToolNixComplexTests) ---

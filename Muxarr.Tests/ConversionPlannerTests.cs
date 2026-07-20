@@ -394,14 +394,17 @@ public class ConversionPlannerTests
     }
 
     // Build a desired ConversionPlan from an observed MediaSnapshot. Every
-    // field is treated as an "opinion" (same as the profile builder would
-    // produce) so the planner's delta reflects only what tests change.
+    // field is treated as an "opinion" and the container resolver runs, same
+    // as every production builder, so the planner's delta reflects only what
+    // tests change.
     private static ConversionPlan TargetFromSnapshot(MediaSnapshot source)
     {
-        return new ConversionPlan
+        var target = new ConversionPlan
         {
             Tracks = source.Tracks.Select(t => t.ToTargetTrack(false)).ToList()
         };
+        TargetResolver.ResolveForContainer(target, source);
+        return target;
     }
 
     private static (MediaFile, MediaSnapshot, ConversionPlan) MakeWithModifiedAudio(

@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -95,6 +97,61 @@ public class ComplexConversionTests : IntegrationTestBase
         Assert.IsTrue(french.IsDub, "MP4 keeps +dub as a native disposition, no title encoding");
 
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // Filter, rename, reflag, clear title, strip chapters and trim in one
+    // pass - then prove the rescan agrees there is nothing left to do.
+    [TestMethod]
+    public async Task Profile_Matroska_KitchenSink_DoesEverythingInOnePass()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        await Stamp(path, "--edit info --set title=\"Kitchen Sink\"");
+        var chaptersXml = Path.Combine(TempDir, "chapters.xml");
+        await File.WriteAllTextAsync(chaptersXml,
+            "<?xml version=\"1.0\"?><Chapters><EditionEntry><ChapterAtom>" +
+            "<ChapterTimeStart>00:00:00.000</ChapterTimeStart>" +
+            "<ChapterDisplay><ChapterString>One</ChapterString></ChapterDisplay>" +
+            "</ChapterAtom></EditionEntry></Chapters>");
+        await Stamp(path, $"--chapters \"{chaptersXml}\"");
+
+        var profile = await SeedComplexProfile(clearFileTitle: true, removeChapters: true, trimToVideoLength: true);
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.AreEqual("Kitchen Sink", file.Snapshot.Title);
+        Assert.IsTrue(file.Snapshot.HasChapters, "the stamped chapters should scan");
+        Assert.IsTrue(file.HasRedundantTracks && file.HasNonStandardMetadata && file.HasRemovableChapters,
+            "every work flag should fire on this file");
+
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromProfile(profile), false);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        Assert.IsTrue(string.IsNullOrEmpty(probed.Snapshot.Title), "container title must be cleared");
+        Assert.IsFalse(probed.Snapshot.HasChapters, "chapters must be stripped");
+        Assert.IsTrue(probed.Snapshot.DurationMs < 2500,
+            $"the 5s audio should be trimmed to the 1s video, got {probed.Snapshot.DurationMs}ms");
+
+        var audio = probed.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        Assert.AreEqual(2, audio.Count, "commentary stripped, English + French kept");
+        Assert.IsFalse(probed.Snapshot.Tracks.Any(t => t.LanguageCode == "spa"), "Spanish sub stripped");
+
+        // The converter's own rescan must agree everything is done, or the
+        // file would sit on the dashboard asking for the same work forever.
+        var after = await Fixture.WithDbContext(async ctx =>
+            await ctx.MediaFiles.WithTracks().FirstAsync(x => x.Path == path));
+        Assert.IsFalse(after.HasRedundantTracks, "no redundant tracks may survive");
+        Assert.IsFalse(after.HasNonStandardMetadata, "no metadata work may survive");
+        Assert.IsFalse(after.HasRemovableChapters, "no chapter work may survive");
+    }
+
+    private static async Task Stamp(string path, string args)
+    {
+        var result = await ProcessExecutor.ExecuteProcessAsync(
+            "mkvpropedit", $"\"{path}\" {args}", TimeSpan.FromSeconds(30));
+        Assert.IsTrue(result.Success, $"mkvpropedit {args}: {result.Error}");
     }
 
     // --- Custom conversion + mkvpropedit stress suite ---
@@ -442,7 +499,8 @@ public class ComplexConversionTests : IntegrationTestBase
 
     // --- Helpers ---
 
-    private async Task<Profile> SeedComplexProfile()
+    private async Task<Profile> SeedComplexProfile(bool clearFileTitle = false, bool removeChapters = false,
+        bool trimToVideoLength = false)
     {
         return await Fixture.WithDbContext(async ctx =>
         {
@@ -450,6 +508,9 @@ public class ComplexConversionTests : IntegrationTestBase
             {
                 Name = "complex-profile",
                 Directories = new List<string> { TempDir },
+                ClearFileTitle = clearFileTitle,
+                RemoveChapters = removeChapters,
+                TrimToVideoLength = trimToVideoLength,
                 AudioSettings = new TrackSettings
                 {
                     Enabled = true,

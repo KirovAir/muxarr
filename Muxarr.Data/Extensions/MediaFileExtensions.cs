@@ -415,9 +415,10 @@ public static class MediaFileExtensions
     // of remuxes carry none. Measure the tail so a dropped track leaves a yardstick.
     public static async Task<(Dictionary<int, long>? Ends, string? Error)> MeasureTrackEndsMs(this MediaFile file)
     {
-        return file.Snapshot.Tracks.All(t => t.DurationMs > 0)
+        var untagged = file.Snapshot.Tracks.Where(t => t.DurationMs <= 0).Select(t => t.Index).ToList();
+        return untagged.Count == 0
             ? (new Dictionary<int, long>(), null)
-            : await FFmpeg.MeasureTrackEndsMs(file.Path, file.Snapshot.DurationMs);
+            : await FFmpeg.MeasureTrackEndsMs(file.Path, file.Snapshot.DurationMs, untagged);
     }
 
     // Allowed tracks filtering
