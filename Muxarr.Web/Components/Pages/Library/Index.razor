@@ -158,6 +158,19 @@
                 <FilterDropdown Placeholder="Bit Depth" @bind-Value="BitDepthFilter"
                                 Items="_filterOptions?.VideoBitDepths ?? []"/>
             </div>
+            <div class="col-auto">
+                <select class="form-select form-select-sm" style="width: auto;" @bind="TrackStructureFilter">
+                    <option value="">Tracks</option>
+                    <option value="no-audio">No audio</option>
+                    <option value="single-audio">Single audio</option>
+                    <option value="multi-audio">Multiple audio</option>
+                    <option value="no-subs">No subtitles</option>
+                    <option value="single-subs">Single subtitles</option>
+                    <option value="multi-subs">Multiple subtitles</option>
+                    <option value="no-video">No video</option>
+                    <option value="multi-video">Multiple video</option>
+                </select>
+            </div>
         </div>
     }
 
@@ -359,6 +372,18 @@
         }
     }
 
+    [Filter] private string _trackStructureFilter = "";
+
+    private string TrackStructureFilter
+    {
+        get => _trackStructureFilter;
+        set
+        {
+            _trackStructureFilter = value;
+            _ = UpdateList();
+        }
+    }
+
     [Filter] private string _profileFilter = "";
 
     private string ProfileFilter
@@ -390,7 +415,7 @@
         !string.IsNullOrEmpty(_subtitleCodecFilter) || !string.IsNullOrEmpty(_resolutionFilter) ||
         !string.IsNullOrEmpty(_channelLayoutFilter) || !string.IsNullOrEmpty(_audioLanguageFilter) ||
         !string.IsNullOrEmpty(_subtitleLanguageFilter) || !string.IsNullOrEmpty(_containerFilter) ||
-        !string.IsNullOrEmpty(_bitDepthFilter);
+        !string.IsNullOrEmpty(_bitDepthFilter) || !string.IsNullOrEmpty(_trackStructureFilter);
 
     private static readonly (string Key, string Field)[] QueryParamMap =
     [
@@ -404,7 +429,8 @@
         ("subtitleLanguage", nameof(_subtitleLanguageFilter)),
         ("container", nameof(_containerFilter)),
         ("bitDepth", nameof(_bitDepthFilter)),
-        ("profile", nameof(_profileFilter))
+        ("profile", nameof(_profileFilter)),
+        ("tracks", nameof(_trackStructureFilter))
     ];
 
     protected override async Task OnInitializedAsync()
@@ -522,6 +548,19 @@
         {
             query = query.Where(f => f.Snapshot.VideoBitDepth == depth);
         }
+
+        query = _trackStructureFilter switch
+        {
+            "no-audio" => query.Where(f => !f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Audio)),
+            "single-audio" => query.Where(f => f.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Audio) == 1),
+            "multi-audio" => query.Where(f => f.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Audio) > 1),
+            "no-subs" => query.Where(f => !f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Subtitles)),
+            "single-subs" => query.Where(f => f.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Subtitles) == 1),
+            "multi-subs" => query.Where(f => f.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Subtitles) > 1),
+            "no-video" => query.Where(f => !f.Snapshot.Tracks.Any(t => t.Type == MediaTrackType.Video)),
+            "multi-video" => query.Where(f => f.Snapshot.Tracks.Count(t => t.Type == MediaTrackType.Video) > 1),
+            _ => query
+        };
 
         // Track-level filters (SQL WHERE EXISTS via navigation property).
         if (!string.IsNullOrEmpty(_videoCodecFilter))
