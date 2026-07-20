@@ -210,6 +210,9 @@ public class ExtensionTests
     [DataRow("{nativelanguage} {channels}", "Dutch", "Aac", 2, null, "Nederlands 2.0")]
     [DataRow("{language} {codec}", "English", "Srt", 0, null, "English SRT")]
     [DataRow("{language} {channels}", "English", "Srt", 0, null, "English")]
+    [DataRow("{code} {codec} {channels}", "French", "Ac3", 6, null, "FR AC-3 5.1")]
+    [DataRow("{code} Full", "English", "Srt", 0, null, "EN Full")]
+    [DataRow("{code} {codec}", "Filipino", "Srt", 0, null, "FIL SRT")]
     public void ApplyTrackNameTemplate_ProducesExpectedOutput(
         string template, string language, string codec, int channels, string? trackName, string expected)
     {

@@ -868,6 +868,7 @@ public static class MediaFileExtensions
         var result = template
             .Replace("{language}", track.LanguageName, StringComparison.OrdinalIgnoreCase)
             .Replace("{lang}", track.LanguageCode, StringComparison.OrdinalIgnoreCase)
+            .Replace("{code}", ShortCode(iso, track), StringComparison.OrdinalIgnoreCase)
             .Replace("{nativelanguage}", iso.NativeName, StringComparison.OrdinalIgnoreCase)
             .Replace("{codec}", track.Codec.FormatCodec(), StringComparison.OrdinalIgnoreCase)
             .Replace("{channels}", track.GetChannelLayout() ?? "", StringComparison.OrdinalIgnoreCase)
@@ -883,6 +884,15 @@ public static class MediaFileExtensions
         result = Regex.Replace(result, @"\s{2,}", " ").Trim();
 
         return string.IsNullOrWhiteSpace(result) ? null : result;
+    }
+
+    // {code} favours the two-letter form (FR); languages without one fall back
+    // to the three-letter code (FIL).
+    private static string ShortCode(IsoLanguage iso, IMediaTrack track)
+    {
+        var code = !string.IsNullOrEmpty(iso.TwoLetterCode) ? iso.TwoLetterCode
+            : iso.ThreeLetterCode ?? track.LanguageCode;
+        return code?.ToUpperInvariant() ?? "";
     }
 
     private static string GetFlagLabels(this IMediaTrack track)

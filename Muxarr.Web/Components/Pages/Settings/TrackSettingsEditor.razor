@@ -160,7 +160,8 @@
             <InputText id="@($"trackNameTemplate{TrackTypeLabel}")" class="form-control form-control-sm"
                        @bind-Value="Settings.TrackNameTemplate"/>
             <small class="form-text text-muted d-block">
-                Placeholders: <code>{language}</code>, <code>{lang}</code>, <code>{nativelanguage}</code>,
+                Placeholders: <code>{language}</code>, <code>{lang}</code>, <code>{code}</code>,
+                <code>{nativelanguage}</code>,
                 <code>{codec}</code>,
                 @if (IsAudio)
                 {
