@@ -44,6 +44,7 @@ public static class Fixtures
         await GenerateRunawayMkvAsync("runaway.mkv");
         await GenerateGlobalTagMkvAsync("globaltag.mkv", "TITLE");
         await GenerateGlobalTagMkvAsync("globaltag-lower.mkv", "title");
+        await GenerateShadowTagMkvAsync("shadowtag.mkv");
         await GenerateTruncatedMkvAsync("truncated.mkv");
         await GenerateRichMp4Async("test_rich.mp4");
         await GenerateChapteredAsync("chapters.mkv", "mpeg4", "ac3", "matroska", 10);
@@ -294,6 +295,54 @@ public static class Fixtures
 
         await RunOrInconclusive("mkvmerge",
             $"-o \"{target}\" --title \"Segment Title\" --global-tags \"{tags}\" \"{video}\"", targetName);
+
+        if (!File.Exists(target))
+        {
+            Assert.Inconclusive($"Failed to generate {targetName}");
+        }
+    }
+
+    /// <summary>
+    /// The issue #55 shape: track-level SimpleTags that shadow the real header
+    /// values in ffprobe's merged tag dict. Audio 1 has no header language but
+    /// a LANGUAGE=eng tag and the name "Surround" (no language to parse from
+    /// it); audio 2 has header dut plus stale LANGUAGE=eng and TITLE tags.
+    /// </summary>
+    private static async Task GenerateShadowTagMkvAsync(string targetName)
+    {
+        var target = Path.Combine(PoolDir, targetName);
+        if (File.Exists(target))
+        {
+            return;
+        }
+
+        var video = Path.Combine(PoolDir, "shadowtag.m4v");
+        var audio = Path.Combine(PoolDir, "shadowtag.ac3");
+        var tags1 = Path.Combine(PoolDir, "shadowtag1.xml");
+        var tags2 = Path.Combine(PoolDir, "shadowtag2.xml");
+
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"testsrc=duration=2:size=160x120:rate=10\" " +
+                                          $"-c:v mpeg4 \"{video}\"", targetName);
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"sine=duration=2:frequency=440\" " +
+                                          $"-c:a ac3 \"{audio}\"", targetName);
+        await File.WriteAllTextAsync(tags1,
+            "<?xml version=\"1.0\"?><Tags><Tag><Targets></Targets><Simple>" +
+            "<Name>LANGUAGE</Name><String>eng</String>" +
+            "</Simple></Tag></Tags>");
+        await File.WriteAllTextAsync(tags2,
+            "<?xml version=\"1.0\"?><Tags><Tag><Targets></Targets>" +
+            "<Simple><Name>LANGUAGE</Name><String>eng</String></Simple>" +
+            "<Simple><Name>TITLE</Name><String>Stale Title</String></Simple>" +
+            "</Tag></Tags>");
+
+        await RunOrInconclusive("mkvmerge",
+            $"-o \"{target}\" \"{video}\" " +
+            $"--language 0:und --track-name 0:Surround \"{audio}\" " +
+            $"--language 0:dut \"{audio}\"", targetName);
+        await RunOrInconclusive("mkvpropedit",
+            $"\"{target}\" --tags track:2:\"{tags1}\" --tags track:3:\"{tags2}\"", targetName);
 
         if (!File.Exists(target))
         {

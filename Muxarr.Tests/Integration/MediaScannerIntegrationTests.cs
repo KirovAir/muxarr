@@ -39,6 +39,47 @@ public class MediaScannerIntegrationTests : IntegrationTestBase
         Assert.IsTrue(tracks.Any(t => t.Type == MediaTrackType.Subtitles && t.IsHearingImpaired));
     }
 
+    // Track-level LANGUAGE/TITLE SimpleTags shadow the real header values in
+    // ffprobe's merged tag dict (#55). The scan must read the header through
+    // mkvmerge and only fall back to the tag when the header has no language.
+    [TestMethod]
+    public async Task Scan_ShadowedTrackTags_ReadsHeaderThroughMkvMerge()
+    {
+        var path = CopyFixture("shadowtag.mkv");
+        var profile = await Fixture.SeedProfile();
+
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var tracks = file.Snapshot.Tracks.OrderBy(t => t.Index).ToList();
+        Assert.AreEqual(3, tracks.Count);
+
+        // No header language + LANGUAGE=eng tag: the tag fills the gap.
+        Assert.AreEqual("eng", tracks[1].LanguageCode);
+        Assert.AreEqual("English", tracks[1].LanguageName);
+        Assert.AreEqual("Surround", tracks[1].Name);
+
+        // Header dut + stale LANGUAGE=eng tag: the header wins, and the TITLE
+        // tag must not surface as the track name.
+        Assert.AreEqual("dut", tracks[2].LanguageCode);
+        Assert.AreEqual("Dutch", tracks[2].LanguageName);
+        Assert.IsNull(tracks[2].Name);
+    }
+
+    // Snapshot dedup relies on byte-identical probe values, so a forced rescan
+    // of an unchanged file must reuse the stored snapshot row. Guards the scan
+    // path against value drift that would churn the table across a library.
+    [TestMethod]
+    public async Task Rescan_UnchangedMkv_ReusesTheStoredSnapshot()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+
+        var first = await Fixture.ScanAndPersist(path, profile);
+        var second = await Fixture.ScanAndPersist(path, profile);
+
+        Assert.AreEqual(first.SnapshotId, second.SnapshotId, "an unchanged file must keep its snapshot row");
+    }
+
     // The stored profile has to follow the directory that matched, or the scan
     // flags the file against one profile while the queue plans with another.
     [TestMethod]

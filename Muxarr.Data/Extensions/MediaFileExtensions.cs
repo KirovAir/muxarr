@@ -138,10 +138,14 @@ public static class MediaFileExtensions
 
     /// <summary>
     /// Populates a MediaFile by running ffprobe on <see cref="MediaFile.Path"/>.
-    /// Used for non-Matroska containers where ffprobe is the source of truth
-    /// (mkvmerge's MP4 demuxer hides the udta.name atom and a few other fields).
-    /// Container type is normalized to the same canonical strings mkvmerge emits
-    /// so downstream classification works the same way.
+    /// ffprobe is the primary probe for every container (mkvmerge's MP4 demuxer
+    /// hides the udta.name atom and a few other fields), but it merges Matroska
+    /// SimpleTags into the stream tag dict, where a stale LANGUAGE/TITLE tag
+    /// shadows the real header values and every edit we write (#55). Track name
+    /// and language therefore come from an mkvmerge probe on Matroska; the same
+    /// probe feeds the segment title cross-check. Container type is normalized
+    /// to the same canonical strings mkvmerge emits so downstream classification
+    /// works the same way.
     /// </summary>
     public static async Task<ProcessJsonResult<FFprobeResult>> SetFileDataFromFFprobe(this MediaFile file)
     {
@@ -161,13 +165,15 @@ public static class MediaFileExtensions
         file.HasScanWarning = !string.IsNullOrEmpty(probeResult.Error);
 
         var containerType = NormalizeFFprobeContainer(probe.Format?.FormatName);
+        var family = containerType.ToContainerFamily();
+        var mkvInfo = family == ContainerFamily.Matroska ? (await MkvMerge.GetFileInfo(file.Path)).Result : null;
         var tracks = new List<TrackSnapshot>();
 
         // ffprobe's disposition.dub is only trustworthy for containers that
         // carry a real dub atom. On Matroska, ffmpeg infers dub=1 from
         // FlagOriginal=0, so any track our profile marks as not-original
         // gets a bogus dub flag. MKV has no FlagDub; the title is authoritative.
-        var trustDispositionDub = containerType.ToContainerFamily() != ContainerFamily.Matroska;
+        var trustDispositionDub = family != ContainerFamily.Matroska;
 
         foreach (var stream in probe.Streams)
         {
@@ -190,8 +196,30 @@ public static class MediaFileExtensions
             }
 
             var tags = stream.Tags;
-            var trackName = PickTrackName(tags);
-            var language = tags != null && tags.TryGetValue("language", out var l) && !string.IsNullOrEmpty(l) ? l : "und";
+
+            // Both tools number Matroska tracks in TrackEntry order (the same
+            // invariant the converters rely on); a type mismatch means the
+            // probes disagree on this file, so trust neither and fall back.
+            var mkvTrack = mkvInfo?.Tracks.FirstOrDefault(t => t.Id == stream.Index);
+            if (mkvTrack != null && mkvTrack.Type.ToMediaTrackType() != type)
+            {
+                mkvTrack = null;
+            }
+
+            // Matroska: the track header is what our editors write, so it is
+            // what the scan must read back or write-verify never converges.
+            string? trackName;
+            string language;
+            if (mkvTrack != null)
+            {
+                trackName = string.IsNullOrEmpty(mkvTrack.Properties.TrackName) ? null : mkvTrack.Properties.TrackName;
+                language = PickMkvTrackLanguage(mkvTrack.Properties);
+            }
+            else
+            {
+                trackName = PickTrackName(tags);
+                language = GetTag(tags, "language") ?? "und";
+            }
 
             var track = new TrackSnapshot
             {
@@ -215,7 +243,7 @@ public static class MediaFileExtensions
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
                 IsOriginal = disposition.Original == 1,
                 IsDub = (trustDispositionDub && disposition.Dub == 1) || TrackNameFlags.ContainsDub(trackName),
-                DurationMs = ParseTrackDurationMs(stream, containerType.ToContainerFamily())
+                DurationMs = ParseTrackDurationMs(stream, family)
             };
 
             if (track.Type != MediaTrackType.Video
@@ -253,15 +281,14 @@ public static class MediaFileExtensions
         {
             CapturedAt = DateTime.UtcNow,
             ContainerType = containerType,
-            Title = await ReadContainerTitle(file.Path, probe.Format?.Tags, containerType.ToContainerFamily()),
+            Title = ReadContainerTitle(mkvInfo, probe.Format?.Tags, family),
             Resolution = resolution,
             VideoBitDepth = videoBitDepth,
             DurationMs = durationMs,
             TrackCount = tracks.Count,
             HasChapters = probe.Chapters.Count > 0,
             HasAttachments = probe.Streams.Any(s => s.CodecType == "attachment"),
-            HasFaststart = containerType.ToContainerFamily() == ContainerFamily.Mp4
-                           && FFmpeg.IsFaststartLayout(file.Path),
+            HasFaststart = family == ContainerFamily.Mp4 && FFmpeg.IsFaststartLayout(file.Path),
             Tracks = tracks
         });
 
@@ -307,25 +334,47 @@ public static class MediaFileExtensions
 
     /// <summary>
     /// Picks the track title from an ffprobe tags dict. MP4-family files
-    /// surface it as "name" (from udta.name), Matroska as "title" (from the
-    /// TrackEntry.Name EBML element). Both keys are primary paths for their
-    /// respective container families, not a legacy fallback.
+    /// surface it as "name" (from udta.name), "title" covers the rest.
     /// </summary>
     private static string? PickTrackName(Dictionary<string, string>? tags)
+    {
+        return GetTag(tags, "name") ?? GetTag(tags, "title");
+    }
+
+    // Header language when set; a track that only carries a LANGUAGE SimpleTag
+    // falls back to that, normalized through the ISO list since taggers write
+    // anything ("English", "en").
+    private static string PickMkvTrackLanguage(TrackProperties props)
+    {
+        if (!string.IsNullOrEmpty(props.Language) && props.Language != "und")
+        {
+            return props.Language;
+        }
+
+        var tagged = IsoLanguage.Find(props.TagLanguage);
+        return tagged != IsoLanguage.Unknown ? tagged.ThreeLetterCode ?? "und" : "und";
+    }
+
+    // Exact match first, so a header-derived lowercase key wins over a merged
+    // tag that only differs in case.
+    private static string? GetTag(Dictionary<string, string>? tags, string key)
     {
         if (tags == null)
         {
             return null;
         }
 
-        if (tags.TryGetValue("name", out var name) && !string.IsNullOrEmpty(name))
+        if (tags.TryGetValue(key, out var exact) && !string.IsNullOrEmpty(exact))
         {
-            return name;
+            return exact;
         }
 
-        if (tags.TryGetValue("title", out var title) && !string.IsNullOrEmpty(title))
+        foreach (var (k, v) in tags)
         {
-            return title;
+            if (k.Equals(key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(v))
+            {
+                return v;
+            }
         }
 
         return null;
@@ -334,35 +383,17 @@ public static class MediaFileExtensions
     // ffprobe's format tags conflate the segment title with global tags, so ask
     // mkvmerge. A value it disagrees with is a global tag no writer can clear,
     // and clearing would destroy the real title while the visible one stayed.
-    private static async Task<string?> ReadContainerTitle(string path, Dictionary<string, string>? tags,
+    private static string? ReadContainerTitle(MkvMergeInfo? mkvInfo, Dictionary<string, string>? tags,
         ContainerFamily family)
     {
-        var probed = PickContainerTitle(tags);
+        var probed = GetTag(tags, "title");
         if (family != ContainerFamily.Matroska)
         {
             return probed;
         }
 
-        var segment = (await MkvMerge.GetFileInfo(path)).Result?.Container?.Properties?.Title;
+        var segment = mkvInfo?.Container?.Properties?.Title;
         return string.Equals(segment ?? "", probed ?? "", StringComparison.Ordinal) ? segment : null;
-    }
-
-    private static string? PickContainerTitle(Dictionary<string, string>? tags)
-    {
-        if (tags == null)
-        {
-            return null;
-        }
-
-        foreach (var (key, value) in tags)
-        {
-            if (string.Equals(key, "title", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(value))
-            {
-                return value;
-            }
-        }
-
-        return null;
     }
 
     // Matroska keeps per-track length in the DURATION tag. Its stream.duration
