@@ -22,6 +22,8 @@ Muxarr cleans them up by removing unwanted audio and subtitle tracks and standar
 
 ### Quick Start
 
+Inside the container, use `/config` for Muxarr's database and settings, and `/data` for the mounted media library.
+
 ```yaml
 services:
   muxarr:
@@ -32,8 +34,8 @@ services:
       - PUID=1000
       - PGID=1000
     volumes:
-      - /path/to/data:/data
-      - /path/to/media:/media
+      - /path/to/config:/config
+      - /path/to/media:/data
     ports:
       - 8183:8183
     restart: unless-stopped
@@ -94,8 +96,8 @@ docker run -d \
   -e PUID=1000 \
   -e PGID=1000 \
   -p 8183:8183 \
-  -v /path/to/data:/data \
-  -v /path/to/media:/media \
+  -v /path/to/config:/config \
+  -v /path/to/media:/data \
   --restart unless-stopped \
   ghcr.io/kirovair/muxarr:latest
 ```
@@ -114,15 +116,15 @@ docker run -d \
 
 | Path | Description |
 |---|---|
-| `/data` | Database and configuration |
-| `/media` | Media files (use multiple `-v` mounts as needed) |
+| `/config` | Muxarr app data: database, settings, keys, and other persistent state |
+| `/data` | Mounted media library roots used by profiles and processing commands |
 
 ### Setup
 
 1. Open `http://your-ip:8183` - the setup wizard will guide you through
 2. Set a username and password (optional)
 3. Connect Sonarr/Radarr for original language detection and webhook automation (optional)
-4. Create a profile with your media directories and language rules
+4. Create a profile with media directories under the `/data` mount and language rules
 5. Scan your library, preview the changes, and queue files for processing
 
 ### API

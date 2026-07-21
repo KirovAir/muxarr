@@ -28,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     mkvtoolnix \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 888 appgroup \
-    && useradd -u 888 -g 888 -d /data -s /bin/false appuser \
+    && useradd -u 888 -g 888 -d /config -s /bin/false appuser \
     && usermod -G users appuser
 
 COPY --from=ffmpeg-dl /out/ffmpeg /usr/local/bin/ffmpeg
@@ -40,7 +40,7 @@ COPY publish/ ./
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-VOLUME ["/data"]
+VOLUME ["/config"]
 
 ENV ASPNETCORE_HTTP_PORTS=8183
 EXPOSE 8183
