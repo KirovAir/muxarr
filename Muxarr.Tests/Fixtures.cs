@@ -303,10 +303,8 @@ public static class Fixtures
     }
 
     /// <summary>
-    /// The issue #55 shape: track-level SimpleTags that shadow the real header
-    /// values in ffprobe's merged tag dict. Audio 1 has no header language but
-    /// a LANGUAGE=eng tag and the name "Surround" (no language to parse from
-    /// it); audio 2 has header dut plus stale LANGUAGE=eng and TITLE tags.
+    /// Shadow tags: audio 1 named "Surround" with only a LANGUAGE=eng tag,
+    /// audio 2 with header dut plus stale LANGUAGE and TITLE tags.
     /// </summary>
     private static async Task GenerateShadowTagMkvAsync(string targetName)
     {

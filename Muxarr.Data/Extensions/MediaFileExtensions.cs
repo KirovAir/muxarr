@@ -138,14 +138,9 @@ public static class MediaFileExtensions
 
     /// <summary>
     /// Populates a MediaFile by running ffprobe on <see cref="MediaFile.Path"/>.
-    /// ffprobe is the primary probe for every container (mkvmerge's MP4 demuxer
-    /// hides the udta.name atom and a few other fields), but it merges Matroska
-    /// SimpleTags into the stream tag dict, where a stale LANGUAGE/TITLE tag
-    /// shadows the real header values and every edit we write (#55). Track name
-    /// and language therefore come from an mkvmerge probe on Matroska; the same
-    /// probe feeds the segment title cross-check. Container type is normalized
-    /// to the same canonical strings mkvmerge emits so downstream classification
-    /// works the same way.
+    /// ffprobe merges Matroska SimpleTags over the real header values, so
+    /// track name/language and the title come from mkvmerge on Matroska.
+    /// Container type is normalized to the canonical strings mkvmerge emits.
     /// </summary>
     public static async Task<ProcessJsonResult<FFprobeResult>> SetFileDataFromFFprobe(this MediaFile file)
     {
@@ -197,17 +192,14 @@ public static class MediaFileExtensions
 
             var tags = stream.Tags;
 
-            // Both tools number Matroska tracks in TrackEntry order (the same
-            // invariant the converters rely on); a type mismatch means the
-            // probes disagree on this file, so trust neither and fall back.
+            // Both tools number tracks in TrackEntry order; on a type mismatch trust neither.
             var mkvTrack = mkvInfo?.Tracks.FirstOrDefault(t => t.Id == stream.Index);
             if (mkvTrack != null && mkvTrack.Type.ToMediaTrackType() != type)
             {
                 mkvTrack = null;
             }
 
-            // Matroska: the track header is what our editors write, so it is
-            // what the scan must read back or write-verify never converges.
+            // Matroska: read the header our editors write, or write-verify never converges.
             string? trackName;
             string language;
             if (mkvTrack != null)
@@ -341,9 +333,7 @@ public static class MediaFileExtensions
         return GetTag(tags, "name") ?? GetTag(tags, "title");
     }
 
-    // Header language when set; a track that only carries a LANGUAGE SimpleTag
-    // falls back to that, normalized through the ISO list since taggers write
-    // anything ("English", "en").
+    // Header language when set, else a LANGUAGE tag normalized through the ISO list.
     private static string PickMkvTrackLanguage(TrackProperties props)
     {
         if (!string.IsNullOrEmpty(props.Language) && props.Language != "und")
@@ -355,8 +345,7 @@ public static class MediaFileExtensions
         return tagged != IsoLanguage.Unknown ? tagged.ThreeLetterCode ?? "und" : "und";
     }
 
-    // Exact match first, so a header-derived lowercase key wins over a merged
-    // tag that only differs in case.
+    // Exact match first so a header-derived key wins over a merged tag.
     private static string? GetTag(Dictionary<string, string>? tags, string key)
     {
         if (tags == null)
@@ -1023,6 +1012,12 @@ public static class MediaFileExtensions
                 // sets Name=null on the snapshot which would map to plan Name=null
                 // ("no opinion"). Switch to "" so the diff carries an explicit clear.
                 if (t.Type == MediaTrackType.Video && profile.ClearVideoTrackNames)
+                {
+                    tt.Name = "";
+                }
+
+                // Same trap for audio/subs: a template resolving to nothing means "clear".
+                if (settings is { StandardizeTrackNames: true } && tt.Name == null)
                 {
                     tt.Name = "";
                 }

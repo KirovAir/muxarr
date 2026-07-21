@@ -93,9 +93,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
-    // The issue #55 loop: a stale LANGUAGE tag hides the header from ffprobe,
-    // so the post-edit verify re-read the old value and fell through to a remux
-    // that could not fix it either. The override must land in one in-place edit.
+    // A stale LANGUAGE tag hid the header, so verify fell through to a futile remux.
     [TestMethod]
     public async Task MetadataEdit_Matroska_LanguageOverride_ConvergesDespiteShadowTag()
     {
@@ -121,8 +119,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         var edited = probed.Snapshot.Tracks.First(t => t.Index == dutch.Index);
         Assert.AreEqual("fre", edited.LanguageCode, "language override should survive the rescan");
 
-        // The loop is only closed if a fresh plan finds nothing left to do;
-        // anything else re-flags the file on every scan, forever.
+        // Closed only if a fresh plan has nothing left to do; anything else re-flags forever.
         var replan = ConversionPlanner.Plan(probed.Snapshot, probed.BuildTargetFromCustom(targetTracks));
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, replan.Strategy,
             "a re-plan after the edit must have nothing left to change");

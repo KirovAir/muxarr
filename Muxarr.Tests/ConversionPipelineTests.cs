@@ -1381,6 +1381,61 @@ public class ConversionPipelineTests
             "File with null video name and ClearVideoTrackNames should be considered optimal");
     }
 
+    [TestMethod]
+    public void Pipeline_EmptyAudioNameTemplate_ClearsTheName()
+    {
+        // An empty template must reach the plan as an explicit clear, not no-opinion.
+        var file = MakeFile("Korean",
+            Video(0),
+            Audio(1, "Korean", "AC-3", 6, isOriginal: true, trackName: "DTS-HD MA 5.1"),
+            Sub(2, "Korean", trackName: "Korean"));
+
+        var profile = MakeProfile(
+            new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("Korean")],
+                StandardizeTrackNames = true,
+                TrackNameTemplate = ""
+            },
+            new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("Korean")]
+            });
+
+        var diff = TestPlan.Diff(file.ToMediaSnapshot(), file.BuildTargetFromProfile(profile),
+            ContainerFamily.Matroska);
+
+        Assert.AreEqual("", diff.First(t => t.Index == 1).Name,
+            "empty audio template must clear the track name");
+        Assert.IsNull(diff.First(t => t.Index == 2).Name,
+            "subtitles without standardization must stay untouched");
+    }
+
+    [TestMethod]
+    public void Pipeline_EmptyAudioNameTemplate_AlreadyNameless_StaysOptimal()
+    {
+        var file = MakeFile("Korean",
+            Video(0),
+            Audio(1, "Korean", "AC-3", 6, isOriginal: true));
+
+        var profile = MakeProfile(
+            new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("Korean")],
+                StandardizeTrackNames = true,
+                TrackNameTemplate = ""
+            });
+
+        var diff = TestPlan.Diff(file.ToMediaSnapshot(), file.BuildTargetFromProfile(profile),
+            ContainerFamily.Matroska);
+
+        Assert.IsFalse(diff.Any(ConversionPlanExtensions.HasChanges),
+            "a file with no names must stay optimal under an empty template");
+    }
+
     // --- TrimToVideoLength ---
 
     // mkvmerge stops after the video natively and ffmpeg gets -t on mp4, so the
