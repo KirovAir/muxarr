@@ -1,11 +1,18 @@
 <p align="center">
-  <img src="docs/logo.png" alt="Muxarr" width="120"/><br/>
-  <a href="https://muxarr.app"><img src="https://img.shields.io/badge/muxarr.app-website-6f42c1" alt="Website"/></a>
-  <a href="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml"><img src="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml/badge.svg" alt="Build and Deploy"/></a>
-  <a href="https://github.com/KirovAir/muxarr/pkgs/container/muxarr"><img src="https://img.shields.io/badge/ghcr.io-kirovair%2Fmuxarr-blue?logo=docker" alt="Docker Image"/></a>
-  <a href="https://github.com/KirovAir/muxarr/pkgs/container/muxarr"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgithub.com%2Fipitio%2Fbackage%2Fraw%2Findex%2FKirovAir%2Fmuxarr%2Fmuxarr.json&query=%24.downloads&label=pulls&logo=docker&color=blue" alt="Docker Pulls"/></a>
-  <a href="https://github.com/KirovAir/muxarr/stargazers"><img src="https://img.shields.io/github/stars/KirovAir/muxarr?style=flat" alt="GitHub Stars"/></a>
-  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3"/></a>
+  <img src="docs/logo.png" alt="Muxarr" width="120"/>
+</p>
+
+<p align="center">
+  <a href="https://muxarr.app"><img src="https://img.shields.io/badge/website-muxarr.app-f97316?style=flat-square&labelColor=1f2229" alt="Website"/></a>
+  <a href="https://github.com/KirovAir/muxarr/releases"><img src="https://img.shields.io/github/v/release/KirovAir/muxarr?include_prereleases&sort=semver&style=flat-square&label=version&color=f97316&labelColor=1f2229" alt="Latest release"/></a>
+  <a href="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/KirovAir/muxarr/build-and-deploy.yml?branch=master&style=flat-square&label=build&labelColor=1f2229" alt="Build"/></a>
+  <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/license-GPLv3-64748b?style=flat-square&labelColor=1f2229" alt="License: GPL v3"/></a>
+</p>
+
+<p align="center">
+  <a href="https://github.com/KirovAir/muxarr/pkgs/container/muxarr"><img src="https://img.shields.io/badge/ghcr.io-kirovair%2Fmuxarr-2496ed?style=flat-square&logo=docker&logoColor=white&labelColor=1f2229" alt="Docker image"/></a>
+  <a href="https://github.com/KirovAir/muxarr/pkgs/container/muxarr"><img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fgithub.com%2Fipitio%2Fbackage%2Fraw%2Findex%2FKirovAir%2Fmuxarr%2Fmuxarr.json&query=%24.downloads&style=flat-square&label=pulls&logo=docker&logoColor=white&color=2496ed&labelColor=1f2229" alt="Docker pulls"/></a>
+  <a href="https://github.com/KirovAir/muxarr/stargazers"><img src="https://img.shields.io/github/stars/KirovAir/muxarr?style=flat-square&label=stars&color=64748b&labelColor=1f2229&logo=github&logoColor=white" alt="GitHub stars"/></a>
 </p>
 
 # Muxarr
