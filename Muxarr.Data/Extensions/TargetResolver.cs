@@ -1,4 +1,5 @@
 using Muxarr.Core.Extensions;
+using Muxarr.Core.Language;
 using Muxarr.Core.MkvToolNix;
 using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
@@ -29,11 +30,23 @@ public static class TargetResolver
             // mkvmerge stops after the video itself; ffmpeg needs a -t cut only mp4 can supply.
             target.TrimToVideoLength = target.TrimToVideoLength && family == ContainerFamily.Mp4;
 
-            // The mov muxer drops +original on stream-copy, so asking for it
-            // would re-flag the file as non-standard on every scan.
             foreach (var track in target.Tracks)
             {
+                // The mov muxer drops +original on stream-copy, so asking for it
+                // would re-flag the file as non-standard on every scan.
                 track.IsOriginal = null;
+
+                // MP4's track language is a packed ISO 639-2 code; a BCP 47
+                // region tag would be mangled to und on write. Ask for the base.
+                // Variants with a real ISO 639 code (cmn, yue) pack fine as-is.
+                if (track.LanguageCode != null)
+                {
+                    var lang = IsoLanguage.Find(track.LanguageCode);
+                    if (lang.IetfTag != null && lang.Base.ThreeLetterCode is { } baseCode)
+                    {
+                        track.LanguageCode = baseCode;
+                    }
+                }
             }
 
             return;

@@ -321,7 +321,7 @@
 
         var iso = IsoLanguage.Find(languageName);
         track.LanguageName = iso.Name;
-        track.LanguageCode = iso.ThreeLetterCode ?? track.LanguageCode;
+        track.LanguageCode = iso.WriteCode ?? track.LanguageCode;
     }
 
     private void ToggleTrack(TrackSnapshot track)

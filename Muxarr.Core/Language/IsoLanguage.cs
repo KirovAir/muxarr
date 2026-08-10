@@ -10,14 +10,57 @@ public class IsoLanguage(
     string displayName,
     string twoLetterCode,
     IReadOnlyList<string> threeLetterCodes,
-    string? nativeName = null)
+    string? nativeName = null,
+    string? ietfTag = null,
+    string? baseName = null)
 {
     public string TwoLetterCode { get; } = twoLetterCode;
     public string Name { get; } = name;
     public string DisplayName { get; } = displayName;
     public string NativeName { get; } = nativeName ?? name;
     public IReadOnlyList<string> ThreeLetterCodes { get; } = threeLetterCodes;
+
+    [JsonIgnore]
     public string? ThreeLetterCode => ThreeLetterCodes.Count > 0 ? ThreeLetterCodes[0] : null;
+
+    /// <summary>
+    /// Canonical BCP 47 tag for regional/script variants ("fr-CA", "es-419", "zh-Hant").
+    /// Null for plain ISO 639 languages.
+    /// </summary>
+    public string? IetfTag { get; } = ietfTag;
+
+    /// <summary>
+    /// Name of the base language a variant belongs to ("French" for "French (Canada)").
+    /// Null for languages that are their own base.
+    /// </summary>
+    public string? BaseName { get; } = baseName;
+
+    [JsonIgnore]
+    public bool IsVariant => BaseName != null;
+
+    /// <summary>
+    /// The base language of a variant, or the language itself. Resolved by name so
+    /// deserialized instances (profile JSON) share the canonical list entries.
+    /// </summary>
+    [JsonIgnore]
+    public IsoLanguage Base => BaseName == null ? this : Find(BaseName);
+
+    /// <summary>
+    /// The code written to files: the BCP 47 tag for variants, the ISO 639-2 code
+    /// otherwise. Never a scene alias like "pob" — those are read-only.
+    /// </summary>
+    [JsonIgnore]
+    public string? WriteCode => IetfTag ?? ThreeLetterCode;
+
+    /// <summary>
+    /// Whether this language covers <paramref name="other"/>: itself, or — for a
+    /// base language — any of its variants. "French" includes "French (Canada)";
+    /// a variant only includes itself.
+    /// </summary>
+    public bool Includes(IsoLanguage other)
+    {
+        return Equals(other) || (!IsVariant && other.IsVariant && Equals(other.Base));
+    }
 
     private static List<IsoLanguage>? _isoLanguages;
 
@@ -98,7 +141,8 @@ public class IsoLanguage(
                 var twoLetterCode = entry.TwoLetterCode ??
                                     (threeLetterCodes.Count > 0 ? threeLetterCodes[0] : "");
 
-                list.Add(new IsoLanguage(entry.Name, entry.Name, twoLetterCode, threeLetterCodes, entry.NativeName));
+                list.Add(new IsoLanguage(entry.Name, entry.Name, twoLetterCode, threeLetterCodes,
+                    entry.NativeName, entry.Ietf, entry.Base));
             }
         }
 
@@ -158,6 +202,10 @@ public class IsoLanguage(
         else if (lang.ThreeLetterCodes.Any(c => c.Equals(input, ic)))
         {
             score = 850;
+        }
+        else if (input.Equals(lang.IetfTag, ic))
+        {
+            score = 840;
         }
         // Prefix matches
         else if (lang.Name.StartsWith(input, ic))
@@ -219,15 +267,25 @@ public class IsoLanguage(
 
     private static IsoLanguage FindCore(string language, bool fuzzySearch)
     {
-        foreach (var isoLanguage in Languages)
+        if (ExactMatch(language) is { } exact)
         {
-            if (language.Equals(isoLanguage.DisplayName, StringComparison.InvariantCultureIgnoreCase)
-                || language.Equals(isoLanguage.Name, StringComparison.InvariantCultureIgnoreCase)
-                || language.Equals(isoLanguage.NativeName, StringComparison.InvariantCultureIgnoreCase)
-                || isoLanguage.ThreeLetterCodes.ContainsInList(language, StringComparison.InvariantCultureIgnoreCase)
-                || language.Equals(isoLanguage.TwoLetterCode, StringComparison.InvariantCultureIgnoreCase))
+            return exact;
+        }
+
+        // BCP 47 fallback: strip subtags until something matches, so an unlisted
+        // regional tag still resolves to its base ("pl-PL" → Polish). Only for a
+        // code-sized primary subtag - hyphenated words ("Latin-Spanish") are not tags.
+        if (language.IndexOf('-') is > 0 and <= 3 && !language.Contains(' '))
+        {
+            var idx = language.LastIndexOf('-');
+            while (idx > 0)
             {
-                return isoLanguage;
+                if (ExactMatch(language[..idx]) is { } baseMatch)
+                {
+                    return baseMatch;
+                }
+
+                idx = language.LastIndexOf('-', idx - 1);
             }
         }
 
@@ -254,6 +312,24 @@ public class IsoLanguage(
         }
 
         return Unknown;
+    }
+
+    private static IsoLanguage? ExactMatch(string language)
+    {
+        foreach (var isoLanguage in Languages)
+        {
+            if (language.Equals(isoLanguage.DisplayName, StringComparison.InvariantCultureIgnoreCase)
+                || language.Equals(isoLanguage.Name, StringComparison.InvariantCultureIgnoreCase)
+                || language.Equals(isoLanguage.NativeName, StringComparison.InvariantCultureIgnoreCase)
+                || isoLanguage.ThreeLetterCodes.ContainsInList(language, StringComparison.InvariantCultureIgnoreCase)
+                || language.Equals(isoLanguage.TwoLetterCode, StringComparison.InvariantCultureIgnoreCase)
+                || language.Equals(isoLanguage.IetfTag, StringComparison.InvariantCultureIgnoreCase))
+            {
+                return isoLanguage;
+            }
+        }
+
+        return null;
     }
 
     public const string UnknownName = "Unknown";
@@ -373,5 +449,11 @@ public class IsoLanguage(
 
         [JsonPropertyName("nativeName")]
         public string? NativeName { get; set; }
+
+        [JsonPropertyName("ietf")]
+        public string? Ietf { get; set; }
+
+        [JsonPropertyName("base")]
+        public string? Base { get; set; }
     }
 }
