@@ -154,6 +154,43 @@ public class ComplexConversionTests : IntegrationTestBase
         Assert.IsTrue(result.Success, $"mkvpropedit {args}: {result.Error}");
     }
 
+    // A "VFQ"-named fre track scans as French (Canada); standardizing then
+    // erases the marker, so the same pass must persist the fr-CA tag and the
+    // converter's rescan must agree there is nothing left - not flap back to
+    // plain French and queue a second rename.
+    [TestMethod]
+    public async Task Profile_Matroska_VariantNamedTrack_StandardizesAndConverges()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var prep = await FileAssertions.ProbeAsync(path);
+        var french = prep.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode == "fre");
+        await Stamp(path, $"--edit track:{french.Index + 1} --set name=VFQ");
+
+        var profile = await SeedComplexProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var scanned = file.Snapshot.Tracks.First(t => t.Index == french.Index);
+        Assert.AreEqual("French (Canada)", scanned.LanguageName, "scan should refine the VFQ marker");
+        Assert.AreEqual("fre", scanned.LanguageCode, "refinement must not claim the file says fr-CA");
+
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromProfile(profile), false);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        var probeFrench = probed.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Audio && t.LanguageCode != "eng");
+        Assert.AreEqual("fr-CA", probeFrench.LanguageCode, "the rewrite that erased the marker must persist the tag");
+        Assert.AreEqual("French (Canada)", probeFrench.LanguageName);
+        StringAssert.StartsWith(probeFrench.Name ?? "", "French (Canada)",
+            "standardized name must carry the variant");
+
+        var after = await Fixture.WithDbContext(async ctx =>
+            await ctx.MediaFiles.WithTracks().FirstAsync(x => x.Path == path));
+        Assert.IsFalse(after.HasRedundantTracks, "the base 'French' entry must keep its variant");
+        Assert.IsFalse(after.HasNonStandardMetadata, "no flap: the rescan must not want to rename it back");
+    }
+
     // --- Custom conversion + mkvpropedit stress suite ---
 
     [TestMethod]

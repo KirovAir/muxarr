@@ -227,6 +227,35 @@ public class BatchTrackEditTests
         Assert.AreEqual(1, second.FileCount);
     }
 
+    // The scanner refines a "VFQ"-named French track to French (Canada), so
+    // setting it back to plain French would flip on the next scan.
+    [TestMethod]
+    public void SettingTheBaseLanguage_OnAVariantNamedTrack_IsSkipped()
+    {
+        var file = MakeFileWithContainer("Matroska", Video(0),
+            Audio(1, "French (Canada)", trackName: "VFQ", languageCode: "fre"));
+
+        var result = Apply(file, [AudioSlot(0, e => e.LanguageName = "French")]);
+
+        Assert.AreEqual(BatchOutcome.Unchanged, result.Outcome);
+        Assert.AreEqual(1, result.Skipped.Count);
+    }
+
+    // Matching the name's variant is the edit that sticks, and it must write the
+    // BCP 47 tag - not the scene alias frc, which BCP 47 reads as Cajun French.
+    [TestMethod]
+    public void SettingTheVariantTheNameIdentifies_WritesTheIetfTag()
+    {
+        var file = MakeFileWithContainer("Matroska", Video(0),
+            Audio(1, "French", trackName: "VFQ", languageCode: "fre"));
+
+        var result = Apply(file, [AudioSlot(0, e => e.LanguageName = "French (Canada)")]);
+
+        Assert.AreEqual(BatchOutcome.Changed, result.Outcome);
+        var delta = ConversionPlanExtensions.Delta(file.Snapshot, result.Plan!);
+        Assert.AreEqual("fr-CA", delta.Tracks.Single(t => t.Index == 1).LanguageCode);
+    }
+
     // MediaFile.Snapshot is declared null! and a file that never scanned has none.
     [TestMethod]
     public void FileWithoutASnapshot_IsSkippedNotThrown()

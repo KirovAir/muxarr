@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Muxarr.Core.Extensions;
 
 namespace Muxarr.Core.MkvToolNix;
 
@@ -36,7 +37,7 @@ public static class TrackNameFlags
 
         foreach (var abbr in HearingImpairedAbbreviations)
         {
-            if (ContainsWord(name, abbr))
+            if (name.ContainsWholeWord(abbr))
             {
                 return true;
             }
@@ -68,7 +69,7 @@ public static class TrackNameFlags
 
         foreach (var abbr in ForcedAbbreviations)
         {
-            if (ContainsWord(name, abbr))
+            if (name.ContainsWholeWord(abbr))
             {
                 return true;
             }
@@ -120,23 +121,5 @@ public static class TrackNameFlags
         var stripped = DubKeywordRegex.Replace(name!, "");
         stripped = Regex.Replace(stripped, @"\s+", " ").Trim();
         return string.IsNullOrEmpty(stripped) ? null : stripped;
-    }
-
-    private static bool ContainsWord(string text, string word)
-    {
-        var index = 0;
-        while ((index = text.IndexOf(word, index, StringComparison.InvariantCultureIgnoreCase)) >= 0)
-        {
-            var startOk = index == 0 || !char.IsLetterOrDigit(text[index - 1]);
-            var endOk = index + word.Length >= text.Length || !char.IsLetterOrDigit(text[index + word.Length]);
-            if (startOk && endOk)
-            {
-                return true;
-            }
-
-            index += word.Length;
-        }
-
-        return false;
     }
 }

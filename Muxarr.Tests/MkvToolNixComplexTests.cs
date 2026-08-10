@@ -33,70 +33,32 @@ public class MkvToolNixComplexTests : FixtureTestBase
 
     // --- Parsing flags from complex file ---
 
+    // One scan, all header-flag assertions - see the fixture map above.
     [TestMethod]
-    public async Task GetFileInfo_ReturnsAllNineTracks()
+    public async Task GetFileInfo_ParsesAllNineTracksAndFlags()
     {
         var info = await MkvMerge.GetFileInfo(_workingCopy);
 
         Assert.IsNotNull(info.Result);
-        Assert.AreEqual(9, info.Result.Tracks.Count);
-    }
+        var tracks = info.Result.Tracks;
+        Assert.AreEqual(9, tracks.Count);
 
-    [TestMethod]
-    public async Task GetFileInfo_ParsesDefaultTrackFlags()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
-
-        Assert.IsTrue(tracks[0].Properties.DefaultTrack, "Video should be default");
-        Assert.IsTrue(tracks[1].Properties.DefaultTrack, "English 5.1 should be default");
-        Assert.IsFalse(tracks[2].Properties.DefaultTrack, "Commentary should not be default");
-        Assert.IsFalse(tracks[3].Properties.DefaultTrack, "French Dub should not be default");
-        Assert.IsTrue(tracks[4].Properties.DefaultTrack, "English sub should be default");
-        Assert.IsFalse(tracks[5].Properties.DefaultTrack, "English Forced should not be default");
-        Assert.IsFalse(tracks[6].Properties.DefaultTrack, "English SDH should not be default");
-        Assert.IsFalse(tracks[7].Properties.DefaultTrack, "French sub should not be default");
-        Assert.IsFalse(tracks[8].Properties.DefaultTrack, "Spanish sub should not be default");
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesForcedFlag()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
+        CollectionAssert.AreEqual(
+            new[] { true, true, false, false, true, false, false, false, false },
+            tracks.Select(t => t.Properties.DefaultTrack).ToArray(),
+            "default flags per track");
 
         Assert.IsFalse(tracks[4].Properties.ForcedTrack, "Regular English sub should not be forced");
         Assert.IsTrue(tracks[5].Properties.ForcedTrack, "English Forced sub should be forced");
         Assert.IsFalse(tracks[6].Properties.ForcedTrack, "English SDH should not be forced");
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesCommentaryFlag()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
 
         Assert.IsFalse(tracks[1].Properties.FlagCommentary, "English 5.1 should not be commentary");
         Assert.IsTrue(tracks[2].Properties.FlagCommentary, "Commentary track should have commentary flag");
         Assert.IsFalse(tracks[3].Properties.FlagCommentary, "French Dub should not be commentary");
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesOriginalFlag()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
 
         Assert.IsTrue(tracks[1].Properties.FlagOriginal, "English 5.1 should have original flag");
         Assert.IsFalse(tracks[2].Properties.FlagOriginal, "Commentary should not have original flag");
         Assert.IsFalse(tracks[3].Properties.FlagOriginal, "French Dub should not have original flag");
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesHearingImpairedFlag()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
 
         Assert.IsFalse(tracks[4].Properties.FlagHearingImpaired, "Regular English sub should not be HI");
         Assert.IsFalse(tracks[5].Properties.FlagHearingImpaired, "English Forced should not be HI");
@@ -104,21 +66,15 @@ public class MkvToolNixComplexTests : FixtureTestBase
     }
 
     [TestMethod]
-    public async Task GetFileInfo_DetectsCommentaryFromName()
+    public async Task GetFileInfo_DetectsFlagsFromTrackNames()
     {
         var info = await MkvMerge.GetFileInfo(_workingCopy);
+        var tracks = info.Result!.Tracks;
 
-        Assert.IsTrue(info.Result!.Tracks[2].IsCommentary(), "Track named 'Commentary' should be detected");
-        Assert.IsFalse(info.Result.Tracks[1].IsCommentary(), "Track named 'English 5.1' should not be detected");
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_DetectsForcedFromName()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-
-        Assert.IsTrue(info.Result!.Tracks[5].IsForced(), "'English Forced' should be detected as forced");
-        Assert.IsFalse(info.Result.Tracks[4].IsForced(), "'English' should not be detected as forced");
+        Assert.IsTrue(tracks[2].IsCommentary(), "Track named 'Commentary' should be detected");
+        Assert.IsFalse(tracks[1].IsCommentary(), "Track named 'English 5.1' should not be detected");
+        Assert.IsTrue(tracks[5].IsForced(), "'English Forced' should be detected as forced");
+        Assert.IsFalse(tracks[4].IsForced(), "'English' should not be detected as forced");
     }
 
     // --- RemuxFile with default/forced flags ---
