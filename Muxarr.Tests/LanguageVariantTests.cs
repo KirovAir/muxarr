@@ -248,6 +248,22 @@ public class LanguageVariantTests
         Assert.AreEqual(2, result.Count, "Explicit variant entry splits it out of the base group");
     }
 
+    // The trap the profile editor warns about: a variant entry matches only tracks
+    // identified as that variant, so a track carrying just "French" is dropped even
+    // though nothing says it is the wrong one.
+    [TestMethod]
+    public void VariantPreference_WithoutItsBase_DropsPlainLanguageTracks()
+    {
+        var tracks = new List<TrackSnapshot> { Audio(1, "English"), Audio(2, "French") };
+
+        var kept = tracks.GetAllowedTracks(Allow("English", "French (France)"), "English");
+        var keptWithBase = tracks.GetAllowedTracks(Allow("English", "French (France)", "French"), "English");
+
+        CollectionAssert.AreEqual(new[] { 1 }, kept.Select(t => t.Index).ToArray());
+        CollectionAssert.AreEqual(new[] { 1, 2 }, keptWithBase.Select(t => t.Index).ToArray(),
+            "adding the base language back is the way out");
+    }
+
     [TestMethod]
     public void Issue60_KeepQuebecFrench_DropsTheFranceDub()
     {

@@ -136,6 +136,18 @@
             </ToolTip>
         }
     </div>
+
+    @if (UnpairedVariants.Count > 0)
+    {
+        <small class="form-text text-warning d-block mt-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            @(UnpairedVariants.Count == 1 ? "This is a regional variant:" : "These are regional variants:")
+            <strong>@string.Join(", ", UnpairedVariants.Select(v => v.Name))</strong>.
+            Only tracks identified as that variant are kept; add
+            <strong>@string.Join(", ", UnpairedVariants.Select(v => v.Base.Name).Distinct())</strong>
+            as well to keep tracks tagged with just the plain language, which is most releases.
+        </small>
+    }
 </div>
 
 @code {
@@ -148,6 +160,12 @@
     private int _expandedIndex = -1;
     private int _dragSourceIndex = -1;
     private int _dragOverIndex = -1;
+
+    // Listing a variant without its base drops every track tagged with just the plain language.
+    private List<IsoLanguage> UnpairedVariants =>
+        Languages.Select(x => IsoLanguage.Find(x.Name))
+            .Where(l => l.IsVariant && Languages.All(x => x.Name != l.Base.Name))
+            .ToList();
 
     private bool HasOriginalLanguage => Languages.Any(l => l.IsOriginalLanguagePlaceholder);
 
