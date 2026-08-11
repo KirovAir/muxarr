@@ -73,25 +73,159 @@ public static class LanguageVariants
                 continue;
             }
 
-            // The variant's own names count as self-identifying markers, so a
-            // standardized track name ("French (Canada) AC3") survives a rescan.
             if (ContainsToken(name, variant.SelfIdentifying)
-                || ContainsToken(name, [target.Name, target.NativeName])
+                || ContainsToken(name, OwnMarkers(target))
                 || (baseMatches && ContainsToken(name, variant.BaseOnly)))
             {
                 return target.Equals(current) ? null : target;
             }
         }
 
+        // Whatever EncodeInName writes has to read back, including for variants
+        // the table carries no scene markers for.
+        foreach (var target in UnlistedVariants.Value)
+        {
+            if ((!currentIsSet || target.Base.Equals(current)) && ContainsToken(name, CanonicalMarkers(target)))
+            {
+                return target;
+            }
+        }
+
         return null;
+    }
+
+    /// <summary>
+    /// Ensures a track name says which variant the track is. The mirror of
+    /// <see cref="Detect"/>, and the same trick TrackNameFlags.EncodeDubInName
+    /// plays for the dub flag: where a container cannot hold a BCP 47 tag, the
+    /// name is the only carrier the variant has.
+    /// </summary>
+    public static string? EncodeInName(string? name, IsoLanguage language)
+    {
+        var current = name ?? "";
+        var detected = Detect(current, language.Base);
+        if (detected != null && detected.Equals(language))
+        {
+            return name;
+        }
+
+        var stripped = detected == null && !language.IsVariant
+            ? current
+            : StripMarkers(current, (detected ?? language).Base, language);
+
+        return language.IsVariant
+            ? string.IsNullOrEmpty(stripped) ? language.Name : $"{language.Name} {stripped}"
+            : NullIfEmpty(stripped);
+    }
+
+    /// <summary>
+    /// Drops markers that contradict <paramref name="language"/> without writing
+    /// one in, for when the tag is carrier enough on its own. A scan still reads
+    /// the name as a second source, so a marker left over from the old language
+    /// would override the tag and undo the edit.
+    /// </summary>
+    public static string? StripContradictions(string? name, IsoLanguage language)
+    {
+        var current = name ?? "";
+        var detected = Detect(current, language.Base);
+        if (detected == null || detected.Equals(language))
+        {
+            return name;
+        }
+
+        return NullIfEmpty(StripMarkers(current, detected.Base, language));
+    }
+
+    /// <summary>
+    /// Removes the markers of the family the name currently claims, which is not
+    /// always the family of the language being set: "Undetermined" has none of its
+    /// own and would strip nothing. Markers of the language being set stay, since
+    /// they agree with it.
+    /// </summary>
+    private static string StripMarkers(string name, IsoLanguage family, IsoLanguage language)
+    {
+        // One pass can fuse the leftovers into a fresh marker: "European Latino
+        // Spanish" loses "Latino" and closes up into "European Spanish", which
+        // reads back as Spain. Tidy and repeat until the name stops changing,
+        // which it must, since it only ever shrinks.
+        string previous;
+        do
+        {
+            previous = name;
+            name = string.Join(' ', StripFamilyOnce(name, family, language)
+                .Split(' ', StringSplitOptions.RemoveEmptyEntries));
+        } while (name != previous);
+
+        return name;
+    }
+
+    private static string StripFamilyOnce(string name, IsoLanguage family, IsoLanguage language)
+    {
+        foreach (var variant in Table)
+        {
+            var target = IsoLanguage.Find(variant.Name);
+            if (!target.Base.Equals(family) || target.Equals(language))
+            {
+                continue;
+            }
+
+            foreach (var token in OwnMarkers(target).Concat(variant.SelfIdentifying).Concat(variant.BaseOnly))
+            {
+                name = RemoveToken(name, token);
+            }
+        }
+
+        foreach (var target in UnlistedVariants.Value)
+        {
+            if (target.Base.Equals(family) && !target.Equals(language))
+            {
+                name = CanonicalMarkers(target).Aggregate(name, RemoveToken);
+            }
+        }
+
+        // The base's own name goes too when a variant replaces it, or "French AAC"
+        // comes back as "French (Canada) French AAC".
+        return language.IsVariant
+            ? RemoveToken(RemoveToken(name, language.Base.Name), language.Base.NativeName)
+            : name;
+    }
+
+    // Variants the table carries no scene markers for. They still answer to the
+    // canonical spellings we write ourselves.
+    private static readonly Lazy<IsoLanguage[]> UnlistedVariants = new(() =>
+        IsoLanguage.Languages
+            .Where(l => l.IsVariant && Table.All(v => v.Name != l.Name))
+            .ToArray());
+
+    // The names a language answers to in a track title. Variants add their codes,
+    // so a "{code}" or "{lang}" template round-trips: "fr-CA AAC" reads back as
+    // Quebec French. Base languages don't, or a stray "fr" would claim a track.
+    private static string?[] OwnMarkers(IsoLanguage language)
+    {
+        return language.IsVariant
+            ? [language.Name, language.NativeName, language.IetfTag, language.TwoLetterCode]
+            : [language.Name, language.NativeName];
+    }
+
+    // What an uncurated variant matches on: only spellings that cannot be
+    // mistaken for a sibling. "中文" is Chinese (Bilingual)'s native name and a
+    // substring of every other Chinese variant's, so native names stay out.
+    private static string?[] CanonicalMarkers(IsoLanguage variant)
+    {
+        return [variant.Name, variant.IetfTag];
     }
 
     // ASCII tokens match on word boundaries; tokens with accents or CJK characters
     // match as substrings, since CJK text has no word boundaries to anchor on.
-    private static bool ContainsToken(string name, string[] tokens)
+    private static bool ContainsToken(string name, string?[] tokens)
     {
         foreach (var token in tokens)
         {
+            if (string.IsNullOrEmpty(token))
+            {
+                continue;
+            }
+
             var isAscii = token.All(char.IsAscii);
             if (isAscii ? name.ContainsWholeWord(token)
                     : name.Contains(token, StringComparison.InvariantCultureIgnoreCase))
@@ -101,5 +235,22 @@ public static class LanguageVariants
         }
 
         return false;
+    }
+
+    private static string RemoveToken(string name, string? token)
+    {
+        if (string.IsNullOrEmpty(token))
+        {
+            return name;
+        }
+
+        return token.All(char.IsAscii)
+            ? name.RemoveWholeWord(token)
+            : name.Replace(token, "", StringComparison.InvariantCultureIgnoreCase);
+    }
+
+    private static string? NullIfEmpty(string name)
+    {
+        return string.IsNullOrWhiteSpace(name) ? null : name;
     }
 }

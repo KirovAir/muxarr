@@ -318,8 +318,10 @@ public static class MediaFileExtensions
     /// variant marker ("VFQ", "Truefrench", "Latino") refines a base language to its
     /// regional form. Refinement changes the display name only — LanguageCode keeps
     /// what the file actually says, so nothing is written back on its account.
+    /// Public because a preview of a track has to read the same way a scan of it
+    /// would, or the UI shows a language the next scan disagrees with.
     /// </summary>
-    private static void RefineLanguageFromName(this TrackSnapshot track)
+    public static void RefineLanguageFromName(this TrackSnapshot track)
     {
         if (track.Type == MediaTrackType.Video || string.IsNullOrEmpty(track.Name))
         {
@@ -902,7 +904,19 @@ public static class MediaFileExtensions
         int totalTracksOfType, string? originalLanguage, bool standardizeNames = true)
     {
         track.CorrectFlagsFromTrackName();
+        track.ApplyProfileState(settings, totalTracksOfType, originalLanguage, standardizeNames);
+    }
 
+    /// <summary>
+    /// The profile's view of a track once its flags are settled: undetermined
+    /// language resolution, the original-language flag and the standardized name.
+    /// Split out because a track being edited by hand already has the flags its
+    /// owner wants, and re-reading them off the name it is about to lose would
+    /// just put the old ones back.
+    /// </summary>
+    private static void ApplyProfileState(this TrackSnapshot track, TrackSettings? settings,
+        int totalTracksOfType, string? originalLanguage, bool standardizeNames)
+    {
         if (track.ShouldResolveUndetermined(settings, totalTracksOfType, originalLanguage))
         {
             var iso = IsoLanguage.Find(originalLanguage!);
@@ -923,8 +937,8 @@ public static class MediaFileExtensions
             // Standardizing overwrites the name that carries a detected variant
             // marker ("VFQ") - the only evidence of the variant when the file is
             // tagged with the base code. Persist it in the language tag as part
-            // of the same rewrite; containers that cannot hold a BCP 47 tag
-            // downgrade it again in TargetResolver.
+            // of the same rewrite; containers that cannot hold a BCP 47 tag put
+            // it back into the name in TargetResolver.
             var named = IsoLanguage.Find(track.LanguageName);
             if (named.IetfTag is { } ietf && IsoLanguage.Find(track.LanguageCode).Equals(named.Base))
             {
@@ -934,6 +948,86 @@ public static class MediaFileExtensions
             var template = settings.ResolveTemplate(track);
             track.Name = track.ApplyTrackNameTemplate(template);
         }
+    }
+
+    /// <summary>
+    /// Applies a metadata edit to a track and keeps its name in step. The name is
+    /// a carrier, not decoration, and an edit that leaves it behind is read
+    /// straight back on the next scan. A name the user typed themselves is only
+    /// corrected for what the container cannot hold on its own.
+    /// </summary>
+    public static void ApplyTrackEdit(this TrackSnapshot track, MediaFile file, Profile? profile,
+        IEnumerable<TrackSnapshot> siblings, Action<TrackSnapshot> edit)
+    {
+        var settings = profile == null ? null : SettingsFor(track.Type, profile);
+        var family = file.Snapshot.ContainerType.ToContainerFamily();
+        var totalOfType = siblings.Count(t => t.Type == track.Type);
+
+        var standardized = StandardizedName(track, settings, family, totalOfType, file.OriginalLanguage);
+        var wasStandardized = standardized != null
+                              && string.Equals(track.Name ?? "", standardized, StringComparison.Ordinal);
+        var language = track.LanguageName;
+        var isDub = track.IsDub;
+
+        edit(track);
+
+        var name = track.Name;
+        if (wasStandardized)
+        {
+            name = StandardizedName(track, settings, family, totalOfType, file.OriginalLanguage);
+        }
+        else
+        {
+            if (!string.Equals(track.LanguageName, language, StringComparison.Ordinal))
+            {
+                // A marker for the old language has to go whatever the container,
+                // since the scan reads it as a second source and it would override
+                // the new tag. Writing the new marker in is only needed where the
+                // tag cannot say it: MP4 packs a plain ISO code, and even Matroska
+                // has nothing for a variant that shares its base's code.
+                var picked = IsoLanguage.Find(track.LanguageName);
+                var tagSaysIt = family == ContainerFamily.Matroska
+                                && !string.Equals(picked.WriteCode, picked.Base.WriteCode, StringComparison.Ordinal);
+                name = tagSaysIt
+                    ? LanguageVariants.StripContradictions(name, picked)
+                    : LanguageVariants.EncodeInName(name, picked);
+            }
+
+            if (family == ContainerFamily.Matroska && track.IsDub != isDub)
+            {
+                name = TrackNameFlags.EncodeDubInName(name, track.IsDub);
+            }
+        }
+
+        // "" rather than null: an emptied name is an explicit clear, not "no opinion".
+        if (!string.Equals(name ?? "", track.Name ?? "", StringComparison.Ordinal))
+        {
+            track.Name = name ?? "";
+        }
+    }
+
+    // The name the profile's standardization would give this track, or null when
+    // it doesn't standardize this type.
+    private static string? StandardizedName(TrackSnapshot track, TrackSettings? settings,
+        ContainerFamily family, int totalTracksOfType, string? originalLanguage)
+    {
+        if (settings is not { StandardizeTrackNames: true })
+        {
+            return null;
+        }
+
+        var preview = track.ToSnapshot();
+        preview.ApplyProfileState(settings, totalTracksOfType, originalLanguage, standardizeNames: true);
+        return CarryInName(preview.Name, preview, family);
+    }
+
+    // Metadata the container cannot hold natively lives in the track name:
+    // Matroska has no FlagDub element, and only Matroska holds a BCP 47 tag.
+    private static string? CarryInName(string? name, TrackSnapshot track, ContainerFamily family)
+    {
+        return family == ContainerFamily.Matroska
+            ? TrackNameFlags.EncodeDubInName(name, track.IsDub)
+            : LanguageVariants.EncodeInName(name, IsoLanguage.Find(track.LanguageName));
     }
 
     public static void CorrectFlagsFromTrackName(this TrackSnapshot track)

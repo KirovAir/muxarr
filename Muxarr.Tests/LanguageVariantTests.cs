@@ -434,6 +434,192 @@ public class LanguageVariantTests
         Assert.AreEqual(expected, target.Tracks.Single(t => t.Index == 1).LanguageCode);
     }
 
+    // --- The track name as a carrier ---
+
+    [TestMethod]
+    [DataRow("French AAC 2.0", "French (Canada)", "French (Canada) AAC 2.0", DisplayName = "Base name replaced")]
+    [DataRow("VFQ 5.1", "French (France)", "French (France) 5.1", DisplayName = "Rival marker replaced")]
+    [DataRow("AAC 2.0", "French (Canada)", "French (Canada) AAC 2.0", DisplayName = "Marker added")]
+    [DataRow("French (Canada) AAC", "French (Canada)", "French (Canada) AAC", DisplayName = "Already says it")]
+    [DataRow("fr-CA AAC", "French (Canada)", "fr-CA AAC", DisplayName = "A {lang} template says it too")]
+    [DataRow("Truefrench AAC", "French", "AAC", DisplayName = "Back to base strips the marker")]
+    [DataRow("French VFQ AAC", "French", "French AAC", DisplayName = "Base name is not a contradiction")]
+    [DataRow("VFQ", "French", null, DisplayName = "Nothing left but the marker")]
+    [DataRow("VFQ 5.1", "Undetermined", "5.1", DisplayName = "Undetermined strips whatever it finds")]
+    [DataRow("European Latino Spanish", "Spanish", null,
+        DisplayName = "Leftovers may not fuse into a new marker")]
+    [DataRow("English AAC", "French", "English AAC", DisplayName = "Another language is not ours to touch")]
+    [DataRow(null, "French (Canada)", "French (Canada)", DisplayName = "No name at all")]
+    public void EncodeInName_MakesTheNameAgreeWithTheLanguage(string? name, string language, string? expected)
+    {
+        Assert.AreEqual(expected, LanguageVariants.EncodeInName(name, IsoLanguage.Find(language)));
+    }
+
+    // Encode and Detect are two halves of one carrier: whatever Encode writes,
+    // the next scan has to read back as the same variant. Every variant in the
+    // list, so adding one to iso_custom.json without a detection marker fails
+    // here instead of in someone's library.
+    [TestMethod]
+    public void EncodeInName_RoundTripsThroughDetect_ForEveryVariant()
+    {
+        var missed = IsoLanguage.Languages
+            .Where(l => l.IsVariant)
+            .Where(v => !v.Equals(LanguageVariants.Detect(LanguageVariants.EncodeInName("AAC 5.1", v), v.Base)))
+            .Select(v => v.Name)
+            .ToList();
+
+        Assert.AreEqual(0, missed.Count, $"not readable back off the name: {string.Join(", ", missed)}");
+    }
+
+    // The custom conversion modal's edit pass. A standardized name spells out the
+    // language, so a language pick that leaves it behind hands the profile a
+    // rename to queue the moment the conversion lands.
+    [TestMethod]
+    public void CustomEdit_LanguagePick_RenamesAStandardizedTrack_AndTheProfileHasNothingLeft()
+    {
+        var profile = MakeProfile(audio: Standardizing("{language}"));
+        var file = MakeMkvFile("English", Video(0), Audio(1, "French", trackName: "French"));
+        var track = file.Snapshot.Tracks.ToSnapshots()[1];
+
+        track.ApplyTrackEdit(file, profile, file.Snapshot.Tracks,
+            t => t.LanguageName = "French (Canada)");
+
+        Assert.AreEqual("French (Canada)", track.Name);
+
+        var applied = ScanMkv(
+            MkvTrack(0, "video", "und"),
+            MkvAudio(1, "fre", ietf: "fr-CA", name: track.Name));
+        Assert.IsFalse(applied.CheckHasNonStandardMetadata(profile), "no rename may be left over");
+    }
+
+    // Matroska holds the tag, but a "VFQ" left in the name refines the track back
+    // to Quebec French on the next scan, so picking plain French could never stick.
+    [TestMethod]
+    public void CustomEdit_LanguagePick_StripsAContradictingMarkerOnMatroska()
+    {
+        var file = MakeMkvFile("English", Video(0),
+            Audio(1, "French (Canada)", languageCode: "fre", trackName: "VFQ 5.1"));
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+
+        tracks[1].ApplyTrackEdit(file, null, tracks, t =>
+        {
+            t.LanguageName = "French";
+            t.LanguageCode = "fre";
+        });
+
+        Assert.AreEqual("5.1", tracks[1].Name);
+        Assert.IsNull(LanguageVariants.Detect(tracks[1].Name, IsoLanguage.Find("French")));
+    }
+
+    // The fr-CA tag outranks the name on the next scan, so this one is about not
+    // leaving a name that says France on a Quebec track.
+    [TestMethod]
+    public void CustomEdit_LanguagePick_DropsARivalMarkerTheTagAlreadyOutranks()
+    {
+        var file = MakeMkvFile("English", Video(0),
+            Audio(1, "French (France)", languageCode: "fr-FR", trackName: "VFF 5.1"));
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+
+        tracks[1].ApplyTrackEdit(file, null, tracks, t =>
+        {
+            t.LanguageName = "French (Canada)";
+            t.LanguageCode = "fr-CA";
+        });
+
+        Assert.AreEqual("5.1", tracks[1].Name);
+    }
+
+    // Matroska holds a tag, but not one that tells Chinese (Bilingual) from plain
+    // Chinese, so that pick needs the name even there.
+    [TestMethod]
+    public void CustomEdit_LanguagePick_UsesTheNameWhenTheTagCannotSayIt()
+    {
+        var file = MakeMkvFile("English", Video(0), Audio(1, "Chinese", trackName: "AAC 5.1"));
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+
+        tracks[1].ApplyTrackEdit(file, null, tracks, t => t.LanguageName = "Chinese (Bilingual)");
+
+        Assert.AreEqual("Chinese (Bilingual) AAC 5.1", tracks[1].Name);
+    }
+
+    [TestMethod]
+    public void CustomEdit_LanguagePick_LeavesANameTheUserWrote()
+    {
+        var profile = MakeProfile(audio: Standardizing("{language}"));
+        var file = MakeMkvFile("English", Video(0), Audio(1, "French", trackName: "Version longue"));
+        var track = file.Snapshot.Tracks.ToSnapshots()[1];
+
+        track.ApplyTrackEdit(file, profile, file.Snapshot.Tracks,
+            t => t.LanguageName = "French (Canada)");
+
+        Assert.AreEqual("Version longue", track.Name);
+    }
+
+    // MP4 cannot hold the tag, so there the name is the only carrier and the pick
+    // has to land in it - otherwise the resolver drops the region and the
+    // conversion has nothing left to do.
+    [TestMethod]
+    public void CustomEdit_LanguagePick_OnMp4_PutsTheVariantInTheName()
+    {
+        var file = MakeMkvFile("English", Video(0), Audio(1, "French", trackName: "Version longue"));
+        file.Snapshot.ContainerType = "MP4/QuickTime";
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+
+        tracks[1].ApplyTrackEdit(file, null, tracks, t =>
+        {
+            t.LanguageName = "French (Canada)";
+            t.LanguageCode = "fr-CA";
+        });
+
+        Assert.AreEqual("French (Canada) Version longue", tracks[1].Name);
+
+        var target = file.BuildTargetFromCustom(tracks).Tracks.Single(t => t.Index == 1);
+        Assert.AreEqual("fre", target.LanguageCode, "the tag still downgrades");
+        Assert.AreEqual("French (Canada) Version longue", target.Name, "the name carries it instead");
+    }
+
+    // Regenerating a standardized name may not re-read the flags off the name it
+    // is replacing, or turning one off would just put it straight back.
+    [TestMethod]
+    public void CustomEdit_DubToggleOff_ClearsItFromAStandardizedName()
+    {
+        var profile = MakeProfile(audio: Standardizing("{language} {codec}"));
+        var file = MakeMkvFile("English", Video(0), Audio(1, "French", dub: true, trackName: "French AAC Dub"));
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+
+        tracks[1].ApplyTrackEdit(file, profile, tracks, t => t.IsDub = false);
+
+        Assert.AreEqual("French AAC", tracks[1].Name);
+    }
+
+    [TestMethod]
+    public void CustomEdit_DubToggle_StillEncodesIntoTheNameOnMatroska()
+    {
+        var file = MakeMkvFile("English", Video(0), Audio(1, "French", trackName: "French"));
+        var tracks = file.Snapshot.Tracks.ToSnapshots();
+
+        tracks[1].ApplyTrackEdit(file, null, tracks, t => t.IsDub = true);
+
+        Assert.AreEqual("French Dub", tracks[1].Name);
+    }
+
+    // The profile's own path onto a container without a tag to write to.
+    [TestMethod]
+    public void Mp4Target_MovesTheVariantIntoTheNameWhenItIsFreeToRename()
+    {
+        var file = MakeMkvFile("English", Video(0), Audio(1, "French", trackName: "AAC 5.1"));
+        file.Snapshot.ContainerType = "MP4/QuickTime";
+
+        var target = new ConversionPlan
+        {
+            Tracks = [new TrackPlan { Index = 1, Type = MediaTrackType.Audio, LanguageCode = "fr-CA" }]
+        };
+        TargetResolver.ResolveForContainer(target, file.Snapshot);
+
+        Assert.AreEqual("fre", target.Tracks[0].LanguageCode);
+        Assert.AreEqual("French (Canada) AAC 5.1", target.Tracks[0].Name);
+    }
+
     // --- Standardized names ---
 
     // Standardizing overwrites the "VFQ" name that carried the variant, so the
@@ -497,6 +683,14 @@ public class LanguageVariantTests
             Enabled = true,
             AllowedLanguages = languages.Select(l => new LanguagePreference(IsoLanguage.Find(l))).ToList()
         };
+    }
+
+    private static TrackSettings Standardizing(string template)
+    {
+        var settings = Allow("French", "English");
+        settings.StandardizeTrackNames = true;
+        settings.TrackNameTemplate = template;
+        return settings;
     }
 
     private static MediaFile MakeMkvFile(string? originalLanguage, params TrackSnapshot[] tracks)
