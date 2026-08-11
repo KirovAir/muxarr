@@ -61,7 +61,7 @@ public class LanguageVariantTests
         Assert.AreEqual("French", quebec.Base.Name);
         Assert.IsTrue(french.Includes(quebec), "Base covers its variants");
         Assert.IsTrue(french.Includes(french), "A language covers itself");
-        Assert.IsFalse(quebec.Includes(french), "A variant does not cover its base");
+        Assert.IsTrue(quebec.Includes(french), "A variant covers tracks that name no region");
         Assert.IsFalse(quebec.Includes(IsoLanguage.Find("French (France)")), "Variants do not cover each other");
         Assert.IsTrue(IsoLanguage.Find("Chinese").Includes(IsoLanguage.Find("Cantonese")));
         Assert.IsFalse(french.Includes(IsoLanguage.Find("Spanish (Spain)")));
@@ -93,6 +93,8 @@ public class LanguageVariantTests
     [DataRow("VFQ", "French", "French (Canada)")]
     [DataRow("VFQ AC3 5.1", "French", "French (Canada)")]
     [DataRow("Québécois", "French", "French (Canada)")]
+    [DataRow("Canadian", "French", "French (Canada)")]
+    [DataRow("Canada", "Undetermined", null, DisplayName = "Generic region word needs a matching base")]
     [DataRow("Truefrench - E-AC-3 5.1", "French", "French (France)")]
     [DataRow("VFF 5.1", "French", "French (France)")]
     [DataRow("VFB", "French", "French (Belgium)")]
@@ -248,20 +250,41 @@ public class LanguageVariantTests
         Assert.AreEqual(2, result.Count, "Explicit variant entry splits it out of the base group");
     }
 
-    // The trap the profile editor warns about: a variant entry matches only tracks
-    // identified as that variant, so a track carrying just "French" is dropped even
-    // though nothing says it is the wrong one.
+    // Picking a variant means "this language, not the other regions of it". A track
+    // that names no region could be the one you want, so it stays.
     [TestMethod]
-    public void VariantPreference_WithoutItsBase_DropsPlainLanguageTracks()
+    public void VariantPreference_KeepsUnmarkedTracks_DropsTheRivalVariant()
     {
-        var tracks = new List<TrackSnapshot> { Audio(1, "English"), Audio(2, "French") };
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English"),
+            Audio(2, "French"),
+            Audio(3, "French (Canada)")
+        };
 
         var kept = tracks.GetAllowedTracks(Allow("English", "French (France)"), "English");
-        var keptWithBase = tracks.GetAllowedTracks(Allow("English", "French (France)", "French"), "English");
+
+        CollectionAssert.AreEqual(new[] { 1, 2 }, kept.Select(t => t.Index).ToArray());
+    }
+
+    // Wanting European French out of files that tag both dubs "fra" and only tell
+    // them apart in the track name.
+    [TestMethod]
+    public void VariantPreference_DropsAQuebecTrackIdentifiedByItsNameAlone()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "French", trackName: "French"),
+            Sub(2, "French", trackName: "VFQ")
+        };
+        foreach (var track in tracks)
+        {
+            track.RefineLanguageFromName();
+        }
+
+        var kept = tracks.GetAllowedTracks(Allow("French (France)"), "English");
 
         CollectionAssert.AreEqual(new[] { 1 }, kept.Select(t => t.Index).ToArray());
-        CollectionAssert.AreEqual(new[] { 1, 2 }, keptWithBase.Select(t => t.Index).ToArray(),
-            "adding the base language back is the way out");
     }
 
     [TestMethod]

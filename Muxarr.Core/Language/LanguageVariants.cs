@@ -26,7 +26,7 @@ public static class LanguageVariants
     [
         new("French (Canada)",
             ["VFQ", "VOQ", "Québécois", "Quebecois", "Canadian French", "French Canadian"],
-            ["VQ", "Québec", "Quebec"]),
+            ["VQ", "Québec", "Quebec", "Canada", "Canadian"]),
         new("French (France)", ["VFF", "Truefrench", "True French"], []),
         new("French (Belgium)", ["VFB"], []),
         new("French", ["VFI", "VOF", "VF"], []),

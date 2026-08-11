@@ -53,13 +53,13 @@ public class IsoLanguage(
     public string? WriteCode => IetfTag ?? ThreeLetterCode;
 
     /// <summary>
-    /// Whether this language covers <paramref name="other"/>: itself, or — for a
-    /// base language — any of its variants. "French" includes "French (Canada)";
-    /// a variant only includes itself.
+    /// Whether this language, as a profile entry, keeps a track tagged <paramref name="other"/>.
+    /// A base covers its variants, a variant covers tracks of its base that name no region of
+    /// their own, and two variants never cover each other.
     /// </summary>
     public bool Includes(IsoLanguage other)
     {
-        return Equals(other) || (!IsVariant && other.IsVariant && Equals(other.Base));
+        return Equals(other) || Equals(other.Base) || Base.Equals(other);
     }
 
     private static List<IsoLanguage>? _isoLanguages;
