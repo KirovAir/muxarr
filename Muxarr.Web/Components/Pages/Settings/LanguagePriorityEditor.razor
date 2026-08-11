@@ -139,11 +139,11 @@
 
     @foreach (var variant in SelectedVariants)
     {
-        <small class="form-text text-muted d-block mt-2">
-            <i class="bi bi-info-circle me-1"></i>
-            <strong>@variant.Name</strong> keeps @variant.Base.Name tracks and drops the ones identified as
-            another @variant.Base.Name variant, from their language tag or a marker in the track name.
-            Tracks that name no region are kept.
+        <small class="form-text text-warning d-block mt-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>
+            <strong>@variant.Name</strong> keeps @variant.Base.Name tracks, but drops any identified as a
+            different @variant.Base.Name region by their language tag or track name.
+            Tracks that have no region are kept.
         </small>
     }
 </div>
