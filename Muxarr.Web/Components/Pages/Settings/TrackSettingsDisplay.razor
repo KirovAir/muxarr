@@ -8,9 +8,21 @@ else
 {
     @if (Settings.Enabled)
     {
-        @foreach (var lang in Settings.AllowedLanguages)
+        @for (var i = 0; i < Settings.AllowedLanguages.Count; i++)
         {
-            @if (lang.IsOriginalLanguagePlaceholder)
+            var lang = Settings.AllowedLanguages[i];
+            var label = lang.IsOriginalLanguagePlaceholder ? "Original" : lang.DisplayName;
+            var covered = Settings.AllowedLanguages.FallbackFor(i);
+
+            @if (covered.Count > 0)
+            {
+                <ToolTip Tip="@($"Tracks in {label} are only kept when the file has no {Names(covered)}")">
+                    <span class="badge text-bg-secondary me-1">
+                        <i class="bi bi-arrow-return-right me-1"></i>@label
+                    </span>
+                </ToolTip>
+            }
+            else if (lang.IsOriginalLanguagePlaceholder)
             {
                 <ToolTip Tip="Original language track will be preserved">
                     <span class="badge text-bg-success me-1"><i class="bi bi-film me-1"></i>Original</span>
@@ -18,8 +30,8 @@ else
             }
             else
             {
-                <ToolTip Tip="@($"Tracks in {lang.DisplayName} will be kept")">
-                    <span class="badge text-bg-success me-1">@lang.DisplayName</span>
+                <ToolTip Tip="@($"Tracks in {label} will be kept")">
+                    <span class="badge text-bg-success me-1">@label</span>
                 </ToolTip>
             }
         }
@@ -131,6 +143,12 @@ else
 
 @code {
     [Parameter] [EditorRequired] public TrackSettings Settings { get; set; } = null!;
+
+    private static string Names(List<LanguagePreference> languages)
+    {
+        return string.Join(" or ",
+            languages.Select(l => l.IsOriginalLanguagePlaceholder ? "original language" : l.DisplayName));
+    }
 
     private bool IsUnmodified =>
         !Settings.Enabled

@@ -8,11 +8,11 @@
         var pref = Languages[index];
         var isFirst = index == 0;
         var isExpanded = _expandedIndex == index;
-        var isDragOver = _dragOverIndex == index && _dragSourceIndex != index;
+        var isDragOver = _dragOverIndex == index;
         var isOriginal = pref.IsOriginalLanguagePlaceholder;
 
         <div
-            class="lpe-item @(isDragOver ? "lpe-item-dragover" : "") @(_dragSourceIndex == index ? "lpe-item-dragging" : "") @(isOriginal ? "lpe-item-original" : "")"
+            class="lpe-item @(isDragOver ? "lpe-item-dragover" : "") @(_dragSourceIndex == index ? "lpe-item-dragging" : "") @(isOriginal ? "lpe-item-original" : "") @(pref.IsFallback ? "lpe-item-fallback" : "")"
             draggable="true"
             @ondragstart="() => OnDragStart(index)"
             @ondragenter="() => OnDragEnter(index)"
@@ -21,7 +21,7 @@
             @ondragend="OnDragEnd">
 
             <i class="bi bi-grip-vertical lpe-drag-handle"></i>
-            <span class="lpe-priority-number">@(index + 1)</span>
+            <span class="lpe-priority-number">@(pref.IsFallback ? "" : GroupNumber(index).ToString())</span>
 
             @if (isOriginal)
             {
@@ -35,6 +35,23 @@
             {
                 <span class="lpe-lang-name">@pref.Name</span>
                 <span class="lpe-lang-code">@pref.ThreeLetterCode</span>
+            }
+
+            @if (pref.IsFallback)
+            {
+                <span class="lpe-fallback-note">@FallbackNote(index)</span>
+            }
+
+            @if (!isFirst)
+            {
+                <ToolTip
+                    Tip="@(pref.IsFallback ? "Always keep this language" : "Keep this language only when the one above it is missing")">
+                    <button type="button"
+                            class="lpe-icon-btn @(pref.IsFallback ? "lpe-fallback-active" : "")"
+                            @onclick="() => ToggleFallback(index)">
+                        <i class="bi bi-arrow-return-right"></i>
+                    </button>
+                </ToolTip>
             }
 
             <ToolTip Tip="Per-language settings">
@@ -54,7 +71,7 @@
 
         @if (isExpanded)
         {
-            <div class="lpe-advanced-panel">
+            <div class="lpe-advanced-panel @(pref.IsFallback ? "lpe-panel-indent" : "")">
                 <div class="row g-2">
                     <div class="col-6">
                         <ToolTip
@@ -158,6 +175,12 @@
     private int _expandedIndex = -1;
     private int _dragSourceIndex = -1;
     private int _dragOverIndex = -1;
+    private int _dragLength;
+
+    protected override void OnParametersSet()
+    {
+        Normalize();
+    }
 
     // Explained only when the base is absent; with both listed the base keeps everything anyway.
     private List<IsoLanguage> SelectedVariants =>
@@ -167,33 +190,135 @@
 
     private bool HasOriginalLanguage => Languages.Any(l => l.IsOriginalLanguagePlaceholder);
 
+    // --- Fallback groups ---
+
+    private static string Label(LanguagePreference pref)
+    {
+        return pref.IsOriginalLanguagePlaceholder ? "original language" : pref.Name;
+    }
+
+    // Only the anchors are numbered: a group is one slot in the priority order,
+    // since just one of its languages ever survives.
+    private int GroupNumber(int index)
+    {
+        return Languages.Take(index + 1).Count(l => !l.IsFallback);
+    }
+
+    private string FallbackNote(int index)
+    {
+        var covered = Languages.FallbackFor(index).Select(Label).ToList();
+        return covered.Count switch
+        {
+            0 => string.Empty,
+            1 => $"if no {covered[0]}",
+            _ => $"if no {string.Join(", ", covered.SkipLast(1))} or {covered[^1]}"
+        };
+    }
+
+    private void ToggleFallback(int index)
+    {
+        Languages[index].IsFallback = !Languages[index].IsFallback;
+        _expandedIndex = -1;
+    }
+
+    // The top entry has nothing above it to stand in for.
+    private void Normalize()
+    {
+        if (Languages.Count > 0)
+        {
+            Languages[0].IsFallback = false;
+        }
+    }
+
+    // How many rows move together when this one is dragged: an anchor takes its
+    // fallbacks along, since they only mean anything directly under it.
+    private int GroupLength(int index)
+    {
+        if (Languages[index].IsFallback)
+        {
+            return 1;
+        }
+
+        var length = 1;
+        while (index + length < Languages.Count && Languages[index + length].IsFallback)
+        {
+            length++;
+        }
+
+        return length;
+    }
+
+    private int GroupStart(int index)
+    {
+        while (index > 0 && Languages[index].IsFallback)
+        {
+            index--;
+        }
+
+        return index;
+    }
+
+    // Where a drop on this row actually lands. A fallback row may go anywhere,
+    // joining a group is exactly what dropping into one means. An anchor block
+    // snaps to group boundaries so it never splits another anchor from its
+    // fallbacks: down-drags land after the target's whole group, up-drags
+    // before its anchor.
+    private int SnapTarget(int targetIndex)
+    {
+        if (Languages[_dragSourceIndex].IsFallback)
+        {
+            return targetIndex;
+        }
+
+        var start = GroupStart(targetIndex);
+        return targetIndex > _dragSourceIndex ? start + GroupLength(start) - 1 : start;
+    }
+
     // --- Drag and drop ---
 
     private void OnDragStart(int index)
     {
         _dragSourceIndex = index;
+        _dragLength = GroupLength(index);
         _dragOverIndex = -1;
         _expandedIndex = -1;
     }
 
     private void OnDragEnter(int index)
     {
-        if (_dragSourceIndex >= 0 && _dragSourceIndex != index)
-        {
-            _dragOverIndex = index;
-        }
-    }
-
-    private void OnDrop(int targetIndex)
-    {
-        if (_dragSourceIndex < 0 || _dragSourceIndex == targetIndex)
+        if (_dragSourceIndex < 0)
         {
             return;
         }
 
-        var item = Languages[_dragSourceIndex];
-        Languages.RemoveAt(_dragSourceIndex);
-        Languages.Insert(targetIndex, item);
+        // Highlight where the block will actually land, and never inside itself.
+        _dragOverIndex = index >= _dragSourceIndex && index < _dragSourceIndex + _dragLength
+            ? -1
+            : SnapTarget(index);
+    }
+
+    private void OnDrop(int targetIndex)
+    {
+        if (_dragSourceIndex < 0
+            || (targetIndex >= _dragSourceIndex && targetIndex < _dragSourceIndex + _dragLength))
+        {
+            return;
+        }
+
+        targetIndex = SnapTarget(targetIndex);
+        var target = Languages[targetIndex];
+
+        // A fallback dropped onto an anchor joins that anchor's group whichever
+        // direction it came from; inserting above would hand it to the group before.
+        var insertAfter = targetIndex > _dragSourceIndex
+                          || (Languages[_dragSourceIndex].IsFallback && !target.IsFallback);
+
+        var block = Languages.GetRange(_dragSourceIndex, _dragLength);
+        Languages.RemoveRange(_dragSourceIndex, _dragLength);
+
+        var insertAt = Languages.IndexOf(target);
+        Languages.InsertRange(insertAfter ? insertAt + 1 : insertAt, block);
+        Normalize();
 
         _dragSourceIndex = -1;
         _dragOverIndex = -1;
@@ -226,6 +351,13 @@
 
     private void OnRemove(int index)
     {
+        // Promote the follower rather than silently re-pointing it at whatever
+        // language happens to sit above the hole.
+        if (!Languages[index].IsFallback && index + 1 < Languages.Count)
+        {
+            Languages[index + 1].IsFallback = false;
+        }
+
         Languages.RemoveAt(index);
 
         if (_expandedIndex == index)

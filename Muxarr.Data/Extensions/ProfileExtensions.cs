@@ -11,6 +11,30 @@ public static class ProfileExtensions
             x.Directories.Any(y => path.StartsWith(y, StringComparison.InvariantCultureIgnoreCase)));
     }
 
+    /// <summary>
+    /// The languages an entry is a fallback for: the ones above it in its group,
+    /// in priority order. Empty when the entry is kept unconditionally.
+    /// </summary>
+    public static List<LanguagePreference> FallbackFor(this List<LanguagePreference> languages, int index)
+    {
+        var covered = new List<LanguagePreference>();
+        if (!languages[index].IsFallback)
+        {
+            return covered;
+        }
+
+        for (var i = index - 1; i >= 0; i--)
+        {
+            covered.Insert(0, languages[i]);
+            if (!languages[i].IsFallback)
+            {
+                break;
+            }
+        }
+
+        return covered;
+    }
+
     public static Profile Clone(this Profile profile)
     {
         var clone = new Profile();

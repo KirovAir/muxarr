@@ -547,7 +547,7 @@ public static class MediaFileExtensions
                 .Where(g => g.Pref != null)
                 .GroupBy(g => g.Pref);
 
-            allowedTracks = new List<T>();
+            var byPreference = new List<(LanguagePreference Pref, List<T> Tracks)>();
 
             foreach (var preferenceGroup in tracksByPreference)
             {
@@ -604,8 +604,11 @@ public static class MediaFileExtensions
                         .Take(pref.MaxTracks.Value);
                 }
 
-                allowedTracks.AddRange(filteredTracks);
+                byPreference.Add((pref, filteredTracks.ToList()));
             }
+
+            DropCoveredFallbacks(byPreference, s.AllowedLanguages);
+            allowedTracks = byPreference.SelectMany(g => g.Tracks).ToList();
 
             // If all tracks would be removed, keep at least one for audio (silence is never correct).
             // For subtitles, having none is fine — users can add "Undetermined" to their allowed
@@ -650,6 +653,41 @@ public static class MediaFileExtensions
         }
 
         return allowedTracks;
+    }
+
+    /// <summary>
+    /// Drops the fallback languages the file did not need. Walks the priority list
+    /// in order: the first entry of a group that still has tracks after filtering
+    /// claims it, and the fallbacks below it are removed. A language whose tracks
+    /// were all filtered out (wrong codec, commentary only) counts as absent, so
+    /// the next one down gets its turn.
+    /// </summary>
+    private static void DropCoveredFallbacks<T>(List<(LanguagePreference Pref, List<T> Tracks)> byPreference,
+        List<LanguagePreference> allowed) where T : IMediaTrack
+    {
+        var claimed = false;
+        foreach (var pref in allowed)
+        {
+            if (!pref.IsFallback)
+            {
+                claimed = false;
+            }
+
+            var index = byPreference.FindIndex(g => g.Pref == pref);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            if (claimed)
+            {
+                byPreference.RemoveAt(index);
+            }
+            else
+            {
+                claimed = byPreference[index].Tracks.Count > 0;
+            }
+        }
     }
 
     /// <summary>

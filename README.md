@@ -54,6 +54,7 @@ services:
 - **Automatic processing** - webhook support to process new imports as they arrive
 - **Per-directory profiles** - different language and track rules for different collections (e.g. anime vs western media)
 - **Language priority & track limits** - control track ordering per language, limit tracks per language (e.g. keep only the best English audio track), and choose between best quality or smallest size
+- **Fallback languages** - hang a language under another so it is only kept when the one above it is missing. "English subs, but only if the file has no German ones"
 - **Regional language variants** - tells VFQ apart from VFF/Truefrench, Latino from Castilian, and more. Reads BCP 47 tags and track names, so "keep Quebec French, drop the France dub" just works
 - **Smart metadata fixes** - cleans up encoder tags and codec dumps from track names. Uses mkvpropedit for metadata-only changes (instant, no remux needed)
 - **Safe by default** - validates the output file before replacing the original. If anything fails, the original is untouched.
