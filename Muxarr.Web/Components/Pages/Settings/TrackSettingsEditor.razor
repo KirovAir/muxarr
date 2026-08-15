@@ -129,13 +129,13 @@
             @switch (Settings.ReorderStrategy)
             {
                 case TrackReorderStrategy.Alphabetical:
-                    <text>Tracks are sorted A-Z by language. Best quality first within each language. Requires
+                    <text>Tracks are sorted A-Z by language. Within a language the file's own order is kept. Requires
                         remux.</text>
                     break;
                 case TrackReorderStrategy.MatchLanguagePriority:
                     <text>
-                        Tracks are sorted to match your priority list. Best quality first within each language. Requires
-                        remux.</text>
+                        Tracks are sorted to match your priority list. Within a language the file's own order is kept.
+                        Requires remux.</text>
                     break;
                 default:
                     <text>Original track order from the source file is preserved.</text>
