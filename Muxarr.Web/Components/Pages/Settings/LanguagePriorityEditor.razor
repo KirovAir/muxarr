@@ -175,11 +175,10 @@
     private int _expandedIndex = -1;
     private int _dragSourceIndex = -1;
     private int _dragOverIndex = -1;
-    private int _dragLength;
 
     protected override void OnParametersSet()
     {
-        Normalize();
+        Languages.AnchorTop();
     }
 
     // Explained only when the base is absent; with both listed the base keeps everything anyway.
@@ -221,104 +220,30 @@
         _expandedIndex = -1;
     }
 
-    // The top entry has nothing above it to stand in for.
-    private void Normalize()
-    {
-        if (Languages.Count > 0)
-        {
-            Languages[0].IsFallback = false;
-        }
-    }
-
-    // How many rows move together when this one is dragged: an anchor takes its
-    // fallbacks along, since they only mean anything directly under it.
-    private int GroupLength(int index)
-    {
-        if (Languages[index].IsFallback)
-        {
-            return 1;
-        }
-
-        var length = 1;
-        while (index + length < Languages.Count && Languages[index + length].IsFallback)
-        {
-            length++;
-        }
-
-        return length;
-    }
-
-    private int GroupStart(int index)
-    {
-        while (index > 0 && Languages[index].IsFallback)
-        {
-            index--;
-        }
-
-        return index;
-    }
-
-    // Where a drop on this row actually lands. A fallback row may go anywhere,
-    // joining a group is exactly what dropping into one means. An anchor block
-    // snaps to group boundaries so it never splits another anchor from its
-    // fallbacks: down-drags land after the target's whole group, up-drags
-    // before its anchor.
-    private int SnapTarget(int targetIndex)
-    {
-        if (Languages[_dragSourceIndex].IsFallback)
-        {
-            return targetIndex;
-        }
-
-        var start = GroupStart(targetIndex);
-        return targetIndex > _dragSourceIndex ? start + GroupLength(start) - 1 : start;
-    }
-
     // --- Drag and drop ---
 
     private void OnDragStart(int index)
     {
         _dragSourceIndex = index;
-        _dragLength = GroupLength(index);
         _dragOverIndex = -1;
         _expandedIndex = -1;
     }
 
     private void OnDragEnter(int index)
     {
-        if (_dragSourceIndex < 0)
+        if (_dragSourceIndex >= 0)
         {
-            return;
+            // Highlight where the block will actually land, and never inside itself.
+            _dragOverIndex = Languages.DropTarget(_dragSourceIndex, index);
         }
-
-        // Highlight where the block will actually land, and never inside itself.
-        _dragOverIndex = index >= _dragSourceIndex && index < _dragSourceIndex + _dragLength
-            ? -1
-            : SnapTarget(index);
     }
 
     private void OnDrop(int targetIndex)
     {
-        if (_dragSourceIndex < 0
-            || (targetIndex >= _dragSourceIndex && targetIndex < _dragSourceIndex + _dragLength))
+        if (_dragSourceIndex >= 0)
         {
-            return;
+            Languages.Move(_dragSourceIndex, targetIndex);
         }
-
-        targetIndex = SnapTarget(targetIndex);
-        var target = Languages[targetIndex];
-
-        // A fallback dropped onto an anchor joins that anchor's group whichever
-        // direction it came from; inserting above would hand it to the group before.
-        var insertAfter = targetIndex > _dragSourceIndex
-                          || (Languages[_dragSourceIndex].IsFallback && !target.IsFallback);
-
-        var block = Languages.GetRange(_dragSourceIndex, _dragLength);
-        Languages.RemoveRange(_dragSourceIndex, _dragLength);
-
-        var insertAt = Languages.IndexOf(target);
-        Languages.InsertRange(insertAfter ? insertAt + 1 : insertAt, block);
-        Normalize();
 
         _dragSourceIndex = -1;
         _dragOverIndex = -1;
@@ -351,14 +276,7 @@
 
     private void OnRemove(int index)
     {
-        // Promote the follower rather than silently re-pointing it at whatever
-        // language happens to sit above the hole.
-        if (!Languages[index].IsFallback && index + 1 < Languages.Count)
-        {
-            Languages[index + 1].IsFallback = false;
-        }
-
-        Languages.RemoveAt(index);
+        Languages.RemoveEntry(index);
 
         if (_expandedIndex == index)
         {

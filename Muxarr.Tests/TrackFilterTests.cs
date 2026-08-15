@@ -929,4 +929,153 @@ public class TrackFilterTests
 
         CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
     }
+
+    // The exact "English" entry loses to German, but the unconditional Original
+    // entry covers original-language English too and keeps it.
+    [TestMethod]
+    public void Fallback_TrackCoveredByUnconditionalOriginal_Survives()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+                [IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English")), IsoLanguage.OriginalLanguage]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "German"),
+            Audio(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void Fallback_TrackCoveredByUnconditionalBase_Survives()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+                [IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("French (Canada)")), IsoLanguage.Find("French")]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "German"),
+            Sub(2, "French (Canada)")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // Japanese binds to its own exact entry, but it is still the original
+    // language, so Original counts as present and the fallback under it stays out.
+    [TestMethod]
+    public void Fallback_OriginalPresentViaExactEntry_DropsFallback()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+                [IsoLanguage.OriginalLanguage, Fallback(IsoLanguage.Find("English")), IsoLanguage.Find("Japanese")]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "Japanese"),
+            Audio(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "Japanese");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // Presence is read off every kept track, whichever group it landed in: the
+    // English track bound to the second group's fallback still makes the first
+    // group's Original present, so Japanese stays out.
+    [TestMethod]
+    public void Fallback_PresenceCrossesGroups()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                IsoLanguage.OriginalLanguage, Fallback(IsoLanguage.Find("Japanese")),
+                IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English"))
+            ]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "German"),
+            Audio(2, "English"),
+            Audio(3, "Japanese")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // A commentary track is not the language being present, so the fallback still
+    // applies. The commentary itself stays, being the only German there is.
+    [TestMethod]
+    public void Fallback_CommentaryOnlyPreferredLanguage_KeepsFallback()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            RemoveCommentary = true,
+            AllowedLanguages = [IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English"))]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "German", commentary: true),
+            Audio(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // With SDH removal on, an SDH-only language is as good as absent for the
+    // fallback, though the SDH track itself is still vouched for.
+    [TestMethod]
+    public void Fallback_ImpairedOnlyPreferredLanguage_KeepsFallbackWhenRemovingImpaired()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            RemoveImpaired = true,
+            AllowedLanguages = [IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English"))]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "German", hi: true),
+            Sub(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void Fallback_ForcedOnlyPreferredSubtitles_KeepsFallback()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "German", forced: true),
+            Sub(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(GermanThenEnglish, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
 }
