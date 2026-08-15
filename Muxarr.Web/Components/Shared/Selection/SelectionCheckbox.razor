@@ -4,28 +4,10 @@
     <input type="checkbox"
            class="form-check-input"
            checked="@Parent.SelectedIds.Contains(Item.Id)"
-           @onchange="HandleSelectionChange"/>
+           @onclick="e => Parent.OnRowClick(Item.Id, e.ShiftKey)"/>
 </div>
 
 @code {
     [Parameter] [EditorRequired] public required TType Item { get; set; }
     [Parameter] [EditorRequired] public required SelectablePaginatedListComponent<TType> Parent { get; set; }
-
-    private async Task HandleSelectionChange(ChangeEventArgs args)
-    {
-        if (args.Value is bool selected)
-        {
-            if (selected)
-            {
-                Parent.SelectedIds.Add(Item.Id);
-            }
-            else
-            {
-                Parent.SelectedIds.Remove(Item.Id);
-            }
-
-            await Parent.OnSelect();
-        }
-    }
-
 }
