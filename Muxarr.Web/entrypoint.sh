@@ -17,15 +17,14 @@ usermod -d "$USERHOME" appuser
 
 mkdir -p /config /data
 chown appuser:appgroup /app || echo "Warning: Could not set ownership on /app. Remote or read-only mount?"
-chown appuser:appgroup /config || echo "Warning: Could not set ownership on /config. Remote or read-only mount?"
-chmod 755 /config || true
+chown -R appuser:appgroup /config || echo "Warning: Could not set ownership on /config. Remote or read-only mount?"
 
-# Older images kept the database in /data; anything else there is the user's media.
+# Legacy database location; leave /data alone otherwise, it may be a media mount.
 if [ -e /data/muxarr.db ]; then
-    chown appuser:appgroup /data || echo "Warning: Could not set ownership on /data. Remote or read-only mount?"
-    chmod 755 /data || true
+    chown appuser:appgroup /data /data/muxarr.db* || echo "Warning: Could not set ownership on /data. Remote or read-only mount?"
 fi
 
+umask "${UMASK:-022}"
 cd /app
 
 exec gosu appuser "$@"

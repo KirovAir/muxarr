@@ -125,7 +125,7 @@ Older versions stored the database in `/data`. To upgrade an existing install, p
 
 Do not move your media mounts. Your profiles and Sonarr/Radarr path mappings reference the old container paths, so `/media` stays `/media`.
 
-Until you do, Muxarr keeps running from `/data` and shows a reminder in the app. Nothing is moved or deleted automatically. If you never mounted an appdata folder, the database sits in a Docker volume: stop the container, run `docker cp muxarr:/data/. /path/to/appdata/`, then mount that folder at `/config`.
+Until you do, Muxarr keeps running from `/data` and shows a reminder in the app. Nothing is moved or deleted automatically, so rolling back to an older version only takes pointing the mount at `:/data` again. If your appdata folder is empty (you never mounted one, or you mounted `/config` on an older version that ignored it), the database sits in a Docker volume: stop the container, run `docker cp muxarr:/data/. /path/to/appdata/` before removing it, then mount that folder at `/config`.
 
 ## Configuration
 
@@ -136,6 +136,7 @@ Until you do, Muxarr keeps running from `/data` and shows a reminder in the app.
 | `TZ` | Timezone | `UTC` |
 | `PUID` | User ID for file permissions | `888` |
 | `PGID` | Group ID for file permissions | `888` |
+| `UMASK` | Permission mask for files Muxarr writes, e.g. `002` for group-writable libraries | `022` |
 
 ### Volumes
 

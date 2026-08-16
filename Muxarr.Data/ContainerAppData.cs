@@ -20,18 +20,13 @@ public static class ContainerAppData
 {
     private const string ConfigDir = "/config";
     private const string DataDir = "/data";
-
-    private static readonly Lock ResolveLock = new();
-    private static string? _resolved;
+    private const string DbFileName = "muxarr.db";
 
     public static AppDataState State { get; private set; } = AppDataState.Ok;
 
     public static string ResolveConnectionString(string connectionString, ILogger? logger = null)
     {
-        lock (ResolveLock)
-        {
-            return _resolved ??= Resolve(connectionString, ConfigDir, DataDir, logger);
-        }
+        return Resolve(connectionString, ConfigDir, DataDir, logger);
     }
 
     internal static string Resolve(string connectionString, string configDir, string dataDir, ILogger? logger)
@@ -42,17 +37,26 @@ public static class ContainerAppData
             return connectionString;
         }
 
+        // Only the built-in default is ours to manage; custom paths are left alone.
         var dbPath = Path.GetFullPath(builder.DataSource);
-        if (!string.Equals(Path.GetDirectoryName(dbPath), Path.GetFullPath(configDir),
-                StringComparison.OrdinalIgnoreCase))
+        if (dbPath != Path.Combine(Path.GetFullPath(configDir), DbFileName))
         {
-            // Custom connection string; not ours to manage.
             return connectionString;
         }
 
-        var legacyDbPath = Path.Combine(Path.GetFullPath(dataDir), Path.GetFileName(dbPath));
-        if (File.Exists(dbPath) || !File.Exists(legacyDbPath))
+        var legacyDbPath = Path.Combine(Path.GetFullPath(dataDir), DbFileName);
+        if (!File.Exists(legacyDbPath))
         {
+            State = AppDataState.Ok;
+            return connectionString;
+        }
+
+        if (File.Exists(dbPath))
+        {
+            logger?.LogWarning(
+                "Using {DbPath}. An older database at {LegacyDbPath} is being ignored; delete it, or if this " +
+                "install looks empty, stop the container and put it in {ConfigDir} instead.",
+                dbPath, legacyDbPath, configDir);
             State = AppDataState.Ok;
             return connectionString;
         }

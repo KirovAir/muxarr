@@ -58,9 +58,12 @@ public class ContainerAppDataTests : FixtureTestBase
     public void CustomOrInMemoryConnectionString_IsLeftUntouched()
     {
         File.WriteAllText(LegacyDb, "");
+        File.WriteAllText(Path.Combine(_dataDir, "other.db"), "");
         var custom = TempPath("elsewhere.db");
+        var customInConfig = Path.Combine(_configDir, "other.db");
 
         Assert.AreEqual(custom, Resolve($"Data Source={custom}"));
+        Assert.AreEqual(customInConfig, Resolve($"Data Source={customInConfig}"));
         Assert.AreEqual(":memory:", Resolve("Data Source=:memory:"));
     }
 }
