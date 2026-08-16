@@ -4,6 +4,7 @@
 
 <p align="center">
   <a href="https://muxarr.app"><img src="https://img.shields.io/badge/website-muxarr.app-f97316?style=flat-square&labelColor=1f2229" alt="Website"/></a>
+  <a href="https://muxarr.app/docs/"><img src="https://img.shields.io/badge/docs-muxarr.app%2Fdocs-f97316?style=flat-square&logo=bookstack&logoColor=white&labelColor=1f2229" alt="Documentation"/></a>
   <a href="https://github.com/KirovAir/muxarr/releases"><img src="https://img.shields.io/github/v/release/KirovAir/muxarr?include_prereleases&sort=semver&style=flat-square&label=version&color=f97316&labelColor=1f2229" alt="Latest release"/></a>
   <a href="https://github.com/KirovAir/muxarr/actions/workflows/build-and-deploy.yml"><img src="https://img.shields.io/github/actions/workflow/status/KirovAir/muxarr/build-and-deploy.yml?branch=master&style=flat-square&label=build&labelColor=1f2229" alt="Build"/></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/license-GPLv3-64748b?style=flat-square&labelColor=1f2229" alt="License: GPL v3"/></a>
@@ -60,7 +61,7 @@ services:
 - **Safe by default** - validates the output file before replacing the original. If anything fails, the original is untouched.
 - **Library overview** - full breakdown of codecs, resolutions, and languages across your library
 
-Supports Matroska (`.mkv`, `.webm`) and MP4-family (`.mp4`, `.m4v`).
+Supports Matroska (`.mkv`, `.webm`) and MP4-family (`.mp4`, `.m4v`). Every setting is explained in the [profiles docs](https://muxarr.app/docs/profiles.html).
 
 <details>
 <summary>More screenshots</summary>
