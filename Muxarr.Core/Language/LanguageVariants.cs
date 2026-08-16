@@ -16,7 +16,10 @@ public static class LanguageVariants
     /// tokens are generic words ("Latino", "Traditional") that only apply when the
     /// track's language already matches the variant's base language.
     /// </summary>
-    private sealed record Variant(string Name, string[] SelfIdentifying, string[] BaseOnly);
+    // PreferredMarker is what {variant} writes into a track name: the short form
+    // releases use ("VFQ", "Latino", "CHT"). It has to be one of the markers below
+    // so a rescan reads it back.
+    private sealed record Variant(string Name, string? PreferredMarker, string[] SelfIdentifying, string[] BaseOnly);
 
     // Order matters: regional entries come before their base's catch-all entry.
     // Base-language entries (plain "French") pin dub markers that carry no region
@@ -24,28 +27,39 @@ public static class LanguageVariants
     // fuzzy-matching something else.
     private static readonly Variant[] Table =
     [
-        new("French (Canada)",
+        new("French (Canada)", "VFQ",
             ["VFQ", "VOQ", "Québécois", "Quebecois", "Canadian French", "French Canadian"],
             ["VQ", "Québec", "Quebec", "Canada", "Canadian"]),
-        new("French (France)", ["VFF", "Truefrench", "True French"], []),
-        new("French (Belgium)", ["VFB"], []),
-        new("French", ["VFI", "VOF", "VF"], []),
-        new("Spanish (Spain)", ["Castellano", "Castilian", "European Spanish"], []),
-        new("Spanish (Latin America)",
+        new("French (France)", "VFF", ["VFF", "Truefrench", "True French"], []),
+        new("French (Belgium)", "VFB", ["VFB"], []),
+        new("French", null, ["VFI", "VOF", "VF"], []),
+        new("Spanish (Spain)", "Castellano", ["Castellano", "Castilian", "European Spanish"], []),
+        new("Spanish (Latin America)", "Latino",
             ["Español Latino", "Espanol Latino", "Latin American", "Latin Spanish", "LATAM"],
             ["Latino"]),
-        new("Portuguese (Brazil)", ["Brasileiro", "Brazilian", "pt-BR"], []),
-        new("Portuguese (Portugal)", ["Português Europeu", "European Portuguese", "pt-PT"], []),
-        new("Chinese (Traditional)",
+        new("Portuguese (Brazil)", "Brasileiro", ["Brasileiro", "Brazilian", "pt-BR"], []),
+        new("Portuguese (Portugal)", "Europeu", ["Português Europeu", "European Portuguese", "pt-PT"], ["Europeu"]),
+        new("Chinese (Traditional)", "CHT",
             ["CHT", "BIG5", "繁體", "繁体", "Traditional Chinese", "Chinese Traditional"],
             ["Traditional"]),
-        new("Chinese (Simplified)",
+        new("Chinese (Simplified)", "CHS",
             ["CHS", "简体", "簡體", "Simplified Chinese", "Chinese Simplified"],
             ["Simplified"]),
-        new("Cantonese", ["Cantonese", "廣東話", "广东话", "粵語", "粤语"], ["Yue"]),
-        new("Mandarin Chinese", ["Mandarin", "普通話", "普通话", "國語", "国语"], []),
-        new("Flemish", ["Vlaams", "Flemish"], [])
+        new("Cantonese", "Cantonese", ["Cantonese", "廣東話", "广东话", "粵語", "粤语"], ["Yue"]),
+        new("Mandarin Chinese", "Mandarin", ["Mandarin", "普通話", "普通话", "國語", "国语"], []),
+        new("Flemish", "Vlaams", ["Vlaams", "Flemish"], [])
     ];
+
+    /// <summary>
+    /// The marker a variant goes by in release and track names ("VFQ", "Latino",
+    /// "CHT"), for the {variant} template placeholder. Null for a plain language
+    /// and for variants the table has no marker for, so the placeholder comes out
+    /// empty rather than inventing one that a rescan could not read back.
+    /// </summary>
+    public static string? PreferredMarker(IsoLanguage language)
+    {
+        return language.IsVariant ? Table.FirstOrDefault(v => v.Name == language.Name)?.PreferredMarker : null;
+    }
 
     /// <summary>
     /// Returns the variant a track name identifies, or null when the name carries

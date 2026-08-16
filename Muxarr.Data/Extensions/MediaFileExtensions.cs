@@ -1140,6 +1140,7 @@ public static class MediaFileExtensions
             .Replace("{lang}", track.LanguageCode, StringComparison.OrdinalIgnoreCase)
             .Replace("{code}", ShortCode(iso, track), StringComparison.OrdinalIgnoreCase)
             .Replace("{nativelanguage}", iso.NativeName, StringComparison.OrdinalIgnoreCase)
+            .Replace("{variant}", LanguageVariants.PreferredMarker(iso) ?? "", StringComparison.OrdinalIgnoreCase)
             .Replace("{codec}", track.Codec.FormatCodec(), StringComparison.OrdinalIgnoreCase)
             .Replace("{channels}", track.GetChannelLayout() ?? "", StringComparison.OrdinalIgnoreCase)
             .Replace("{trackname}", track.Name ?? "", StringComparison.OrdinalIgnoreCase)

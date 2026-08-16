@@ -510,6 +510,29 @@ public class LanguageVariantTests
         Assert.AreEqual(0, missed.Count, $"not readable back off the name: {string.Join(", ", missed)}");
     }
 
+    // {variant} writes the marker on its own ("FR VFQ"), so a name that is nothing
+    // but the marker has to read back as the variant on a track tagged with the
+    // base language, which is all an MP4 can carry.
+    [TestMethod]
+    public void PreferredMarker_RoundTripsThroughDetect()
+    {
+        var curated = new[]
+        {
+            "French (Canada)", "French (France)", "French (Belgium)", "Spanish (Spain)", "Spanish (Latin America)",
+            "Portuguese (Brazil)", "Portuguese (Portugal)", "Chinese (Traditional)", "Chinese (Simplified)",
+            "Cantonese", "Mandarin Chinese", "Flemish"
+        };
+        var missed = curated
+            .Select(name => IsoLanguage.Find(name))
+            .Where(v => !v.Equals(LanguageVariants.Detect(LanguageVariants.PreferredMarker(v), v.Base)))
+            .Select(v => v.Name)
+            .ToList();
+
+        Assert.AreEqual(0, missed.Count, $"marker not readable back: {string.Join(", ", missed)}");
+        Assert.IsNull(LanguageVariants.PreferredMarker(IsoLanguage.Find("French")), "a base language has no marker");
+        Assert.IsNull(LanguageVariants.PreferredMarker(IsoLanguage.Find("Chinese (Hong Kong)")), "an uncurated variant has no marker");
+    }
+
     // The custom conversion modal's edit pass. A standardized name spells out the
     // language, so a language pick that leaves it behind hands the profile a
     // rename to queue the moment the conversion lands.
