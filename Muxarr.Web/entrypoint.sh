@@ -20,9 +20,8 @@ chown appuser:appgroup /app || echo "Warning: Could not set ownership on /app. R
 chown appuser:appgroup /config || echo "Warning: Could not set ownership on /config. Remote or read-only mount?"
 chmod 755 /config || true
 
-# Only touch /data when it holds our database (older layout) or is the empty
-# volume the image declares. Anything else there is the user's media.
-if [ -e /data/muxarr.db ] || [ -z "$(ls -A /data)" ]; then
+# Older images kept the database in /data; anything else there is the user's media.
+if [ -e /data/muxarr.db ]; then
     chown appuser:appgroup /data || echo "Warning: Could not set ownership on /data. Remote or read-only mount?"
     chmod 755 /data || true
 fi

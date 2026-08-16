@@ -134,8 +134,8 @@ Until you do, Muxarr keeps running from `/data` and shows a reminder in the app.
 | Variable | Description | Default |
 |---|---|---|
 | `TZ` | Timezone | `UTC` |
-| `PUID` | User ID for file permissions | `1000` |
-| `PGID` | Group ID for file permissions | `1000` |
+| `PUID` | User ID for file permissions | `888` |
+| `PGID` | Group ID for file permissions | `888` |
 
 ### Volumes
 

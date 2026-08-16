@@ -40,11 +40,9 @@ COPY publish/ ./
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-# /data keeps its VOLUME: older images stored the database there and compose only
+# /data stays declared: older images stored the database there and compose only
 # carries that anonymous volume across a recreate while the image still declares it.
-# /config gets none on purpose: an unmounted /config must look unmounted at startup
-# so the app can warn instead of silently using an anonymous volume.
-VOLUME ["/data"]
+VOLUME ["/config", "/data"]
 
 ENV ASPNETCORE_HTTP_PORTS=8183
 EXPOSE 8183
