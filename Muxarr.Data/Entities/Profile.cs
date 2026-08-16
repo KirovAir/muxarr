@@ -13,11 +13,11 @@ public enum TrackReorderStrategy
     /// <summary>Preserve original track order from the source file.</summary>
     DontReorder,
 
-    /// <summary>Reorder tracks alphabetically by language name. Best quality first within each language.</summary>
+    /// <summary>Reorder tracks alphabetically by language name. Source order is kept within a language.</summary>
     Alphabetical,
 
     /// <summary>
-    /// Reorder tracks to match the AllowedLanguages priority list. Best quality first within each language.
+    /// Reorder tracks to match the AllowedLanguages priority list. Source order is kept within a language.
     /// Requires AllowedLanguages to be configured.
     /// </summary>
     MatchLanguagePriority

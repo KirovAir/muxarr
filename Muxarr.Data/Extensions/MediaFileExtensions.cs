@@ -71,6 +71,7 @@ public static class MediaFileExtensions
         var tracks = new List<TrackSnapshot>();
         foreach (var x in mkvInfo.Tracks)
         {
+            var language = PickMkvTrackLanguage(x.Properties);
             var track = new TrackSnapshot
             {
                 Type = x.Type.ToMediaTrackType(),
@@ -81,26 +82,15 @@ public static class MediaFileExtensions
                 IsForced = x.IsForced(),
                 IsOriginal = x.IsOriginal(),
                 IsDub = x.IsDub(),
-                LanguageCode = string.IsNullOrEmpty(x.Properties.Language) ? "und" : x.Properties.Language,
-                LanguageName = IsoLanguage.Find(x.Properties.Language).Name,
+                LanguageCode = language,
+                LanguageName = IsoLanguage.Find(language).Name,
                 AudioChannels = x.Properties.AudioChannels,
                 Codec = CodecExtensions.ParseCodec(x.Codec),
                 Name = x.Properties.TrackName,
                 Index = x.Id
             };
 
-            if (track.Type != MediaTrackType.Video
-                && (track.LanguageName == IsoLanguage.UnknownName ||
-                    track.LanguageName == IsoLanguage.UndeterminedName))
-            {
-                var parsed = IsoLanguage.Find(x.Properties.TrackName, true);
-                if (parsed != IsoLanguage.Unknown)
-                {
-                    track.LanguageName = parsed.Name;
-                    track.LanguageCode = parsed.ThreeLetterCode ?? track.LanguageCode;
-                }
-            }
-
+            track.RefineLanguageFromName();
             tracks.Add(track);
         }
 
@@ -138,10 +128,9 @@ public static class MediaFileExtensions
 
     /// <summary>
     /// Populates a MediaFile by running ffprobe on <see cref="MediaFile.Path"/>.
-    /// Used for non-Matroska containers where ffprobe is the source of truth
-    /// (mkvmerge's MP4 demuxer hides the udta.name atom and a few other fields).
-    /// Container type is normalized to the same canonical strings mkvmerge emits
-    /// so downstream classification works the same way.
+    /// ffprobe merges Matroska SimpleTags over the real header values, so
+    /// track name/language and the title come from mkvmerge on Matroska.
+    /// Container type is normalized to the canonical strings mkvmerge emits.
     /// </summary>
     public static async Task<ProcessJsonResult<FFprobeResult>> SetFileDataFromFFprobe(this MediaFile file)
     {
@@ -161,13 +150,15 @@ public static class MediaFileExtensions
         file.HasScanWarning = !string.IsNullOrEmpty(probeResult.Error);
 
         var containerType = NormalizeFFprobeContainer(probe.Format?.FormatName);
+        var family = containerType.ToContainerFamily();
+        var mkvInfo = family == ContainerFamily.Matroska ? (await MkvMerge.GetFileInfo(file.Path)).Result : null;
         var tracks = new List<TrackSnapshot>();
 
         // ffprobe's disposition.dub is only trustworthy for containers that
         // carry a real dub atom. On Matroska, ffmpeg infers dub=1 from
         // FlagOriginal=0, so any track our profile marks as not-original
         // gets a bogus dub flag. MKV has no FlagDub; the title is authoritative.
-        var trustDispositionDub = containerType.ToContainerFamily() != ContainerFamily.Matroska;
+        var trustDispositionDub = family != ContainerFamily.Matroska;
 
         foreach (var stream in probe.Streams)
         {
@@ -190,8 +181,27 @@ public static class MediaFileExtensions
             }
 
             var tags = stream.Tags;
-            var trackName = PickTrackName(tags);
-            var language = tags != null && tags.TryGetValue("language", out var l) && !string.IsNullOrEmpty(l) ? l : "und";
+
+            // Both tools number tracks in TrackEntry order; on a type mismatch trust neither.
+            var mkvTrack = mkvInfo?.Tracks.FirstOrDefault(t => t.Id == stream.Index);
+            if (mkvTrack != null && mkvTrack.Type.ToMediaTrackType() != type)
+            {
+                mkvTrack = null;
+            }
+
+            // Matroska: read the header our editors write, or write-verify never converges.
+            string? trackName;
+            string language;
+            if (mkvTrack != null)
+            {
+                trackName = string.IsNullOrEmpty(mkvTrack.Properties.TrackName) ? null : mkvTrack.Properties.TrackName;
+                language = PickMkvTrackLanguage(mkvTrack.Properties);
+            }
+            else
+            {
+                trackName = PickTrackName(tags);
+                language = GetTag(tags, "language") ?? "und";
+            }
 
             var track = new TrackSnapshot
             {
@@ -215,21 +225,10 @@ public static class MediaFileExtensions
                 IsCommentary = disposition.Comment == 1 || TrackNameFlags.ContainsCommentary(trackName),
                 IsOriginal = disposition.Original == 1,
                 IsDub = (trustDispositionDub && disposition.Dub == 1) || TrackNameFlags.ContainsDub(trackName),
-                DurationMs = ParseTrackDurationMs(stream, containerType.ToContainerFamily())
+                DurationMs = ParseTrackDurationMs(stream, family)
             };
 
-            if (track.Type != MediaTrackType.Video
-                && (track.LanguageName == IsoLanguage.UnknownName ||
-                    track.LanguageName == IsoLanguage.UndeterminedName))
-            {
-                var parsed = IsoLanguage.Find(trackName, true);
-                if (parsed != IsoLanguage.Unknown)
-                {
-                    track.LanguageName = parsed.Name;
-                    track.LanguageCode = parsed.ThreeLetterCode ?? track.LanguageCode;
-                }
-            }
-
+            track.RefineLanguageFromName();
             tracks.Add(track);
         }
 
@@ -253,15 +252,14 @@ public static class MediaFileExtensions
         {
             CapturedAt = DateTime.UtcNow,
             ContainerType = containerType,
-            Title = await ReadContainerTitle(file.Path, probe.Format?.Tags, containerType.ToContainerFamily()),
+            Title = ReadContainerTitle(mkvInfo, probe.Format?.Tags, family),
             Resolution = resolution,
             VideoBitDepth = videoBitDepth,
             DurationMs = durationMs,
             TrackCount = tracks.Count,
             HasChapters = probe.Chapters.Count > 0,
             HasAttachments = probe.Streams.Any(s => s.CodecType == "attachment"),
-            HasFaststart = containerType.ToContainerFamily() == ContainerFamily.Mp4
-                           && FFmpeg.IsFaststartLayout(file.Path),
+            HasFaststart = family == ContainerFamily.Mp4 && FFmpeg.IsFaststartLayout(file.Path),
             Tracks = tracks
         });
 
@@ -307,25 +305,118 @@ public static class MediaFileExtensions
 
     /// <summary>
     /// Picks the track title from an ffprobe tags dict. MP4-family files
-    /// surface it as "name" (from udta.name), Matroska as "title" (from the
-    /// TrackEntry.Name EBML element). Both keys are primary paths for their
-    /// respective container families, not a legacy fallback.
+    /// surface it as "name" (from udta.name), "title" covers the rest.
     /// </summary>
     private static string? PickTrackName(Dictionary<string, string>? tags)
+    {
+        return GetTag(tags, "name") ?? GetTag(tags, "title");
+    }
+
+    /// <summary>
+    /// Second-source language resolution from the track name, applied at scan time.
+    /// An unset language falls back to a name that spells one out ("French"), and a
+    /// variant marker ("VFQ", "Truefrench", "Latino") refines a base language to its
+    /// regional form. Refinement changes the display name only — LanguageCode keeps
+    /// what the file actually says, so nothing is written back on its account.
+    /// Public because a preview of a track has to read the same way a scan of it
+    /// would, or the UI shows a language the next scan disagrees with.
+    /// </summary>
+    public static void RefineLanguageFromName(this TrackSnapshot track)
+    {
+        if (track.Type == MediaTrackType.Video || string.IsNullOrEmpty(track.Name))
+        {
+            return;
+        }
+
+        var current = IsoLanguage.Find(track.LanguageName);
+        if (current == IsoLanguage.Unknown || current.Name == IsoLanguage.UndeterminedName)
+        {
+            var parsed = IsoLanguage.Find(track.Name, true);
+            if (parsed != IsoLanguage.Unknown)
+            {
+                track.LanguageName = parsed.Name;
+                track.LanguageCode = parsed.WriteCode ?? track.LanguageCode;
+                current = parsed;
+            }
+        }
+
+        var variant = LanguageVariants.Detect(track.Name, current);
+        if (variant != null)
+        {
+            track.LanguageName = variant.Name;
+        }
+    }
+
+    // Base-language comparison for checks against the arr-synced original language.
+    // The arrs only ever report the plain language, so a refined "French (France)"
+    // track must still count as the original audio of a French movie.
+    private static bool SameBaseLanguage(string? a, string? b)
+    {
+        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
+        {
+            return false;
+        }
+
+        if (string.Equals(a, b, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var langA = IsoLanguage.Find(a);
+        return langA != IsoLanguage.Unknown && langA.Base.Equals(IsoLanguage.Find(b).Base);
+    }
+
+    // LanguageIETF wins over the legacy element (Matroska spec order), but only
+    // when it says more: mkvmerge stamps a base tag ("fr") on every mux, and
+    // swapping fre for fr would churn every snapshot and {lang} name for
+    // nothing. Regional tags (fr-CA) and disagreements pass through — reading
+    // them back is what lets a BCP 47 write converge on the next scan. Last
+    // resort is a LANGUAGE tag normalized through the ISO list.
+    private static string PickMkvTrackLanguage(TrackProperties props)
+    {
+        var legacy = string.IsNullOrEmpty(props.Language) || props.Language == "und" ? null : props.Language;
+        var ietf = string.IsNullOrEmpty(props.LanguageIetf) || props.LanguageIetf == "und"
+            ? null
+            : props.LanguageIetf;
+
+        if (ietf != null)
+        {
+            var iso = IsoLanguage.Find(ietf);
+            if (iso != IsoLanguage.Unknown)
+            {
+                var redundant = legacy != null && !iso.IsVariant && IsoLanguage.Find(legacy) == iso;
+                return redundant ? legacy! : ietf;
+            }
+        }
+
+        if (legacy != null)
+        {
+            return legacy;
+        }
+
+        var tagged = IsoLanguage.Find(props.TagLanguage);
+        return tagged != IsoLanguage.Unknown ? tagged.ThreeLetterCode ?? "und" : "und";
+    }
+
+    // Exact match first so a header-derived key wins over a merged tag.
+    private static string? GetTag(Dictionary<string, string>? tags, string key)
     {
         if (tags == null)
         {
             return null;
         }
 
-        if (tags.TryGetValue("name", out var name) && !string.IsNullOrEmpty(name))
+        if (tags.TryGetValue(key, out var exact) && !string.IsNullOrEmpty(exact))
         {
-            return name;
+            return exact;
         }
 
-        if (tags.TryGetValue("title", out var title) && !string.IsNullOrEmpty(title))
+        foreach (var (k, v) in tags)
         {
-            return title;
+            if (k.Equals(key, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(v))
+            {
+                return v;
+            }
         }
 
         return null;
@@ -334,35 +425,17 @@ public static class MediaFileExtensions
     // ffprobe's format tags conflate the segment title with global tags, so ask
     // mkvmerge. A value it disagrees with is a global tag no writer can clear,
     // and clearing would destroy the real title while the visible one stayed.
-    private static async Task<string?> ReadContainerTitle(string path, Dictionary<string, string>? tags,
+    private static string? ReadContainerTitle(MkvMergeInfo? mkvInfo, Dictionary<string, string>? tags,
         ContainerFamily family)
     {
-        var probed = PickContainerTitle(tags);
+        var probed = GetTag(tags, "title");
         if (family != ContainerFamily.Matroska)
         {
             return probed;
         }
 
-        var segment = (await MkvMerge.GetFileInfo(path)).Result?.Container?.Properties?.Title;
+        var segment = mkvInfo?.Container?.Properties?.Title;
         return string.Equals(segment ?? "", probed ?? "", StringComparison.Ordinal) ? segment : null;
-    }
-
-    private static string? PickContainerTitle(Dictionary<string, string>? tags)
-    {
-        if (tags == null)
-        {
-            return null;
-        }
-
-        foreach (var (key, value) in tags)
-        {
-            if (string.Equals(key, "title", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrEmpty(value))
-            {
-                return value;
-            }
-        }
-
-        return null;
     }
 
     // Matroska keeps per-track length in the DURATION tag. Its stream.duration
@@ -448,6 +521,9 @@ public static class MediaFileExtensions
             return tracks;
         }
 
+        // Source order is track order, whatever order the list was loaded in.
+        tracks = tracks.OrderBy(t => t.Index).ToList();
+
         // --- Track filtering (only when removal is enabled) ---
         var allowedTracks = tracks.ToList();
 
@@ -460,91 +536,38 @@ public static class MediaFileExtensions
                                      && tracks.Count == 1
                                      && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
-            var tracksByLanguage = tracks.GroupBy(t =>
-                t.LanguageName == IsoLanguage.UnknownName ? originalLanguage ?? IsoLanguage.UnknownName
-                : assumeUndetermined && t.LanguageName == IsoLanguage.UndeterminedName ? originalLanguage!
-                : t.LanguageName);
+            // 1. Which entries keep each track, most specific first. A track no
+            //    entry keeps is out. The first entry is the one it is bound to:
+            //    that entry's overrides apply, and tracks bound to the same entry
+            //    are filtered as one language ("French (Canada)" under "French").
+            var keptBy = tracks.ToDictionary(t => t,
+                t => MatchingPreferences(ResolveLanguage(t, originalLanguage, assumeUndetermined), originalLanguage, s));
 
-            allowedTracks = new List<T>();
-
-            foreach (var languageGroup in tracksByLanguage)
+            // 2. The per-language rules: commentary, SDH/AD, codecs, track limits.
+            var kept = new HashSet<T>();
+            foreach (var group in tracks.Where(t => keptBy[t].Count > 0).GroupBy(t => keptBy[t][0]))
             {
-                var language = languageGroup.Key;
-                var tracksInLanguage = languageGroup.ToList();
-
-                var isAllowedLanguage = s.AllowedLanguages.Any(x => x.Name == language);
-                var isOriginalLanguage = language == originalLanguage;
-                var keepOriginal = isOriginalLanguage && s.AllowedLanguages.Any(x => x.IsOriginalLanguagePlaceholder);
-                var keepLanguage = isAllowedLanguage || keepOriginal;
-
-                if (!keepLanguage)
-                {
-                    continue;
-                }
-
-                var filteredTracks = tracksInLanguage.AsEnumerable();
-
-                if (s.RemoveCommentary)
-                {
-                    var nonCommentaryTracks = tracksInLanguage.Where(t => !t.IsCommentary).ToList();
-                    if (nonCommentaryTracks.Any())
-                    {
-                        filteredTracks = filteredTracks.Where(t => !t.IsCommentary);
-                    }
-                }
-
-                if (s.RemoveImpaired)
-                {
-                    // A forced subtitle only translates foreign dialogue and signs, so it
-                    // is no substitute for the full captions an SDH track carries.
-                    var isSubtitles = tracksInLanguage[0].Type == MediaTrackType.Subtitles;
-
-                    // Vouch against what survived the filters above, or a commentary
-                    // track just removed can stand in for the alternative we need.
-                    var remaining = filteredTracks.ToList();
-                    if (remaining.Any(t => !IsImpaired(t) && !(isSubtitles && t.IsForced)))
-                    {
-                        filteredTracks = remaining.Where(t => !IsImpaired(t));
-                    }
-                }
-
-                if (s.ExcludeCodecs && s.ExcludedCodecs.Count > 0)
-                {
-                    filteredTracks = filteredTracks.Where(t =>
-                    {
-                        var parsed = Enum.TryParse<SubtitleCodec>(t.Codec, out var e)
-                            ? e
-                            : SubtitleCodecExtensions.ParseSubtitleCodec(t.Codec);
-                        return parsed == SubtitleCodec.Unknown || !s.ExcludedCodecs.Contains(parsed);
-                    });
-                }
-
-                // Apply per-language track limits (MaxTracks).
-                // After language/flag/codec filtering, keep only the top N tracks by quality score.
-                // Audio and subtitles score on different axes, so each uses its own strategy.
-                var pref = FindMatchingPreference(language, originalLanguage, s);
-                if (pref?.MaxTracks is > 0)
-                {
-                    var isAudio = tracksInLanguage[0].Type == MediaTrackType.Audio;
-                    filteredTracks = filteredTracks
-                        .OrderByDescending(t => isAudio
-                            ? TrackQualityScorer.ScoreAudio(t, pref.QualityStrategy)
-                            : TrackQualityScorer.ScoreSubtitle(t, pref.SubtitleStrategy))
-                        .Take(pref.MaxTracks.Value);
-                }
-
-                allowedTracks.AddRange(filteredTracks);
+                kept.UnionWith(FilterLanguage(group.ToList(), group.Key, s));
             }
 
-            // If all tracks would be removed, keep at least one for audio (silence is never correct).
-            // For subtitles, having none is fine — users can add "Undetermined" to their allowed
-            // languages if they want to keep unlabeled tracks.
+            // 3. Fallbacks. A track stays as long as any entry keeping it is still
+            //    active, not just the one it is bound to: an unconditional
+            //    "Original Language" or base entry keeps tracks whose exact entry
+            //    is a fallback the file did not need.
+            var inactive = InactiveFallbacks(kept, keptBy, s);
+            kept.RemoveWhere(t => keptBy[t].All(inactive.Contains));
+
+            allowedTracks = tracks.Where(kept.Contains).ToList();
+
+            // 4. If all tracks would be removed, keep at least one for audio (silence is never correct).
+            //    For subtitles, having none is fine — users can add "Undetermined" to their allowed
+            //    languages if they want to keep unlabeled tracks.
             if (allowedTracks.Count == 0 && tracks[0].Type != MediaTrackType.Subtitles)
             {
                 var bestTracks = tracks
                     .OrderByDescending(t =>
-                        s.AllowedLanguages.Any(x => x.Name == t.LanguageName) ||
-                        t.LanguageName == originalLanguage)
+                        MatchingPreferences(t.LanguageName, originalLanguage, s).Count > 0 ||
+                        SameBaseLanguage(t.LanguageName, originalLanguage))
                     .ThenByDescending(t => !t.IsCommentary)
                     .ThenByDescending(t => !IsImpaired(t))
                     .ThenByDescending(x => x.Index);
@@ -581,40 +604,180 @@ public static class MediaFileExtensions
         return allowedTracks;
     }
 
+    // The language a track is filtered as. An untagged track is taken to be the
+    // file's original language, and so is a lone undetermined one when the
+    // profile says to assume that.
+    private static string ResolveLanguage(IMediaTrack track, string? originalLanguage, bool assumeUndetermined)
+    {
+        if (track.LanguageName == IsoLanguage.UnknownName)
+        {
+            return originalLanguage ?? IsoLanguage.UnknownName;
+        }
+
+        return assumeUndetermined && track.LanguageName == IsoLanguage.UndeterminedName
+            ? originalLanguage!
+            : track.LanguageName;
+    }
+
+    // The rules that run within one language, in order. Commentary and SDH/AD
+    // removal each keep the track when it is the only option for the language.
+    private static IEnumerable<T> FilterLanguage<T>(List<T> tracksInLanguage, LanguagePreference pref,
+        TrackSettings s) where T : IMediaTrack
+    {
+        var filteredTracks = tracksInLanguage.AsEnumerable();
+
+        if (s.RemoveCommentary)
+        {
+            var nonCommentaryTracks = tracksInLanguage.Where(t => !t.IsCommentary).ToList();
+            if (nonCommentaryTracks.Any())
+            {
+                filteredTracks = filteredTracks.Where(t => !t.IsCommentary);
+            }
+        }
+
+        if (s.RemoveImpaired)
+        {
+            // A forced subtitle only translates foreign dialogue and signs, so it
+            // is no substitute for the full captions an SDH track carries.
+            var isSubtitles = tracksInLanguage[0].Type == MediaTrackType.Subtitles;
+
+            // Vouch against what survived the filters above, or a commentary
+            // track just removed can stand in for the alternative we need.
+            var remaining = filteredTracks.ToList();
+            if (remaining.Any(t => !IsImpaired(t) && !(isSubtitles && t.IsForced)))
+            {
+                filteredTracks = remaining.Where(t => !IsImpaired(t));
+            }
+        }
+
+        if (s.ExcludeCodecs && s.ExcludedCodecs.Count > 0)
+        {
+            filteredTracks = filteredTracks.Where(t =>
+            {
+                var parsed = Enum.TryParse<SubtitleCodec>(t.Codec, out var e)
+                    ? e
+                    : SubtitleCodecExtensions.ParseSubtitleCodec(t.Codec);
+                return parsed == SubtitleCodec.Unknown || !s.ExcludedCodecs.Contains(parsed);
+            });
+        }
+
+        // Apply per-language track limits (MaxTracks).
+        // After language/flag/codec filtering, keep only the top N tracks by quality score.
+        // Audio and subtitles score on different axes, so each uses its own strategy.
+        // Ties go to the earlier track in the file.
+        if (pref.MaxTracks is > 0)
+        {
+            var isAudio = tracksInLanguage[0].Type == MediaTrackType.Audio;
+            filteredTracks = filteredTracks
+                .OrderByDescending(t => isAudio
+                    ? TrackQualityScorer.ScoreAudio(t, pref.QualityStrategy)
+                    : TrackQualityScorer.ScoreSubtitle(t, pref.SubtitleStrategy))
+                .ThenBy(t => t.Index)
+                .Take(pref.MaxTracks.Value);
+        }
+
+        return filteredTracks;
+    }
+
     /// <summary>
-    /// Finds the LanguagePreference that caused a language to be kept.
-    /// Explicit language matches take priority over the Original Language placeholder,
-    /// so per-language overrides on "English" are used instead of "Original Language" overrides
-    /// when both are in the list and the file's original language is English.
+    /// The fallback entries the file did not need. Walks the priority list in
+    /// order: the first entry of a group the file has a track for claims it, and
+    /// the fallbacks below it go inactive. Presence goes by every entry that keeps
+    /// a track, not just the one it is bound to, so original-language English
+    /// counts for "Original Language" even when an exact English entry took the
+    /// tracks. A language whose tracks were all filtered out counts as absent, and
+    /// so does one left with only tracks that cannot stand in for it, so the next
+    /// one down gets its turn.
     /// </summary>
-    private static LanguagePreference? FindMatchingPreference(string language, string? originalLanguage,
+    private static HashSet<LanguagePreference> InactiveFallbacks<T>(HashSet<T> kept,
+        Dictionary<T, List<LanguagePreference>> keptBy, TrackSettings s) where T : IMediaTrack
+    {
+        var present = kept.Where(t => RepresentsLanguage(t, s)).SelectMany(t => keptBy[t]).ToHashSet();
+        var inactive = new HashSet<LanguagePreference>();
+        var claimed = false;
+        foreach (var pref in s.AllowedLanguages)
+        {
+            if (!pref.IsFallback)
+            {
+                claimed = false;
+            }
+
+            if (claimed)
+            {
+                inactive.Add(pref);
+            }
+            else
+            {
+                claimed = present.Contains(pref);
+            }
+        }
+
+        return inactive;
+    }
+
+    // Whether a track counts as its language being present when deciding if a
+    // fallback is needed. Commentary and forced subtitles never do: they are extras,
+    // not the language. SDH and audio description do unless the profile removes
+    // them, in which case a language left with only those still wants its fallback.
+    private static bool RepresentsLanguage(IMediaTrack track, TrackSettings s)
+    {
+        return !track.IsCommentary
+               && !(track.Type == MediaTrackType.Subtitles && track.IsForced)
+               && !(s.RemoveImpaired && IsImpaired(track));
+    }
+
+    /// <summary>
+    /// The entries that keep a language, most specific first: an exact name match,
+    /// then a base-language entry covering one of its variants ("French" keeps
+    /// "French (Canada)"), then the Original Language placeholder. Per-language
+    /// overrides come from the first, so overrides on "English" are used instead of
+    /// "Original Language" overrides when both apply; whether the language is kept
+    /// at all can come from any of them.
+    /// </summary>
+    private static List<LanguagePreference> MatchingPreferences(string language, string? originalLanguage,
         TrackSettings s)
     {
-        return s.AllowedLanguages.FirstOrDefault(x => x.Name == language)
-               ?? (language == originalLanguage
-                   ? s.AllowedLanguages.FirstOrDefault(x => x.IsOriginalLanguagePlaceholder)
-                   : null);
+        var lang = IsoLanguage.Find(language);
+        var matches = s.AllowedLanguages.Where(x => x.Name == language).ToList();
+        matches.AddRange(s.AllowedLanguages.Where(x =>
+            x.Name != language && !x.IsOriginalLanguagePlaceholder && IsoLanguage.Find(x.Name).Includes(lang)));
+        if (SameBaseLanguage(language, originalLanguage))
+        {
+            matches.AddRange(s.AllowedLanguages.Where(x => x.IsOriginalLanguagePlaceholder));
+        }
+
+        return matches;
     }
 
     /// <summary>
     /// Returns the priority index for a language based on its position in AllowedLanguages.
-    /// Lower = higher priority. Handles the Original Language sentinel matching.
+    /// Lower = higher priority. Handles the Original Language sentinel and variant
+    /// matching: an exact entry wins over a base entry covering the variant,
+    /// regardless of list position, mirroring FindMatchingPreference.
     /// Returns int.MaxValue if not found (sorts to end).
     /// </summary>
     private static int GetLanguagePriority(string trackLanguage, TrackSettings s, string? originalLanguage)
     {
-        var best = int.MaxValue;
+        var exact = int.MaxValue;
+        var fallback = int.MaxValue;
+        var lang = IsoLanguage.Find(trackLanguage);
+
         for (var i = 0; i < s.AllowedLanguages.Count; i++)
         {
             var pref = s.AllowedLanguages[i];
-            if (pref.Name == trackLanguage ||
-                (pref.IsOriginalLanguagePlaceholder && trackLanguage == originalLanguage))
+            if (pref.Name == trackLanguage)
             {
-                best = Math.Min(best, i);
+                exact = Math.Min(exact, i);
+            }
+            else if (pref.IsOriginalLanguagePlaceholder
+                         ? SameBaseLanguage(trackLanguage, originalLanguage)
+                         : IsoLanguage.Find(pref.Name).Includes(lang))
+            {
+                fallback = Math.Min(fallback, i);
             }
         }
 
-        return best;
+        return exact != int.MaxValue ? exact : fallback;
     }
 
     public static bool IsAllowed(this IMediaTrack track, IEnumerable<IMediaTrack> allowedTracks)
@@ -624,13 +787,17 @@ public static class MediaFileExtensions
 
     /// <summary>
     /// Whether an undetermined track should be resolved to the original language.
-    /// Checks: setting enabled, language code is "und", single track of type, original language resolvable.
+    /// Checks: setting enabled, language code is "und", single track of type, original
+    /// language resolvable. A track whose name already resolved a language at scan
+    /// time ("VFQ" → French (Canada)) keeps its und code but is not undetermined.
     /// </summary>
     public static bool ShouldResolveUndetermined(this IMediaTrack track, TrackSettings? settings,
         int totalTracksOfType, string? originalLanguage)
     {
+        var named = IsoLanguage.Find(track.LanguageName);
         return settings is { AssumeUndeterminedIsOriginal: true }
                && track.LanguageCode == "und"
+               && (named == IsoLanguage.Unknown || named.Name == IsoLanguage.UndeterminedName)
                && totalTracksOfType == 1
                && !string.IsNullOrEmpty(originalLanguage)
                && IsoLanguage.Find(originalLanguage) != IsoLanguage.Unknown;
@@ -805,12 +972,24 @@ public static class MediaFileExtensions
         int totalTracksOfType, string? originalLanguage, bool standardizeNames = true)
     {
         track.CorrectFlagsFromTrackName();
+        track.ApplyProfileState(settings, totalTracksOfType, originalLanguage, standardizeNames);
+    }
 
+    /// <summary>
+    /// The profile's view of a track once its flags are settled: undetermined
+    /// language resolution, the original-language flag and the standardized name.
+    /// Split out because a track being edited by hand already has the flags its
+    /// owner wants, and re-reading them off the name it is about to lose would
+    /// just put the old ones back.
+    /// </summary>
+    private static void ApplyProfileState(this TrackSnapshot track, TrackSettings? settings,
+        int totalTracksOfType, string? originalLanguage, bool standardizeNames)
+    {
         if (track.ShouldResolveUndetermined(settings, totalTracksOfType, originalLanguage))
         {
             var iso = IsoLanguage.Find(originalLanguage!);
             track.LanguageName = originalLanguage!;
-            track.LanguageCode = iso.ThreeLetterCode!;
+            track.LanguageCode = iso.WriteCode!;
         }
 
         // Audio: FlagOriginal follows the arr-synced OriginalLanguage. Subs
@@ -818,14 +997,105 @@ public static class MediaFileExtensions
         // which is semantically different.
         if (track.Type == MediaTrackType.Audio && !string.IsNullOrEmpty(originalLanguage))
         {
-            track.IsOriginal = string.Equals(track.LanguageName, originalLanguage, StringComparison.Ordinal);
+            track.IsOriginal = SameBaseLanguage(track.LanguageName, originalLanguage);
         }
 
         if (standardizeNames && settings is { StandardizeTrackNames: true })
         {
+            // Standardizing overwrites the name that carries a detected variant
+            // marker ("VFQ") - the only evidence of the variant when the file is
+            // tagged with the base code. Persist it in the language tag as part
+            // of the same rewrite; containers that cannot hold a BCP 47 tag put
+            // it back into the name in TargetResolver.
+            var named = IsoLanguage.Find(track.LanguageName);
+            if (named.IetfTag is { } ietf && IsoLanguage.Find(track.LanguageCode).Equals(named.Base))
+            {
+                track.LanguageCode = ietf;
+            }
+
             var template = settings.ResolveTemplate(track);
             track.Name = track.ApplyTrackNameTemplate(template);
         }
+    }
+
+    /// <summary>
+    /// Applies a metadata edit to a track and keeps its name in step. The name is
+    /// a carrier, not decoration, and an edit that leaves it behind is read
+    /// straight back on the next scan. A name the user typed themselves is only
+    /// corrected for what the container cannot hold on its own.
+    /// </summary>
+    public static void ApplyTrackEdit(this TrackSnapshot track, MediaFile file, Profile? profile,
+        IEnumerable<TrackSnapshot> siblings, Action<TrackSnapshot> edit)
+    {
+        var settings = profile == null ? null : SettingsFor(track.Type, profile);
+        var family = file.Snapshot.ContainerType.ToContainerFamily();
+        var totalOfType = siblings.Count(t => t.Type == track.Type);
+
+        var standardized = StandardizedName(track, settings, family, totalOfType, file.OriginalLanguage);
+        var wasStandardized = standardized != null
+                              && string.Equals(track.Name ?? "", standardized, StringComparison.Ordinal);
+        var language = track.LanguageName;
+        var isDub = track.IsDub;
+
+        edit(track);
+
+        var name = track.Name;
+        if (wasStandardized)
+        {
+            name = StandardizedName(track, settings, family, totalOfType, file.OriginalLanguage);
+        }
+        else
+        {
+            if (!string.Equals(track.LanguageName, language, StringComparison.Ordinal))
+            {
+                // A marker for the old language has to go whatever the container,
+                // since the scan reads it as a second source and it would override
+                // the new tag. Writing the new marker in is only needed where the
+                // tag cannot say it: MP4 packs a plain ISO code, and even Matroska
+                // has nothing for a variant that shares its base's code.
+                var picked = IsoLanguage.Find(track.LanguageName);
+                var tagSaysIt = family == ContainerFamily.Matroska
+                                && !string.Equals(picked.WriteCode, picked.Base.WriteCode, StringComparison.Ordinal);
+                name = tagSaysIt
+                    ? LanguageVariants.StripContradictions(name, picked)
+                    : LanguageVariants.EncodeInName(name, picked);
+            }
+
+            if (family == ContainerFamily.Matroska && track.IsDub != isDub)
+            {
+                name = TrackNameFlags.EncodeDubInName(name, track.IsDub);
+            }
+        }
+
+        // "" rather than null: an emptied name is an explicit clear, not "no opinion".
+        if (!string.Equals(name ?? "", track.Name ?? "", StringComparison.Ordinal))
+        {
+            track.Name = name ?? "";
+        }
+    }
+
+    // The name the profile's standardization would give this track, or null when
+    // it doesn't standardize this type.
+    private static string? StandardizedName(TrackSnapshot track, TrackSettings? settings,
+        ContainerFamily family, int totalTracksOfType, string? originalLanguage)
+    {
+        if (settings is not { StandardizeTrackNames: true })
+        {
+            return null;
+        }
+
+        var preview = track.ToSnapshot();
+        preview.ApplyProfileState(settings, totalTracksOfType, originalLanguage, standardizeNames: true);
+        return CarryInName(preview.Name, preview, family);
+    }
+
+    // Metadata the container cannot hold natively lives in the track name:
+    // Matroska has no FlagDub element, and only Matroska holds a BCP 47 tag.
+    private static string? CarryInName(string? name, TrackSnapshot track, ContainerFamily family)
+    {
+        return family == ContainerFamily.Matroska
+            ? TrackNameFlags.EncodeDubInName(name, track.IsDub)
+            : LanguageVariants.EncodeInName(name, IsoLanguage.Find(track.LanguageName));
     }
 
     public static void CorrectFlagsFromTrackName(this TrackSnapshot track)
@@ -870,6 +1140,7 @@ public static class MediaFileExtensions
             .Replace("{lang}", track.LanguageCode, StringComparison.OrdinalIgnoreCase)
             .Replace("{code}", ShortCode(iso, track), StringComparison.OrdinalIgnoreCase)
             .Replace("{nativelanguage}", iso.NativeName, StringComparison.OrdinalIgnoreCase)
+            .Replace("{variant}", LanguageVariants.PreferredMarker(iso) ?? "", StringComparison.OrdinalIgnoreCase)
             .Replace("{codec}", track.Codec.FormatCodec(), StringComparison.OrdinalIgnoreCase)
             .Replace("{channels}", track.GetChannelLayout() ?? "", StringComparison.OrdinalIgnoreCase)
             .Replace("{trackname}", track.Name ?? "", StringComparison.OrdinalIgnoreCase)
@@ -996,6 +1267,12 @@ public static class MediaFileExtensions
                     tt.Name = "";
                 }
 
+                // Same trap for audio/subs: a template resolving to nothing means "clear".
+                if (settings is { StandardizeTrackNames: true } && tt.Name == null)
+                {
+                    tt.Name = "";
+                }
+
                 return tt;
             }).ToList()
         };
@@ -1016,10 +1293,14 @@ public static class MediaFileExtensions
             {
                 var plan = t.ToTargetTrack(true);
                 // UI may have edited LanguageName without syncing LanguageCode; re-resolve,
-                // but leave an equivalent code alone (deu must not become ger).
+                // but leave an equivalent code alone (deu must not become ger). The base
+                // code under a name-refined variant is equivalent too: a "VFQ"-named fre
+                // track displays as French (Canada) without the file saying so, and
+                // upgrading the file's tag is not this safety net's call.
                 var iso = IsoLanguage.Find(t.LanguageName);
-                if (iso != IsoLanguage.Unknown && iso.ThreeLetterCode is { } code
-                    && IsoLanguage.Find(t.LanguageCode) != iso)
+                var coded = IsoLanguage.Find(t.LanguageCode);
+                if (iso != IsoLanguage.Unknown && iso.WriteCode is { } code
+                    && coded != iso && !(iso.IsVariant && coded.Equals(iso.Base)))
                 {
                     plan.LanguageCode = code;
                 }

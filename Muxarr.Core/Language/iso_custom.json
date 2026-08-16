@@ -1,11 +1,16 @@
 [
-  { "threeLetterCodes": ["frc"], "twoLetterCode": "fr-ca", "name": "French (Canada)", "nativeName": "Français (Canada)" },
-  { "threeLetterCodes": ["pob"], "twoLetterCode": "pt-br", "name": "Portuguese (Brazil)", "nativeName": "Português (Brasil)" },
-  { "threeLetterCodes": ["pop"], "twoLetterCode": "pt-pt", "name": "Portuguese (Portugal)", "nativeName": "Português (Portugal)" },
-  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "ze", "name": "Chinese (Bilingual)", "nativeName": "中文" },
-  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "zh-tw", "name": "Chinese (Traditional)", "nativeName": "中文（繁體）" },
-  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "zh-hk", "name": "Chinese (Hong Kong)", "nativeName": "中文（香港）" },
-  { "threeLetterCodes": ["spa"], "twoLetterCode": "es-mx", "name": "Spanish (Latin America)", "nativeName": "Español (Latinoamérica)" },
-  { "threeLetterCodes": ["cmn"], "name": "Mandarin Chinese", "nativeName": "普通话" },
-  { "threeLetterCodes": ["yue"], "name": "Cantonese", "nativeName": "廣東話" }
+  { "threeLetterCodes": ["frc"], "twoLetterCode": "fr-ca", "ietf": "fr-CA", "base": "French", "name": "French (Canada)", "nativeName": "Français (Canada)" },
+  { "threeLetterCodes": [], "twoLetterCode": "fr-fr", "ietf": "fr-FR", "base": "French", "name": "French (France)", "nativeName": "Français (France)" },
+  { "threeLetterCodes": [], "twoLetterCode": "fr-be", "ietf": "fr-BE", "base": "French", "name": "French (Belgium)", "nativeName": "Français (Belgique)" },
+  { "threeLetterCodes": ["pob"], "twoLetterCode": "pt-br", "ietf": "pt-BR", "base": "Portuguese", "name": "Portuguese (Brazil)", "nativeName": "Português (Brasil)" },
+  { "threeLetterCodes": ["pop"], "twoLetterCode": "pt-pt", "ietf": "pt-PT", "base": "Portuguese", "name": "Portuguese (Portugal)", "nativeName": "Português (Portugal)" },
+  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "ze", "base": "Chinese", "name": "Chinese (Bilingual)", "nativeName": "中文" },
+  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "zh-tw", "ietf": "zh-Hant", "base": "Chinese", "name": "Chinese (Traditional)", "nativeName": "中文（繁體）" },
+  { "threeLetterCodes": [], "twoLetterCode": "zh-cn", "ietf": "zh-Hans", "base": "Chinese", "name": "Chinese (Simplified)", "nativeName": "中文（简体）" },
+  { "threeLetterCodes": ["chi", "zho"], "twoLetterCode": "zh-hk", "ietf": "zh-HK", "base": "Chinese", "name": "Chinese (Hong Kong)", "nativeName": "中文（香港）" },
+  { "threeLetterCodes": ["spa"], "twoLetterCode": "es-mx", "ietf": "es-419", "base": "Spanish", "name": "Spanish (Latin America)", "nativeName": "Español (Latinoamérica)" },
+  { "threeLetterCodes": [], "twoLetterCode": "es-es", "ietf": "es-ES", "base": "Spanish", "name": "Spanish (Spain)", "nativeName": "Español (España)" },
+  { "threeLetterCodes": [], "twoLetterCode": "nl-be", "ietf": "nl-BE", "base": "Dutch", "name": "Flemish", "nativeName": "Vlaams" },
+  { "threeLetterCodes": ["cmn"], "base": "Chinese", "name": "Mandarin Chinese", "nativeName": "普通话" },
+  { "threeLetterCodes": ["yue"], "base": "Chinese", "name": "Cantonese", "nativeName": "廣東話" }
 ]

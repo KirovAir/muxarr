@@ -474,6 +474,8 @@ public class TrackPriorityTests
         Assert.AreEqual(3, result[2].Index);
     }
 
+    // Interleaved languages stay interleaved: filtering per language must not
+    // regroup the file, or "Don't reorder" would still trigger a remux.
     [TestMethod]
     public void Priority_Disabled_PreservesSourceOrder()
     {
@@ -486,13 +488,13 @@ public class TrackPriorityTests
         var tracks = new List<TrackSnapshot>
         {
             Audio(1, "English", "Aac", 2),
-            Audio(2, "Japanese", "Aac", 2)
+            Audio(2, "Japanese", "Aac", 2),
+            Audio(3, "English", "Aac", 6)
         };
 
         var result = tracks.GetAllowedTracks(settings, null);
 
-        Assert.AreEqual("English", result[0].LanguageName);
-        Assert.AreEqual("Japanese", result[1].LanguageName);
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, result.Select(t => t.Index).ToArray());
     }
 
     [TestMethod]

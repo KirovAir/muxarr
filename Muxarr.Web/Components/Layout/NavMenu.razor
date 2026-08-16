@@ -51,6 +51,12 @@
     <div class="mux-sidebar-footer">
         <ul class="nav flex-column w-100">
             <li class="nav-item">
+                <a class="nav-link" href="https://muxarr.app/docs/" target="_blank" rel="noopener">
+                    <i class="bi bi-book"></i>
+                    <span>Docs</span>
+                </a>
+            </li>
+            <li class="nav-item">
                 <button class="nav-link w-100" @onclick="() => Layout.ToggleTheme()">
                     <i class="bi @(Layout.IsDarkMode ? "bi-moon-fill" : "bi-sun-fill") mux-theme-icon @(Layout.IsDarkMode ? "" : "light")"></i>
                     <span>@(Layout.IsDarkMode ? "Dark" : "Light")</span>

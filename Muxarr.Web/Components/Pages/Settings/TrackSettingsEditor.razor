@@ -15,8 +15,9 @@
                 <LanguagePriorityEditor Languages="Settings.AllowedLanguages"
                                         TrackType="TrackType"/>
                 <small class="form-text text-muted">
-                    Drag to set priority. Click <i class="bi bi-gear"></i> for per-language settings like track limits.
-                    This order is used by the default track and track order options below.
+                    Drag to set priority. Click <i class="bi bi-arrow-return-right"></i> to keep a language only when
+                    the one above it is missing, or <i class="bi bi-gear"></i> for per-language settings like track
+                    limits. This order is used by the default track and track order options below.
                 </small>
             </div>
 
@@ -128,13 +129,13 @@
             @switch (Settings.ReorderStrategy)
             {
                 case TrackReorderStrategy.Alphabetical:
-                    <text>Tracks are sorted A-Z by language. Best quality first within each language. Requires
+                    <text>Tracks are sorted A-Z by language. Within a language the file's own order is kept. Requires
                         remux.</text>
                     break;
                 case TrackReorderStrategy.MatchLanguagePriority:
                     <text>
-                        Tracks are sorted to match your priority list. Best quality first within each language. Requires
-                        remux.</text>
+                        Tracks are sorted to match your priority list. Within a language the file's own order is kept.
+                        Requires remux.</text>
                     break;
                 default:
                     <text>Original track order from the source file is preserved.</text>
@@ -161,7 +162,7 @@
                        @bind-Value="Settings.TrackNameTemplate"/>
             <small class="form-text text-muted d-block">
                 Placeholders: <code>{language}</code>, <code>{lang}</code>, <code>{code}</code>,
-                <code>{nativelanguage}</code>,
+                <code>{nativelanguage}</code>, <code>{variant}</code>,
                 <code>{codec}</code>,
                 @if (IsAudio)
                 {
@@ -171,8 +172,17 @@
                 <code>{trackname}</code>,
                 <code>{hi}</code>, <code>{forced}</code>, <code>{commentary}</code>, <code>{visualimpaired}</code>,
                 <code>{original}</code>, <code>{dub}</code>, <code>{flags}</code>.
+                <code>{code}</code> is the language code (FR-CA), <code>{variant}</code> the regional marker (VFQ).
                 Leave empty to clear all track names.
             </small>
+
+            @if (HasClearWarning)
+            {
+                <small class="form-text text-warning d-block mt-1">
+                    <i class="bi bi-exclamation-triangle me-1"></i>All @(TrackTypeLabel.ToLower()) track names will be
+                    cleared during conversion.
+                </small>
+            }
 
             @if (HasDubWarning)
             {
@@ -254,6 +264,13 @@
     private string? SecondLanguage =>
         Settings.AllowedLanguages.Count > 1 ? Settings.AllowedLanguages[1].Language.Name : null;
 
+    // A regional sample only when a template asks for {variant} and the first
+    // language is not one already, so the preview shows what the marker looks like.
+    private bool ShowVariantSample =>
+        Settings.TrackNameOverrides.Values.Prepend(Settings.TrackNameTemplate)
+            .Any(t => t?.Contains("{variant}", StringComparison.OrdinalIgnoreCase) == true)
+        && !IsoLanguage.Find(PreviewLanguage).IsVariant;
+
     private List<TrackSnapshot> GetPreviewTracks()
     {
         if (IsAudio)
@@ -267,6 +284,11 @@
             if (SecondLanguage != null)
             {
                 tracks.Add(new TrackSnapshot { Type = MediaTrackType.Audio, LanguageName = SecondLanguage, Codec = "E-AC-3", AudioChannels = 6, IsDub = true });
+            }
+
+            if (ShowVariantSample)
+            {
+                tracks.Add(new TrackSnapshot { Type = MediaTrackType.Audio, LanguageName = "French (Canada)", Codec = "AC-3", AudioChannels = 6 });
             }
 
             return tracks;
@@ -284,11 +306,19 @@
                 tracks.Add(new TrackSnapshot { Type = MediaTrackType.Subtitles, LanguageName = SecondLanguage, Codec = "SRT", IsDub = true });
             }
 
+            if (ShowVariantSample)
+            {
+                tracks.Add(new TrackSnapshot { Type = MediaTrackType.Subtitles, LanguageName = "French (Canada)", Codec = "SRT" });
+            }
+
             return tracks;
         }
     }
 
     private bool _hasOverrides => Settings.TrackNameOverrides.Any(kv => !string.IsNullOrEmpty(kv.Value));
+
+    private bool HasClearWarning =>
+        Settings.StandardizeTrackNames && string.IsNullOrWhiteSpace(Settings.TrackNameTemplate);
 
     private bool HasDubWarning =>
         Settings.StandardizeTrackNames

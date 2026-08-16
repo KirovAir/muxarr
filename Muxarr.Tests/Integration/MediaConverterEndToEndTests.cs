@@ -4,6 +4,7 @@ using Muxarr.Core.FFmpeg;
 using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
+using Muxarr.Web.Services;
 
 namespace Muxarr.Tests.Integration;
 
@@ -89,6 +90,39 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         Assert.IsTrue(promoted.IsDefault, $"track #{newDefault.Index} should be default after mkvpropedit");
         Assert.IsFalse(demoted.IsDefault, $"track #{currentDefault.Index} should no longer be default");
         Assert.AreEqual(9, probed.Snapshot.Tracks.Count, "metadata edit must not change track count");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // A stale LANGUAGE tag hid the header, so verify fell through to a futile remux.
+    [TestMethod]
+    public async Task MetadataEdit_Matroska_LanguageOverride_ConvergesDespiteShadowTag()
+    {
+        var path = CopyFixture("shadowtag.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+
+        var targetTracks = file.Snapshot.Tracks.ToSnapshots();
+        var dutch = targetTracks.First(t => t.LanguageCode == "dut");
+        dutch.LanguageName = "French";
+        dutch.LanguageCode = "fre";
+        var target = file.BuildTargetFromCustom(targetTracks);
+
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+        Assert.IsFalse(result.Log.Contains("Falling through to remux"),
+            "language edit must verify clean in-place, not fall through to a remux");
+
+        var probed = await FileAssertions.ProbeAsync(path);
+        var edited = probed.Snapshot.Tracks.First(t => t.Index == dutch.Index);
+        Assert.AreEqual("fre", edited.LanguageCode, "language override should survive the rescan");
+
+        // Closed only if a fresh plan has nothing left to do; anything else re-flags forever.
+        var replan = ConversionPlanner.Plan(probed.Snapshot, probed.BuildTargetFromCustom(targetTracks));
+        Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, replan.Strategy,
+            "a re-plan after the edit must have nothing left to change");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 

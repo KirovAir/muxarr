@@ -15,114 +15,51 @@ public class MkvToolNixTests : FixtureTestBase
         return Task.CompletedTask;
     }
 
+    // One scan, all parse assertions - a re-scan of the same unchanged file
+    // per property was nine mkvmerge spawns for one behavior.
     [TestMethod]
-    public async Task GetFileInfo_ReturnsAllTracks()
+    public async Task GetFileInfo_ParsesTracksLanguagesAndContainer()
     {
         var info = await MkvMerge.GetFileInfo(_workingCopy);
 
         Assert.IsNotNull(info.Result);
-        Assert.AreEqual(5, info.Result.Tracks.Count);
-    }
+        var tracks = info.Result.Tracks;
+        Assert.AreEqual(5, tracks.Count);
 
-    [TestMethod]
-    public async Task GetFileInfo_ParsesTrackTypes()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
-
-        Assert.AreEqual("video", tracks[0].Type);
-        Assert.AreEqual("audio", tracks[1].Type);
-        Assert.AreEqual("audio", tracks[2].Type);
-        Assert.AreEqual("subtitles", tracks[3].Type);
-        Assert.AreEqual("subtitles", tracks[4].Type);
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesTrackNames()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
-
-        Assert.AreEqual("Video 1080p", tracks[0].Properties.TrackName);
-        Assert.AreEqual("Surround 5.1", tracks[1].Properties.TrackName);
-        Assert.AreEqual("DTS-HD MA 5.1", tracks[2].Properties.TrackName);
-        Assert.AreEqual("English SDH", tracks[3].Properties.TrackName);
-        Assert.AreEqual("Nederlands voor doven en slechthorenden", tracks[4].Properties.TrackName);
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesLanguages()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
-
-        Assert.AreEqual("und", tracks[0].Properties.Language);
-        Assert.AreEqual("eng", tracks[1].Properties.Language);
-        Assert.AreEqual("dut", tracks[2].Properties.Language);
-        Assert.AreEqual("eng", tracks[3].Properties.Language);
-        Assert.AreEqual("dut", tracks[4].Properties.Language);
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesHearingImpairedFlag()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
-
-        Assert.IsFalse(tracks[0].Properties.FlagHearingImpaired);
-        Assert.IsFalse(tracks[1].Properties.FlagHearingImpaired);
-        Assert.IsFalse(tracks[2].Properties.FlagHearingImpaired);
-        Assert.IsTrue(tracks[3].Properties.FlagHearingImpaired);
-        Assert.IsTrue(tracks[4].Properties.FlagHearingImpaired);
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_DetectsHearingImpairedFromTrackName()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
-
-        // "English SDH" should be detected
-        Assert.IsTrue(tracks[3].IsHearingImpaired());
-        // "Nederlands voor doven en slechthorenden" should be detected via "doven"
-        Assert.IsTrue(tracks[4].IsHearingImpaired());
-        // Audio tracks should not be detected
-        Assert.IsFalse(tracks[1].IsHearingImpaired());
-    }
-
-    [TestMethod]
-    public async Task GetFileInfo_ParsesCodecAndChannels()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-        var tracks = info.Result!.Tracks;
+        CollectionAssert.AreEqual(new[] { "video", "audio", "audio", "subtitles", "subtitles" },
+            tracks.Select(t => t.Type).ToArray());
+        CollectionAssert.AreEqual(new[]
+        {
+            "Video 1080p", "Surround 5.1", "DTS-HD MA 5.1", "English SDH",
+            "Nederlands voor doven en slechthorenden"
+        }, tracks.Select(t => t.Properties.TrackName).ToArray());
+        CollectionAssert.AreEqual(new[] { "und", "eng", "dut", "eng", "dut" },
+            tracks.Select(t => t.Properties.Language).ToArray());
 
         Assert.IsTrue(tracks[0].Codec.Contains("AVC"), "Video codec should contain AVC");
         Assert.AreEqual("AAC", tracks[1].Codec);
         Assert.AreEqual(2, tracks[1].Properties.AudioChannels);
         Assert.AreEqual("SubRip/SRT", tracks[3].Codec);
-    }
 
-    [TestMethod]
-    public async Task GetFileInfo_ParsesContainerType()
-    {
-        var info = await MkvMerge.GetFileInfo(_workingCopy);
-
-        Assert.IsNotNull(info.Result!.Container);
-        Assert.AreEqual("Matroska", info.Result.Container.Type);
+        Assert.AreEqual("Matroska", info.Result.Container!.Type);
         Assert.IsTrue(info.Result.Container.Properties!.Duration > 0);
     }
 
     [TestMethod]
-    public async Task GetFileInfo_ParsesDefaultFlags()
+    public async Task GetFileInfo_ParsesAndDetectsFlags()
     {
         var info = await MkvMerge.GetFileInfo(_workingCopy);
         var tracks = info.Result!.Tracks;
 
-        // test.mkv has all tracks as default=true (mkvmerge default behavior)
-        foreach (var track in tracks)
-        {
-            Assert.IsTrue(track.Properties.DefaultTrack, $"Track {track.Id} should be default");
-        }
+        // Header flags: HI on both subs; all tracks default (mkvmerge default).
+        CollectionAssert.AreEqual(new[] { false, false, false, true, true },
+            tracks.Select(t => t.Properties.FlagHearingImpaired).ToArray());
+        Assert.IsTrue(tracks.All(t => t.Properties.DefaultTrack), "test.mkv has every track default");
+
+        // "English SDH" and "...voor doven..." resolve HI; audio does not.
+        Assert.IsTrue(tracks[3].IsHearingImpaired());
+        Assert.IsTrue(tracks[4].IsHearingImpaired());
+        Assert.IsFalse(tracks[1].IsHearingImpaired());
     }
 
     [TestMethod]

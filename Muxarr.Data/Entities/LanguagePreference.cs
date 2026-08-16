@@ -31,6 +31,15 @@ public class LanguagePreference
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public SubtitleQualityStrategy SubtitleStrategy { get; set; } = SubtitleQualityStrategy.TextFirst;
 
+    /// <summary>
+    /// Keeps this language only when the file has none of the languages above it
+    /// in its group. A group starts at the first entry that is not a fallback and
+    /// runs down through the fallbacks following it, and only one language in a
+    /// group survives: the highest-ranked one the file actually has.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsFallback { get; set; }
+
     [JsonIgnore]
     public bool HasOverrides => MaxTracks.HasValue
                                 || QualityStrategy != AudioQualityStrategy.BestQuality

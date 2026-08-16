@@ -1,5 +1,4 @@
 @using Muxarr.Web.Components.Pages.Library
-@using Muxarr.Core.MkvToolNix
 <div class="modal-body">
     <p class="mb-3 text-body-secondary">Select which tracks to keep, reorder them, and edit their metadata. Use
         <strong>Apply Profile</strong> below to start from a profile's track rules. At least one audio track is
@@ -28,7 +27,7 @@
         </thead>
         <tbody>
         @{ MediaTrackType? lastType = null; }
-        @foreach (var track in _editableTracks)
+        @foreach (var track in _editor.Tracks)
         {
             if (track.Type != lastType)
             {
@@ -41,20 +40,20 @@
             }
 
             var isVideo = track.Type == MediaTrackType.Video;
-            var isChecked = _selectedTrackIds.Contains(track.Index);
+            var isChecked = _editor.IsSelected(track);
             <tr class="@(!isChecked && !isVideo ? "opacity-50" : "")">
                 <td class="text-center pe-0">
                     @if (!isVideo)
                     {
                         <ToolTip Tip="Move up">
                             <button type="button" class="btn btn-link btn-sm text-muted p-0 me-1"
-                                    disabled="@(!CanMoveUp(track))" @onclick="() => MoveTrack(track, -1)">
+                                    disabled="@(!_editor.CanMoveUp(track))" @onclick="() => _editor.Move(track, -1)">
                                 <i class="bi bi-chevron-up" style="font-size: 0.7rem;"></i>
                             </button>
                         </ToolTip>
                         <ToolTip Tip="Move down">
                             <button type="button" class="btn btn-link btn-sm text-muted p-0"
-                                    disabled="@(!CanMoveDown(track))" @onclick="() => MoveTrack(track, 1)">
+                                    disabled="@(!_editor.CanMoveDown(track))" @onclick="() => _editor.Move(track, 1)">
                                 <i class="bi bi-chevron-down" style="font-size: 0.7rem;"></i>
                             </button>
                         </ToolTip>
@@ -72,8 +71,8 @@
                     {
                         <select class="form-select form-select-sm"
                                 value="@track.LanguageName"
-                                @onchange="e => OnLanguageChanged(track, e.Value?.ToString())">
-                            @foreach (var lang in _languages)
+                                @onchange="e => _editor.SetLanguage(track, e.Value?.ToString())">
+                            @foreach (var lang in _editor.Languages)
                             {
                                 <option value="@lang.Name">@lang.Name</option>
                             }
@@ -101,7 +100,7 @@
                             <ToolTip Tip="Default - Player will auto-select this track during playback">
                                 <button type="button"
                                         class="btn btn-sm @(track.IsDefault ? "btn-primary" : "btn-outline-secondary")"
-                                        @onclick="() => track.IsDefault = !track.IsDefault">
+                                        @onclick="() => _editor.Edit(track, t => t.IsDefault = !t.IsDefault)">
                                     <i class="bi bi-play-circle"></i>
                                 </button>
                             </ToolTip>
@@ -111,7 +110,7 @@
                                     Tip="Hearing Impaired (SDH) - Includes sound descriptions for deaf/hard of hearing viewers">
                                     <button type="button"
                                             class="btn btn-sm @(track.IsHearingImpaired ? "btn-primary" : "btn-outline-secondary")"
-                                            @onclick="() => track.IsHearingImpaired = !track.IsHearingImpaired">
+                                            @onclick="() => _editor.Edit(track, t => t.IsHearingImpaired = !t.IsHearingImpaired)">
                                         <i class="bi bi-ear"></i>
                                     </button>
                                 </ToolTip>
@@ -119,7 +118,7 @@
                                     Tip="Forced - Shows even when subtitles are off. Used for foreign dialogue in otherwise native-language films.">
                                     <button type="button"
                                             class="btn btn-sm @(track.IsForced ? "btn-primary" : "btn-outline-secondary")"
-                                            @onclick="() => track.IsForced = !track.IsForced">
+                                            @onclick="() => _editor.Edit(track, t => t.IsForced = !t.IsForced)">
                                         <i class="bi bi-lock"></i>
                                     </button>
                                 </ToolTip>
@@ -127,7 +126,7 @@
                             <ToolTip Tip="Commentary - Director/crew commentary track">
                                 <button type="button"
                                         class="btn btn-sm @(track.IsCommentary ? "btn-primary" : "btn-outline-secondary")"
-                                        @onclick="() => track.IsCommentary = !track.IsCommentary">
+                                        @onclick="() => _editor.Edit(track, t => t.IsCommentary = !t.IsCommentary)">
                                     <i class="bi bi-chat-quote"></i>
                                 </button>
                             </ToolTip>
@@ -135,7 +134,7 @@
                                 Tip="Dub - Translated audio (e.g. English dub of a Japanese show). Matroska has no FlagDub; the state is stored in the track title and will be appended/stripped automatically when you toggle this. On MP4 it maps to a native disposition flag.">
                                 <button type="button"
                                         class="btn btn-sm @(track.IsDub ? "btn-primary" : "btn-outline-secondary")"
-                                        @onclick="() => ToggleDub(track)">
+                                        @onclick="() => _editor.Edit(track, t => t.IsDub = !t.IsDub)">
                                     <i class="bi bi-translate"></i>
                                 </button>
                             </ToolTip>
@@ -181,35 +180,13 @@
     [Parameter] public Profile? Profile { get; set; }
     [Parameter] public List<Profile> Profiles { get; set; } = new();
 
-    private List<TrackSnapshot> _editableTracks = new();
-    private readonly HashSet<int> _selectedTrackIds = new();
-    private List<IsoLanguage> _languages = new();
+    private CustomConversionEditor _editor = null!;
     private int _selectedProfileId;
     private bool _validationError;
 
     protected override void OnInitialized()
     {
-        var sourceTracks = File.Snapshot.Tracks;
-        var trackLanguages = sourceTracks
-            .Where(t => t.Type != MediaTrackType.Video)
-            .Select(t => t.LanguageName)
-            .Distinct()
-            .ToHashSet();
-
-        _languages = IsoLanguage.Languages
-            .OrderByDescending(l => trackLanguages.Contains(l.Name))
-            .ThenBy(l => l.Name)
-            .ToList();
-
-        _editableTracks = sourceTracks.Select(t => t.ToSnapshot()).ToList();
-
-        // Start from raw file state: all tracks selected, no mutations applied.
-        // User can click "Apply Profile" to filter and mutate based on a profile.
-        foreach (var track in _editableTracks)
-        {
-            _selectedTrackIds.Add(track.Index);
-        }
-
+        _editor = new CustomConversionEditor(File);
         _selectedProfileId = Profile?.Id ?? Profiles.FirstOrDefault()?.Id ?? 0;
     }
 
@@ -229,139 +206,14 @@
             return;
         }
 
-        var target = File.BuildTargetFromProfile(profile);
-
-        // Apply track selection from profile.
-        var allowedIds = target.Tracks.Select(t => t.Index).ToHashSet();
-        _selectedTrackIds.Clear();
-        foreach (var track in _editableTracks)
-        {
-            if (allowedIds.Contains(track.Index))
-            {
-                _selectedTrackIds.Add(track.Index);
-            }
-        }
-
-        // Overlay target deltas on editable tracks. null fields mean "no opinion"
-        // and leave the editable track untouched; "" on Name is an explicit clear.
-        foreach (var resolved in target.Tracks)
-        {
-            var editable = _editableTracks.FirstOrDefault(t => t.Index == resolved.Index);
-            if (editable == null)
-            {
-                continue;
-            }
-
-            if (resolved.Name != null)
-            {
-                editable.Name = string.IsNullOrEmpty(resolved.Name) ? null : resolved.Name;
-            }
-
-            if (resolved.LanguageCode != null)
-            {
-                var iso = IsoLanguage.Find(resolved.LanguageCode);
-                editable.LanguageCode = resolved.LanguageCode;
-                editable.LanguageName = iso != IsoLanguage.Unknown ? iso.Name : editable.LanguageName;
-            }
-
-            if (resolved.IsDefault is { } isDefault)
-            {
-                editable.IsDefault = isDefault;
-            }
-
-            if (resolved.IsForced is { } isForced)
-            {
-                editable.IsForced = isForced;
-            }
-
-            if (resolved.IsCommentary is { } isComm)
-            {
-                editable.IsCommentary = isComm;
-            }
-
-            if (resolved.IsHearingImpaired is { } isHi)
-            {
-                editable.IsHearingImpaired = isHi;
-            }
-
-            if (resolved.IsVisualImpaired is { } isAd)
-            {
-                editable.IsVisualImpaired = isAd;
-            }
-
-            // Matroska strips IsDub during resolution and encodes it in the title;
-            // read it back from whichever title applies so the UI stays consistent.
-            editable.IsDub = resolved.IsDub ?? TrackNameFlags.ContainsDub(editable.Name);
-        }
-
+        _editor.ApplyProfile(profile);
         _validationError = false;
-    }
-
-    private void ToggleDub(TrackSnapshot track)
-    {
-        track.IsDub = !track.IsDub;
-
-        // Matroska has no FlagDub element - dub state lives in the track name.
-        // Sync the name so the user sees what will actually be written.
-        // EncodeDubInName returns null when stripping "Dub" emptied the title;
-        // we keep that as an explicit clear ("") so the custom-conversion
-        // path carries the user's intent rather than treating it as "no opinion".
-        if (File.Snapshot.ContainerType.ToContainerFamily() == ContainerFamily.Matroska)
-        {
-            track.Name = TrackNameFlags.EncodeDubInName(track.Name, track.IsDub) ?? "";
-        }
-    }
-
-    private void OnLanguageChanged(TrackSnapshot track, string? languageName)
-    {
-        if (string.IsNullOrEmpty(languageName))
-        {
-            return;
-        }
-
-        var iso = IsoLanguage.Find(languageName);
-        track.LanguageName = iso.Name;
-        track.LanguageCode = iso.ThreeLetterCode ?? track.LanguageCode;
     }
 
     private void ToggleTrack(TrackSnapshot track)
     {
-        if (track.Type == MediaTrackType.Video)
-        {
-            return;
-        }
-
-        if (!_selectedTrackIds.Add(track.Index))
-        {
-            _selectedTrackIds.Remove(track.Index);
-        }
-
+        _editor.ToggleTrack(track);
         _validationError = false;
-    }
-
-    private bool CanMoveUp(TrackSnapshot track)
-    {
-        var index = _editableTracks.IndexOf(track);
-        return index > 0 && _editableTracks[index - 1].Type != MediaTrackType.Video;
-    }
-
-    private bool CanMoveDown(TrackSnapshot track)
-    {
-        var index = _editableTracks.IndexOf(track);
-        return index >= 0 && index < _editableTracks.Count - 1;
-    }
-
-    private void MoveTrack(TrackSnapshot track, int direction)
-    {
-        var index = _editableTracks.IndexOf(track);
-        var newIndex = index + direction;
-        if (newIndex < 0 || newIndex >= _editableTracks.Count)
-        {
-            return;
-        }
-
-        _editableTracks.RemoveAt(index);
-        _editableTracks.Insert(newIndex, track);
     }
 
     private async Task Cancel()
@@ -371,21 +223,12 @@
 
     private async Task Confirm()
     {
-        var hasAudio = _editableTracks.Any(t => t.Type == MediaTrackType.Audio && _selectedTrackIds.Contains(t.Index));
-        if (!hasAudio)
+        if (!_editor.HasAudio)
         {
             _validationError = true;
             return;
         }
 
-        var videoTracks = _editableTracks.Where(t => t.Type == MediaTrackType.Video);
-        var selectedNonVideo = _editableTracks
-            .Where(t => t.Type != MediaTrackType.Video && _selectedTrackIds.Contains(t.Index));
-        var selectedTracks = videoTracks.Concat(selectedNonVideo).ToList();
-        var target = File.BuildTargetFromCustom(selectedTracks);
-        await BlazoredModal.CloseAsync(ModalResult.Ok(target));
+        await BlazoredModal.CloseAsync(ModalResult.Ok(_editor.Build()));
     }
-
-
-
 }

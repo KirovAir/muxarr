@@ -1381,6 +1381,61 @@ public class ConversionPipelineTests
             "File with null video name and ClearVideoTrackNames should be considered optimal");
     }
 
+    [TestMethod]
+    public void Pipeline_EmptyAudioNameTemplate_ClearsTheName()
+    {
+        // An empty template must reach the plan as an explicit clear, not no-opinion.
+        var file = MakeFile("Korean",
+            Video(0),
+            Audio(1, "Korean", "AC-3", 6, isOriginal: true, trackName: "DTS-HD MA 5.1"),
+            Sub(2, "Korean", trackName: "Korean"));
+
+        var profile = MakeProfile(
+            new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("Korean")],
+                StandardizeTrackNames = true,
+                TrackNameTemplate = ""
+            },
+            new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("Korean")]
+            });
+
+        var diff = TestPlan.Diff(file.ToMediaSnapshot(), file.BuildTargetFromProfile(profile),
+            ContainerFamily.Matroska);
+
+        Assert.AreEqual("", diff.First(t => t.Index == 1).Name,
+            "empty audio template must clear the track name");
+        Assert.IsNull(diff.First(t => t.Index == 2).Name,
+            "subtitles without standardization must stay untouched");
+    }
+
+    [TestMethod]
+    public void Pipeline_EmptyAudioNameTemplate_AlreadyNameless_StaysOptimal()
+    {
+        var file = MakeFile("Korean",
+            Video(0),
+            Audio(1, "Korean", "AC-3", 6, isOriginal: true));
+
+        var profile = MakeProfile(
+            new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("Korean")],
+                StandardizeTrackNames = true,
+                TrackNameTemplate = ""
+            });
+
+        var diff = TestPlan.Diff(file.ToMediaSnapshot(), file.BuildTargetFromProfile(profile),
+            ContainerFamily.Matroska);
+
+        Assert.IsFalse(diff.Any(ConversionPlanExtensions.HasChanges),
+            "a file with no names must stay optimal under an empty template");
+    }
+
     // --- TrimToVideoLength ---
 
     // mkvmerge stops after the video natively and ffmpeg gets -t on mp4, so the
@@ -1561,109 +1616,6 @@ public class ConversionPipelineTests
         });
 
         Assert.IsFalse(file.CheckHasNonStandardMetadata(profile));
-    }
-
-    // --- ApplyProfileMutations ---
-
-    [TestMethod]
-    public void Pipeline_ClearsVideoTrackName()
-    {
-        var file = MakeFile("English",
-            Video(0, "x264 HDR"),
-            Audio(1, "English"));
-        var profile = MakeProfile(clearVideoNames: true);
-
-        var result = file.BuildTargetFromProfile(profile).Tracks;
-
-        Assert.AreEqual("", result[0].Name, "Video track name should be cleared");
-    }
-
-    [TestMethod]
-    public void Pipeline_CorrectsHIFlagFromTrackName_MinimalCase()
-    {
-        var file = MakeFile("English",
-            Sub(1, "English", trackName: "English SDH"));
-        var profile = MakeProfile(subtitle: new TrackSettings
-        {
-            Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("English")]
-        });
-
-        var result = file.BuildTargetFromProfile(profile).Tracks;
-
-        Assert.AreEqual(true, result[0].IsHearingImpaired, "HI flag should be corrected from track name");
-    }
-
-    [TestMethod]
-    public void Pipeline_ResolvesUndeterminedLanguage()
-    {
-        var file = MakeFile("English",
-            Audio(1, "Undetermined"));
-        var profile = MakeProfile(new TrackSettings
-        {
-            Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("English")],
-            AssumeUndeterminedIsOriginal = true
-        });
-
-        var result = file.BuildTargetFromProfile(profile).Tracks;
-
-        Assert.AreEqual("eng", result[0].LanguageCode);
-    }
-
-    [TestMethod]
-    public void Pipeline_StandardizesTrackNamesWithProfile()
-    {
-        var file = MakeFile("English",
-            Audio(1, "English", trackName: "Surround 5.1"));
-        var profile = MakeProfile(new TrackSettings
-        {
-            Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("English")],
-            StandardizeTrackNames = true,
-            TrackNameTemplate = "{language} {channels}"
-        });
-
-        var result = file.BuildTargetFromProfile(profile).Tracks;
-
-        Assert.AreEqual("English 5.1", result[0].Name);
-    }
-
-    [TestMethod]
-    public void Pipeline_SkipsStandardization_WhenDisabled()
-    {
-        var file = MakeFile("English",
-            Audio(1, "English", trackName: "Custom Name"));
-        var profile = MakeProfile(new TrackSettings
-        {
-            Enabled = true,
-            AllowedLanguages = [IsoLanguage.Find("English")],
-            StandardizeTrackNames = false,
-            TrackNameTemplate = "{language} {channels}"
-        });
-
-        var result = file.BuildTargetFromProfile(profile).Tracks;
-
-        Assert.AreEqual("Custom Name", result[0].Name, "Name should not change when StandardizeTrackNames=false");
-    }
-
-    [TestMethod]
-    public void Pipeline_ReassignsDefaultFlags_WhenPriorityEnabled()
-    {
-        var file = MakeFile("English",
-            Audio(1, "English", isDefault: false),
-            Audio(2, "Japanese", isDefault: true));
-        var profile = MakeProfile(new TrackSettings
-        {
-            Enabled = true,
-            DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
-            AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Japanese")]
-        });
-
-        var result = file.BuildTargetFromProfile(profile).Tracks;
-
-        Assert.AreEqual(true, result[0].IsDefault, "First track should become default");
-        Assert.AreEqual(false, result[1].IsDefault, "Second track should lose default");
     }
 
     // --- CheckHasNonStandardMetadata: flag correction detection ---

@@ -195,13 +195,22 @@ public static class BatchTrackEdit
 
         // An untagged track gets its language back off the name on the next scan.
         if (IsUnset(iso.Name) && source.Type != MediaTrackType.Video &&
-            IsoLanguage.Find(name, true) != IsoLanguage.Unknown)
+            (IsoLanguage.Find(name, true) != IsoLanguage.Unknown ||
+             LanguageVariants.Detect(name, IsoLanguage.Unknown) != null))
         {
             skipped.Add($"Language cannot be set to {iso.Name} on tracks whose name identifies a language.");
             return;
         }
 
-        target.LanguageCode = iso.ThreeLetterCode ?? source.LanguageCode;
+        // Same trap for variants: a "VFQ"-named track set to plain French reads
+        // back as French (Canada) on the next scan.
+        if (LanguageVariants.Detect(name, iso) is { } variant)
+        {
+            skipped.Add($"Language cannot be set to {iso.Name} on tracks whose name identifies {variant.Name}.");
+            return;
+        }
+
+        target.LanguageCode = iso.WriteCode ?? source.LanguageCode;
     }
 
     // A flag the name still implies cannot be turned off: the rescan reads it

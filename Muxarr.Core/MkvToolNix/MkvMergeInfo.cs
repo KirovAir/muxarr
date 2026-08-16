@@ -319,6 +319,10 @@ public class TrackProperties
     [JsonPropertyName("stereo_mode")]
     public string? StereoMode { get; set; }
 
+    // A LANGUAGE SimpleTag on the track, separate from the header language element.
+    [JsonPropertyName("tag_language")]
+    public string? TagLanguage { get; set; }
+
     [JsonPropertyName("timestamped_slices")]
     public bool TimestampedSlices { get; set; }
 
