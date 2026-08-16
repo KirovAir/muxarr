@@ -53,6 +53,8 @@ jobs:
                 if: runner.os == 'macOS'
                 run: |
                     set -euo pipefail
+                    # The runner image ships an untrusted tap that brew now warns about on every call.
+                    brew untap aws/tap 2>/dev/null || true
                     brew install mkvtoolnix ffmpeg
                     # Production and the other runners are on ffmpeg 8.1; fail fast if
                     # brew is behind (the MP4 udta.name round-trip is broken pre-8.0).

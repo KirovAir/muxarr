@@ -55,7 +55,7 @@
                 {
                     <input type="@(field.Type == FieldType.Url ? "url" : "text")" class="form-control"
                            @bind:get="Config.Settings.GetValueOrDefault(name, string.Empty)"
-                           @bind:set="@((string v) => Config.Settings[name] = v)"
+                           @bind:set="@(v => Config.Settings[name] = v ?? string.Empty)"
                            placeholder="@field.Placeholder"/>
                 }
                 @if (!string.IsNullOrEmpty(field.HelpText))

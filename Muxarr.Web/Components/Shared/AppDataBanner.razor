@@ -1,14 +1,10 @@
 @using Muxarr.Data
 
-@* Decided once at startup; the log is easy to miss, so an install still on /data gets a permanent bar. *@
 @if (ContainerAppData.State == AppDataState.LegacyLocation)
 {
-    <div class="alert alert-warning d-flex align-items-start gap-2 mb-3" role="alert">
-        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
-        <div>
-            <strong>Muxarr now keeps its database in <code>/config</code>, but this install still runs from <code>/data</code>.</strong>
-            <span> Mount your appdata folder at <code>:/config</code> instead of <code>:/data</code> and restart. If it lives in a Docker volume, copy it out first. Nothing is moved automatically.</span>
-            <a class="ms-1" href="https://muxarr.app/docs/faq.html#appdata" target="_blank" rel="noopener">How to fix</a>
-        </div>
+    <div class="alert alert-warning py-2 small mb-3" role="alert">
+        <i class="bi bi-info-circle me-1"></i>
+        Muxarr moved its appdata to <code>/config</code>, the same layout as the linuxserver containers. This install still runs from <code>/data</code>, which keeps working; when you have a minute, mount your appdata folder at <code>:/config</code> instead of <code>:/data</code> and restart.
+        <a href="https://muxarr.app/docs/faq.html#appdata" target="_blank" rel="noopener">How to</a>
     </div>
 }
