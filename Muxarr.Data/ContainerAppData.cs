@@ -3,12 +3,23 @@ using Microsoft.Extensions.Logging;
 
 namespace Muxarr.Data;
 
+/// <summary>Where the database ended up at startup, so the UI can nag. Only meaningful inside a container.</summary>
+public enum AppDataState
+{
+    /// <summary>Not running in a container, or the database is on a mounted /config.</summary>
+    Ok,
+
+    /// <summary>The database lives in /data: an older install, or nothing mounted at /config.</summary>
+    LegacyLocation,
+
+    /// <summary>Nothing is mounted at /config; the database sits in the container's writable layer.</summary>
+    Unpersisted
+}
+
 /// <summary>
-/// Container path contract: /config holds app data (the database), /data and other mounts hold media.
-/// Older images stored the database in /data. Resolved once at startup:
-/// prefer /config, copy a legacy /data database into /config when /config is a real mount,
-/// otherwise keep running from /data and log upgrade instructions.
-/// The legacy database is never moved or deleted, so rolling back to an older image keeps working.
+/// The database moved from /data to /config. An existing /data database keeps being used
+/// until the user remounts; nothing is copied or moved. /data is only ever written to when
+/// it already holds our database or is the empty volume the image declares.
 /// </summary>
 public static class ContainerAppData
 {
@@ -17,6 +28,8 @@ public static class ContainerAppData
 
     private static readonly Lock ResolveLock = new();
     private static string? _resolved;
+
+    public static AppDataState State { get; private set; } = AppDataState.Ok;
 
     public static string ResolveConnectionString(string connectionString, ILogger? logger = null)
     {
@@ -49,38 +62,22 @@ public static class ContainerAppData
         }
 
         var legacyDbPath = Path.Combine(Path.GetFullPath(dataDir), Path.GetFileName(dbPath));
+        var configMounted = isMountPoint(configDir);
 
-        if (File.Exists(dbPath))
+        if (!File.Exists(dbPath) && (File.Exists(legacyDbPath) || !configMounted && IsEmptyMount(dataDir, isMountPoint)))
         {
-            if (File.Exists(legacyDbPath))
-            {
-                logger?.LogInformation(
-                    "Muxarr runs from {DbPath}. The legacy database at {LegacyDbPath} is no longer used and can be deleted.",
-                    dbPath, legacyDbPath);
-            }
-
-            return connectionString;
+            logger?.LogWarning(
+                "Muxarr now stores its database in {ConfigDir} but this install runs from {DataDir}. " +
+                "Mount your appdata folder at {ConfigDir} instead; nothing is moved automatically. " +
+                "See https://muxarr.app/docs/faq.html#appdata",
+                configDir, dataDir, configDir);
+            State = AppDataState.LegacyLocation;
+            builder.DataSource = legacyDbPath;
+            return builder.ToString();
         }
 
-        if (File.Exists(legacyDbPath))
-        {
-            if (!isMountPoint(configDir))
-            {
-                logger?.LogWarning(
-                    "Muxarr now stores its app data in {ConfigDir}, but no volume is mounted there. " +
-                    "Continuing with the legacy database at {LegacyDbPath}; nothing was changed or moved. " +
-                    "To upgrade, remount your existing appdata folder at {ConfigDir} instead of {DataDir} " +
-                    "(same host path) and keep your media mounts as they are.",
-                    configDir, legacyDbPath, configDir, dataDir);
-                builder.DataSource = legacyDbPath;
-                return builder.ToString();
-            }
-
-            CopyLegacyDatabase(legacyDbPath, dbPath, logger);
-            return connectionString;
-        }
-
-        if (!isMountPoint(configDir))
+        State = configMounted ? AppDataState.Ok : AppDataState.Unpersisted;
+        if (!configMounted)
         {
             logger?.LogWarning(
                 "No volume is mounted at {ConfigDir}. The database will not survive a container recreation.",
@@ -90,56 +87,11 @@ public static class ContainerAppData
         return connectionString;
     }
 
-    private static void CopyLegacyDatabase(string legacyDbPath, string dbPath, ILogger? logger)
+    // With no mounts at all Docker gives /data an anonymous volume that survives a compose
+    // recreate; the writable layer behind /config does not. A media mount at /data is never empty.
+    private static bool IsEmptyMount(string dir, Func<string, bool> isMountPoint)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(dbPath)!);
-        try
-        {
-            using var source = OpenConnection(legacyDbPath);
-            using var target = OpenConnection(dbPath);
-
-            // Flush WAL so the copy is taken from a self-contained database file.
-            using (var checkpoint = source.CreateCommand())
-            {
-                checkpoint.CommandText = SqlitePerformanceInterceptor.FlushWalPragma;
-                checkpoint.ExecuteNonQuery();
-            }
-
-            source.BackupDatabase(target);
-
-            using var check = target.CreateCommand();
-            check.CommandText = "PRAGMA quick_check;";
-            var result = check.ExecuteScalar()?.ToString();
-            if (!string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase))
-            {
-                throw new InvalidOperationException($"Copied database failed SQLite quick_check: {result}");
-            }
-        }
-        catch
-        {
-            if (File.Exists(dbPath))
-            {
-                File.Delete(dbPath);
-            }
-
-            throw;
-        }
-
-        logger?.LogInformation(
-            "Copied database from {LegacyDbPath} to {DbPath}. " +
-            "The original was left in place for rollback and can be deleted once the new setup works.",
-            legacyDbPath, dbPath);
-    }
-
-    private static SqliteConnection OpenConnection(string dbPath)
-    {
-        var connection = new SqliteConnection(new SqliteConnectionStringBuilder
-        {
-            DataSource = dbPath,
-            Pooling = false
-        }.ToString());
-        connection.Open();
-        return connection;
+        return isMountPoint(dir) && Directory.Exists(dir) && !Directory.EnumerateFileSystemEntries(dir).Any();
     }
 
     private static bool RunningInContainer()

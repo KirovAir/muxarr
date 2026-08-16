@@ -1,0 +1,22 @@
+@using Muxarr.Data
+
+@* Decided once at startup; the log is easy to miss, so anything but a mounted /config gets a permanent bar. *@
+@if (ContainerAppData.State != AppDataState.Ok)
+{
+    <div class="alert @(ContainerAppData.State == AppDataState.Unpersisted ? "alert-danger" : "alert-warning") d-flex align-items-start gap-2 mb-3" role="alert">
+        <i class="bi bi-exclamation-triangle-fill mt-1"></i>
+        <div>
+            @if (ContainerAppData.State == AppDataState.LegacyLocation)
+            {
+                <strong>Muxarr now keeps its database in <code>/config</code>, but this install still runs from <code>/data</code>.</strong>
+                <span> Mount your appdata folder at <code>:/config</code> instead of <code>:/data</code> and restart. If it lives in a Docker volume, copy it out first. Nothing is moved automatically.</span>
+            }
+            else
+            {
+                <strong>No folder is mounted at <code>/config</code>. The database will be lost when this container is recreated.</strong>
+                <span> Mount a host folder at <code>/config</code> before you set anything up.</span>
+            }
+            <a class="ms-1" href="https://muxarr.app/docs/faq.html#appdata" target="_blank" rel="noopener">How to fix</a>
+        </div>
+    </div>
+}

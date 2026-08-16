@@ -42,7 +42,7 @@ services:
       - PGID=1000
     volumes:
       - /path/to/appdata:/config
-      - /path/to/media:/data
+      - /path/to/media:/media
     ports:
       - 8183:8183
     restart: unless-stopped
@@ -108,7 +108,7 @@ docker run -d \
   -e PGID=1000 \
   -p 8183:8183 \
   -v /path/to/appdata:/config \
-  -v /path/to/media:/data \
+  -v /path/to/media:/media \
   --restart unless-stopped \
   ghcr.io/kirovair/muxarr:latest
 ```
@@ -123,9 +123,9 @@ Older versions stored the database in `/data`. To upgrade an existing install, p
       - /path/to/media:/media     # keep media mounts exactly as they were
 ```
 
-Do not move your media mounts. Your profiles and Sonarr/Radarr path mappings reference the old container paths, so `/media` stays `/media`. The `/data` media convention only applies to new installs.
+Do not move your media mounts. Your profiles and Sonarr/Radarr path mappings reference the old container paths, so `/media` stays `/media`.
 
-Without a `/config` mount, Muxarr keeps running from the old `/data` location and logs a reminder. Nothing is moved or deleted automatically.
+Until you do, Muxarr keeps running from `/data` and shows a reminder in the app. Nothing is moved or deleted automatically. If you never mounted an appdata folder, the database sits in a Docker volume: stop the container, run `docker cp muxarr:/data/. /path/to/appdata/`, then mount that folder at `/config`.
 
 ## Configuration
 
@@ -142,7 +142,7 @@ Without a `/config` mount, Muxarr keeps running from the old `/data` location an
 | Path | Description |
 |---|---|
 | `/config` | Database and configuration |
-| `/data` | Media files (any mount path works, use multiple `-v` mounts as needed) |
+| `/media` | Media files (any mount path works, use multiple `-v` mounts as needed) |
 
 ### Setup
 

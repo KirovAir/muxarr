@@ -40,9 +40,11 @@ COPY publish/ ./
 COPY entrypoint.sh ./entrypoint.sh
 RUN chmod +x ./entrypoint.sh
 
-# No VOLUME directive on purpose: an unmounted /config must stay part of the
-# writable layer so startup can detect it and fall back to a legacy /data database.
-# A VOLUME would turn it into an anonymous volume that silently swallows app data.
+# /data keeps its VOLUME: older images stored the database there and compose only
+# carries that anonymous volume across a recreate while the image still declares it.
+# /config gets none on purpose: an unmounted /config must look unmounted at startup
+# so the app can warn instead of silently using an anonymous volume.
+VOLUME ["/data"]
 
 ENV ASPNETCORE_HTTP_PORTS=8183
 EXPOSE 8183
