@@ -155,7 +155,12 @@ Until you do, Muxarr keeps running from `/data` and shows a reminder in the app.
 
 ### API
 
-Muxarr exposes a stats API at `/api/stats` (authenticated via `X-Api-Key` header). Works with [Homepage](https://gethomepage.dev/widgets/services/customapi/) and other dashboards. See Settings > API for examples.
+Muxarr exposes a REST API authenticated via the `X-Api-Key` header. See Settings > API for examples.
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/stats` | Library statistics — works with [Homepage](https://gethomepage.dev/widgets/services/customapi/) and other dashboards |
+| `GET /api/conversions` | Paginated list of all conversions. Supports `page`, `pageSize`, and an optional `filePath` query parameter to filter by media file path (URL-encoded) |
 
 ## Built With
 

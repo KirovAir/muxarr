@@ -19,6 +19,18 @@
 
     <div class="col-lg-6">
         <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-arrow-repeat me-2"></i>GET /api/conversions</div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">Request</p>
+                <CodeBlock Value="@ConversionsCurlExample"/>
+                <p class="text-muted small mb-2 mt-3">Response</p>
+                <CodeBlock Value="@ConversionsResponseExample"/>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card mb-4">
             <div class="card-header"><i class="bi bi-layout-text-sidebar me-2"></i>Homepage Widget</div>
             <div class="card-body">
                 <p class="text-muted small mb-2">
@@ -48,9 +60,13 @@
     }
 
     private string StatsUrl => $"{_baseUrl}/api/stats";
+    private string ConversionsUrl => $"{_baseUrl}/api/conversions";
 
     private string CurlExample =>
         $"curl -H \"X-Api-Key: {_apiKey}\" {StatsUrl}";
+
+    private string ConversionsCurlExample =>
+        $"curl -H \"X-Api-Key: {_apiKey}\" \"{ConversionsUrl}?filePath=%2Fmedia%2Fmovies%2Fmovie.mkv\"";
 
     private static readonly Lazy<string> ExampleJson = new(() =>
     {
@@ -60,7 +76,16 @@
         return JsonSerializer.Serialize(StatsResponse.Example, options);
     });
 
+    private static readonly Lazy<string> ConversionsExampleJson = new(() =>
+    {
+        var options = JsonHelper.JsonDotNetDefaults;
+        options.WriteIndented = true;
+        options.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        return JsonSerializer.Serialize(ConversionResponse.Example, options);
+    });
+
     private string ResponseExample => ExampleJson.Value;
+    private string ConversionsResponseExample => ConversionsExampleJson.Value;
 
     private string HomepageExample =>
         $@"- Muxarr:
