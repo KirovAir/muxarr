@@ -26,6 +26,7 @@ public class WebhookProvider : NotificationProvider<WebhookSettings>
             title = payload.Title,
             body = payload.Body,
             fileName = payload.FileName,
+            filePath = payload.FilePath,
             sizeBefore = payload.SizeBefore,
             sizeAfter = payload.SizeAfter,
             sizeSaved = payload.SizeSaved,
