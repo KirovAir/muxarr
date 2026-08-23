@@ -782,6 +782,149 @@ public class TrackPriorityTests
             "Original default flag should be preserved when no tracks match the priority list");
     }
 
+    // An explicit entry used to outrank the Original Language placeholder above it
+    // even though the placeholder's position is its whole meaning.
+    [TestMethod]
+    public void Priority_OriginalLanguagePlaceholder_KeepsItsPositionOverAnExplicitEntryBelow()
+    {
+        var profile = new Profile
+        {
+            AudioSettings = new TrackSettings
+            {
+                Enabled = true,
+                DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
+                ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
+                AllowedLanguages = [IsoLanguage.OriginalLanguage, IsoLanguage.Find("Dutch"), IsoLanguage.Find("English")]
+            },
+            SubtitleSettings = new TrackSettings { Enabled = false }
+        };
+        var file = MakeFile("English", Audio(1, "English"), Audio(2, "Dutch", isDefault: true));
+
+        var audio = file.BuildTargetFromProfile(profile).Tracks.Where(o => o.Type == MediaTrackType.Audio).ToList();
+
+        Assert.AreEqual("eng", audio[0].LanguageCode);
+        CollectionAssert.AreEqual(new[] { true, false }, audio.Select(t => t.IsDefault == true).ToArray());
+    }
+
+    // The placeholder competes on position only: a base entry above it still
+    // covers a variant track at its own position.
+    [TestMethod]
+    public void Priority_BaseEntryAboveThePlaceholder_StillCoversAVariantTrack()
+    {
+        var profile = new Profile
+        {
+            AudioSettings = new TrackSettings
+            {
+                Enabled = true,
+                ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
+                AllowedLanguages = [IsoLanguage.Find("French"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage]
+            },
+            SubtitleSettings = new TrackSettings { Enabled = false }
+        };
+        var file = MakeFile("French", Audio(1, "Dutch"), Audio(2, "French (Canada)"));
+
+        var audio = file.BuildTargetFromProfile(profile).Tracks.Where(o => o.Type == MediaTrackType.Audio).ToList();
+
+        Assert.AreEqual(2, audio[0].Index, "French (Canada) sorts under French at position 0, not under the placeholder");
+    }
+
+    // --- Forced subtitle as default (issue #67) ---
+
+    private static Profile ForcedDefaultProfile(params LanguagePreference[] languages)
+    {
+        return new Profile
+        {
+            AudioSettings = new TrackSettings { Enabled = false },
+            SubtitleSettings = new TrackSettings
+            {
+                Enabled = true,
+                DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguageForced,
+                AllowedLanguages = languages.ToList()
+            }
+        };
+    }
+
+    private static List<TrackPlan> SubtitleOutputs(MediaFile file, Profile profile)
+    {
+        return file.BuildTargetFromProfile(profile).Tracks.Where(o => o.Type == MediaTrackType.Subtitles).ToList();
+    }
+
+    [TestMethod]
+    public void ForcedDefault_ForcedSubtitleOfFirstLanguage_WinsOverItsFullOne()
+    {
+        var profile = ForcedDefaultProfile(IsoLanguage.Find("English"), IsoLanguage.Find("French"));
+        var file = MakeFile("English",
+            Sub(1, "French", forced: true),
+            Sub(2, "English"),
+            Sub(3, "English", forced: true));
+
+        var subs = SubtitleOutputs(file, profile);
+
+        CollectionAssert.AreEqual(new[] { false, false, true }, subs.Select(s => s.IsDefault == true).ToArray(),
+            "the English forced track, not the French one and not the full English one");
+    }
+
+    [TestMethod]
+    public void ForcedDefault_NoForcedTrack_FallsBackToTheFullOne()
+    {
+        var profile = ForcedDefaultProfile(IsoLanguage.Find("English"), IsoLanguage.Find("French"));
+        var file = MakeFile("English",
+            Sub(1, "French", forced: true),
+            Sub(2, "English"));
+
+        var subs = SubtitleOutputs(file, profile);
+
+        CollectionAssert.AreEqual(new[] { false, true }, subs.Select(s => s.IsDefault == true).ToArray());
+    }
+
+    // A forced SDH or commentary track is still supplementary.
+    [TestMethod]
+    public void ForcedDefault_OnlyAPlainForcedTrackQualifies()
+    {
+        var profile = ForcedDefaultProfile(IsoLanguage.Find("English"));
+        var file = MakeFile("English",
+            Sub(1, "English", forced: true, hi: true),
+            Sub(2, "English"));
+
+        var subs = SubtitleOutputs(file, profile);
+
+        CollectionAssert.AreEqual(new[] { false, true }, subs.Select(s => s.IsDefault == true).ToArray());
+    }
+
+    // The default flag follows the list that applies to the file, so an English
+    // film puts English first even though the default list leads with French.
+    [TestMethod]
+    public void DefaultFlag_FollowsTheOriginalLanguageCase()
+    {
+        var profile = new Profile
+        {
+            AudioSettings = new TrackSettings { Enabled = false },
+            SubtitleSettings = new TrackSettings
+            {
+                Enabled = true,
+                DefaultStrategy = DefaultTrackStrategy.ForceFirstLanguage,
+                ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
+                Cases =
+                [
+                    new LanguageCase
+                    {
+                        OriginalLanguages = [IsoLanguage.Find("English")],
+                        Languages = [IsoLanguage.Find("English"), IsoLanguage.Find("French")]
+                    }
+                ],
+                AllowedLanguages = [IsoLanguage.Find("French"), IsoLanguage.Find("English")]
+            }
+        };
+        var french = Sub(1, "French");
+        french.IsDefault = true;
+        var file = MakeFile("English", french, Sub(2, "English"));
+
+        var subs = SubtitleOutputs(file, profile);
+
+        Assert.AreEqual("eng", subs[0].LanguageCode, "reordered by the case's list");
+        CollectionAssert.AreEqual(new[] { true, false }, subs.Select(s => s.IsDefault == true).ToArray());
+    }
+
     [TestMethod]
     public void SpecCompliant_WorksWithoutEnabledFilter()
     {

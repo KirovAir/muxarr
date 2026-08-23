@@ -3,15 +3,15 @@
 <div class="form-control tagselector-control">
     @foreach (var item in SelectedItems)
     {
-        <span class="badge bg-light text-dark tagselector-tag">
+        <span class="badge text-bg-secondary tagselector-tag">
          @TagTemplate(item)
             <span class="tagselector-removebutton" role="button"><i class="tagselector-icon bi bi-x-lg"
                                                                     @onclick="() => OnRemove(item)"></i></span>
         </span>
     }
 
-    <AutoComplete SearchInput="@SearchInput" TItem="TItem" OnSearchInput="OnSearchInput" OnSelectItem="OnSelect"
-                  ShowListOnFocus="ShowListOnFocus">
+    <AutoComplete @ref="_autoComplete" SearchInput="@SearchInput" TItem="TItem" OnSearchInput="OnSearchInput"
+                  OnSelectItem="OnSelect" ShowListOnFocus="ShowListOnFocus" Placeholder="@Placeholder">
         <ListTemplate>@ListTemplate(context)</ListTemplate>
     </AutoComplete>
 
@@ -29,20 +29,35 @@
 
     [Parameter] public bool ShowListOnFocus { get; set; }
 
+    // Raised after SelectedItems changes, for parents that render something based on it.
+    [Parameter] public EventCallback OnChange { get; set; }
+
+    [Parameter] public string? Placeholder { get; set; }
+
     public required string SearchInput { get; set; }
 
-    private void OnSelect(TItem item)
+    private AutoComplete<TItem>? _autoComplete;
+
+    public ValueTask FocusAsync()
+    {
+        return _autoComplete?.FocusAsync() ?? ValueTask.CompletedTask;
+    }
+
+    private Task OnSelect(TItem item)
     {
         SearchInput = string.Empty;
         if (!SelectedItems.Contains(item))
         {
             SelectedItems.Add(item);
         }
+
+        return OnChange.InvokeAsync();
     }
 
-    private void OnRemove(TItem item)
+    private Task OnRemove(TItem item)
     {
         SelectedItems.Remove(item);
+        return OnChange.InvokeAsync();
     }
 
 }

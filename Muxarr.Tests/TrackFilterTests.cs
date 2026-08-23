@@ -1,6 +1,7 @@
 using Muxarr.Core.Models;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 using static Muxarr.Tests.TestData;
@@ -14,16 +15,16 @@ public class TrackFilterTests
     {
         Enabled = true,
         AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
-        RemoveCommentary = true,
-        RemoveImpaired = true
+        Commentary = ExtraPolicy.KeepWhenAlone,
+        Impaired = ExtraPolicy.KeepWhenAlone
     };
 
     private static readonly TrackSettings EnglishDutchSubtitles = new()
     {
         Enabled = true,
         AllowedLanguages = [IsoLanguage.Find("Dutch"), IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-        RemoveCommentary = true,
-        RemoveImpaired = true
+        Commentary = ExtraPolicy.KeepWhenAlone,
+        Impaired = ExtraPolicy.KeepWhenAlone
     };
 
     // --- Subtitle fallback: unwanted languages should be dropped entirely ---
@@ -263,7 +264,7 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveImpaired = true
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         // HI is the only English sub — RemoveImpaired safety check should keep it
@@ -286,7 +287,7 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveImpaired = true
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         var result = tracks.GetAllowedTracks(settings, "English");
@@ -307,7 +308,7 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveImpaired = true
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         var result = tracks.GetAllowedTracks(settings, "English");
@@ -326,7 +327,7 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveImpaired = true
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         var result = tracks.GetAllowedTracks(settings, "English");
@@ -348,7 +349,7 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveImpaired = true
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         var result = tracks.GetAllowedTracks(settings, "English");
@@ -369,7 +370,7 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveImpaired = true
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         var result = tracks.GetAllowedTracks(settings, "English");
@@ -479,8 +480,8 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveCommentary = true,
-            RemoveImpaired = true
+            Commentary = ExtraPolicy.KeepWhenAlone,
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         var result = tracks.GetAllowedTracks(settings, "Japanese");
@@ -746,8 +747,8 @@ public class TrackFilterTests
         {
             Enabled = true,
             AllowedLanguages = [IsoLanguage.Find("English")],
-            RemoveCommentary = true,
-            RemoveImpaired = true
+            Commentary = ExtraPolicy.KeepWhenAlone,
+            Impaired = ExtraPolicy.KeepWhenAlone
         };
 
         var kept = file.BuildTargetFromProfile(profile).Tracks;
@@ -760,7 +761,12 @@ public class TrackFilterTests
 
     private static LanguagePreference Fallback(IsoLanguage language)
     {
-        return new LanguagePreference(language) { IsFallback = true };
+        return new LanguagePreference(language) { Relation = LanguageRelation.NextTier };
+    }
+
+    private static LanguagePreference SameTier(IsoLanguage language)
+    {
+        return new LanguagePreference(language) { Relation = LanguageRelation.SameTier };
     }
 
     private static readonly TrackSettings GermanThenEnglish = new()
@@ -1029,7 +1035,7 @@ public class TrackFilterTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            RemoveCommentary = true,
+            Commentary = ExtraPolicy.KeepWhenAlone,
             AllowedLanguages = [IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English"))]
         };
         var tracks = new List<TrackSnapshot>
@@ -1051,7 +1057,7 @@ public class TrackFilterTests
         var settings = new TrackSettings
         {
             Enabled = true,
-            RemoveImpaired = true,
+            Impaired = ExtraPolicy.KeepWhenAlone,
             AllowedLanguages = [IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English"))]
         };
         var tracks = new List<TrackSnapshot>
@@ -1077,5 +1083,569 @@ public class TrackFilterTests
         var result = tracks.GetAllowedTracks(GermanThenEnglish, "English");
 
         CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // --- Shared tiers (issue #66) ---
+
+    // Norwegian and Bokmål share a tier, English waits on the pair. Before tiers
+    // Bokmål started its own group, so a file without it pulled English in.
+    private static readonly TrackSettings NorwegianPairThenEnglish = new()
+    {
+        Enabled = true,
+        AllowedLanguages =
+        [
+            IsoLanguage.Find("nor"), SameTier(IsoLanguage.Find("nob")), Fallback(IsoLanguage.Find("English"))
+        ]
+    };
+
+    [TestMethod]
+    public void SharedTier_HalfTheTierPresent_StillClaimsIt()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "nor"),
+            Sub(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(NorwegianPairThenEnglish, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void SharedTier_KeepsBothLanguages()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "nor"),
+            Sub(2, "nob"),
+            Sub(3, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(NorwegianPairThenEnglish, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void SharedTier_WholeTierMissing_KeepsFallback()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English"),
+            Sub(2, "French")
+        };
+
+        var result = tracks.GetAllowedTracks(NorwegianPairThenEnglish, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // A language sharing a lower tier goes inactive with that tier, not on its own.
+    [TestMethod]
+    public void SharedTier_BelowAClaimedTier_GoesInactiveToo()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English")),
+                SameTier(IsoLanguage.Find("Dutch"))
+            ]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "German"),
+            Sub(2, "English"),
+            Sub(3, "Dutch")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void SharedTier_BelowAMissingTier_KeepsTheWholeTier()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English")),
+                SameTier(IsoLanguage.Find("Dutch"))
+            ]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English"),
+            Sub(2, "Dutch")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // A shared tier deeper in the group still wins as a unit over the tiers below it.
+    [TestMethod]
+    public void SharedTier_MiddleTierClaimsOverTheOneBelow()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages =
+            [
+                IsoLanguage.Find("German"), Fallback(IsoLanguage.Find("English")),
+                SameTier(IsoLanguage.Find("Dutch")), Fallback(IsoLanguage.Find("French"))
+            ]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "Dutch"),
+            Sub(2, "French")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // Profiles saved before tiers carry a bare IsFallback flag and must still read
+    // back as the same shape.
+    [TestMethod]
+    public void LegacyFallbackFlag_DeserializesAsNextTier()
+    {
+        var restored = JsonHelper.Deserialize<List<LanguagePreference>>(
+            """[{"Language":{"Name":"German"}},{"Language":{"Name":"English"},"IsFallback":true}]""");
+
+        Assert.IsNotNull(restored);
+        Assert.AreEqual(LanguageRelation.NewGroup, restored[0].Relation);
+        Assert.AreEqual(LanguageRelation.NextTier, restored[1].Relation);
+        Assert.IsFalse(JsonHelper.Serialize(restored).Contains("IsFallback"),
+            "the legacy flag is read but never written back");
+    }
+
+    // A payload carrying both shapes settles on Relation whichever order they arrive in.
+    [TestMethod]
+    public void LegacyFallbackFlag_DoesNotOverrideAnExplicitRelation()
+    {
+        foreach (var json in new[]
+                 {
+                     """[{"Language":{"Name":"Dutch"},"Relation":"SameTier","IsFallback":true}]""",
+                     """[{"Language":{"Name":"Dutch"},"IsFallback":true,"Relation":"SameTier"}]"""
+                 })
+        {
+            var restored = JsonHelper.Deserialize<List<LanguagePreference>>(json);
+
+            Assert.IsNotNull(restored);
+            Assert.AreEqual(LanguageRelation.SameTier, restored[0].Relation, json);
+        }
+    }
+
+    // --- Language families in a fallback group (issue #66) ---
+
+    // With Bokmål under Norwegian, a plain Norwegian entry covers nob tracks, so
+    // the English fallback stays out without listing Bokmål at all.
+    [TestMethod]
+    public void Fallback_BaseLanguageEntry_ClaimsVariantTracks()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("Norwegian"), Fallback(IsoLanguage.Find("English"))]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "nob"),
+            Sub(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // --- Per-language subtitle types (issue #27) ---
+
+    private static LanguagePreference ForcedOnly(string language)
+    {
+        return new LanguagePreference(IsoLanguage.Find(language)) { Coverage = SubtitleCoverage.ForcedOnly };
+    }
+
+    private static LanguagePreference FullOnly(string language)
+    {
+        return new LanguagePreference(IsoLanguage.Find(language)) { Coverage = SubtitleCoverage.FullOnly };
+    }
+
+    [TestMethod]
+    public void Coverage_ForcedOnly_DropsTheFullSubtitle()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [ForcedOnly("French")]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "French"),
+            Sub(2, "French", forced: true),
+            Sub(3, "French", hi: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "French");
+
+        CollectionAssert.AreEquivalent(new[] { 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // The hard coverage step runs first, so a full subtitle never excuses
+    // dropping a forced SDH one and then gets dropped itself.
+    [TestMethod]
+    public void Coverage_ForcedOnly_WithSoftSdh_KeepsTheForcedSdhTrack()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            Impaired = ExtraPolicy.KeepWhenAlone,
+            AllowedLanguages = [ForcedOnly("French")]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "French"),
+            Sub(2, "French", forced: true, hi: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "French");
+
+        CollectionAssert.AreEquivalent(new[] { 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // Remove is exact, unlike KeepWhenAlone: it does not keep the extra just
+    // because it is the only track the language has.
+    [TestMethod]
+    public void ExtraPolicy_Remove_DropsTheOnlyTrackToo()
+    {
+        var english = new LanguagePreference(IsoLanguage.Find("English"))
+        {
+            Impaired = ExtraPolicy.Remove, Commentary = ExtraPolicy.Remove
+        };
+        var settings = new TrackSettings { Enabled = true, AllowedLanguages = [english] };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", hi: true),
+            Sub(2, "English", commentary: true)
+        };
+
+        Assert.AreEqual(0, tracks.GetAllowedTracks(settings, "English").Count);
+    }
+
+    // The keep-one-audio-track net prefers any other track over one a policy
+    // removes outright, so "Remove commentary" is not undone by the net.
+    [TestMethod]
+    public void ExtraPolicy_Remove_IsNotUndoneByTheAudioSafetyNet()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            Commentary = ExtraPolicy.Remove,
+            AllowedLanguages = [IsoLanguage.Find("English")]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English", commentary: true),
+            Audio(2, "French")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // Presence is judged by the entry a track is bound to, not by a sibling in
+    // the tier with a friendlier policy.
+    [TestMethod]
+    public void Policies_SiblingInTheTier_DoesNotVouchForATrackItsOwnEntryDoubts()
+    {
+        var bokmal = new LanguagePreference(IsoLanguage.Find("nob"))
+        {
+            Relation = LanguageRelation.SameTier, Impaired = ExtraPolicy.KeepWhenAlone
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("Norwegian"), bokmal, Fallback(IsoLanguage.Find("English"))]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "nob", hi: true),
+            Sub(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // A language's own policy wins over the profile's, part by part.
+    [TestMethod]
+    public void Policies_PerLanguage_OverrideTheProfile()
+    {
+        var french = new LanguagePreference(IsoLanguage.Find("French")) { Commentary = ExtraPolicy.Keep };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            Commentary = ExtraPolicy.KeepWhenAlone,
+            AllowedLanguages = [IsoLanguage.Find("English"), french]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English"),
+            Sub(2, "English", commentary: true),
+            Sub(3, "French"),
+            Sub(4, "French", commentary: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 3, 4 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // An entry that wants forced subtitles only has said what the language means
+    // to it, so a forced track counts as the language being present.
+    [TestMethod]
+    public void Coverage_ForcedOnlyEntry_ClaimsItsGroupWithAForcedTrack()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [ForcedOnly("French"), Fallback(IsoLanguage.Find("English"))]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "French", forced: true),
+            Sub(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "French");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // Presence goes by what an entry keeps, so a track kept by a more specific
+    // entry does not count for a base entry whose policy drops it.
+    [TestMethod]
+    public void Policies_TrackDroppedByAnEntry_DoesNotClaimTheGroupForIt()
+    {
+        var quebec = new LanguagePreference(IsoLanguage.Find("French (Canada)")) { Commentary = ExtraPolicy.Keep };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("French"), Fallback(IsoLanguage.Find("English")), quebec]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "French (Canada)", commentary: true),
+            Sub(2, "English")
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "French");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // A fallback tier's policy never filters tracks the tier above keeps: on an
+    // English film the English fallback is not in play at all.
+    [TestMethod]
+    public void Policies_OnALowerTier_DoNotFilterTracksTheTierAboveKeeps()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.OriginalLanguage, Fallback(IsoLanguage.Find("English"))]
+        };
+        settings.AllowedLanguages[1].Coverage = SubtitleCoverage.ForcedOnly;
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English"),
+            Sub(2, "English", forced: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // The other way round: a tier above that keeps nothing of the file never hides
+    // the tracks the tier below it would keep.
+    [TestMethod]
+    public void Policies_OnAHigherTier_DoNotHideTracksTheTierBelowKeeps()
+    {
+        var original = new LanguagePreference(IsoLanguage.OriginalLanguage) { Coverage = SubtitleCoverage.ForcedOnly };
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [original, Fallback(IsoLanguage.Find("English"))]
+        };
+        settings.AllowedLanguages[1].Coverage = SubtitleCoverage.FullOnly;
+        var tracks = new List<TrackSnapshot> { Sub(1, "English") };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // --- Profile-wide coverage ---
+
+    // PreferFull is soft like the other extras: a forced subtitle goes when the
+    // language has a full one, and stays when it is all there is.
+    [TestMethod]
+    public void Coverage_PreferFull_DropsForcedWhenTheLanguageHasMore_KeepsItOtherwise()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            Coverage = SubtitleCoverage.PreferFull,
+            AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("French")]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English"),
+            Sub(2, "English", forced: true),
+            Sub(3, "French", forced: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 3 }, result.Select(t => t.Index).ToArray());
+    }
+
+    // --- Max tracks and forced subtitles ---
+
+    // A forced subtitle is no alternative to a full one, so the limit counts
+    // them separately instead of letting the full track push the forced one out.
+    [TestMethod]
+    public void MaxTracks_LimitsForcedSubtitlesSeparately()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [new LanguagePreference(IsoLanguage.Find("English")) { MaxTracks = 1 }]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", nameof(SubtitleCodec.Pgs)),
+            Sub(2, "English"),
+            Sub(3, "English", nameof(SubtitleCodec.Pgs), forced: true),
+            Sub(4, "English", forced: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 2, 4 }, result.Select(t => t.Index).ToArray(),
+            "one full and one forced, text first in each pool");
+    }
+
+    // --- Lists per original language (issues #42 and #67) ---
+
+    private static LanguageCase When(string original, params LanguagePreference[] languages)
+    {
+        return new LanguageCase
+        {
+            OriginalLanguages = [IsoLanguage.Find(original)],
+            Languages = languages.ToList()
+        };
+    }
+
+    private static readonly TrackSettings PerOriginalLanguage = new()
+    {
+        Enabled = true,
+        Cases =
+        [
+            When("English", IsoLanguage.Find("English"), FullOnly("French")),
+            When("French", ForcedOnly("French"))
+        ],
+        AllowedLanguages = [IsoLanguage.Find("French"), Fallback(IsoLanguage.Find("English"))]
+    };
+
+    [TestMethod]
+    public void Cases_FirstMatchingOriginalLanguage_ReplacesTheList()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English"),
+            Sub(2, "English", forced: true),
+            Sub(3, "French"),
+            Sub(4, "French", forced: true),
+            Sub(5, "German")
+        };
+
+        var english = tracks.GetAllowedTracks(PerOriginalLanguage, "English");
+        var french = tracks.GetAllowedTracks(PerOriginalLanguage, "French");
+
+        CollectionAssert.AreEquivalent(new[] { 1, 2, 3 }, english.Select(t => t.Index).ToArray());
+        CollectionAssert.AreEquivalent(new[] { 4 }, french.Select(t => t.Index).ToArray());
+    }
+
+    [TestMethod]
+    public void Cases_NoMatch_UsesTheDefaultList()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English"),
+            Sub(2, "French"),
+            Sub(3, "German")
+        };
+
+        var german = tracks.GetAllowedTracks(PerOriginalLanguage, "German");
+        var unknown = tracks.GetAllowedTracks(PerOriginalLanguage, null);
+
+        CollectionAssert.AreEquivalent(new[] { 2 }, german.Select(t => t.Index).ToArray());
+        CollectionAssert.AreEquivalent(new[] { 2 }, unknown.Select(t => t.Index).ToArray());
+    }
+
+    // The arrs report plain languages; a case for French applies to a film whose
+    // original is stored as a French variant, and the other way round.
+    [TestMethod]
+    public void Cases_MatchOnTheBaseLanguage()
+    {
+        Assert.IsTrue(When("French").Matches("French (Canada)"));
+        Assert.IsTrue(When("French (Canada)").Matches("French"));
+        Assert.IsFalse(When("French").Matches("Spanish"));
+        Assert.IsFalse(When("French").Matches(null));
+    }
+
+    // --- Serialization ---
+
+    [TestMethod]
+    public void PoliciesAndCases_RoundTripThroughJson()
+    {
+        var restored = JsonHelper.Deserialize<TrackSettings>(JsonHelper.Serialize(PerOriginalLanguage));
+
+        Assert.IsNotNull(restored);
+        Assert.AreEqual(2, restored.Cases.Count);
+        Assert.AreEqual("English", restored.Cases[0].OriginalLanguages[0].Name);
+        Assert.AreEqual(SubtitleCoverage.FullOnly, restored.Cases[0].Languages[1].Coverage);
+        Assert.AreEqual(SubtitleCoverage.ForcedOnly, restored.Cases[1].Languages[0].Coverage);
+        Assert.IsNull(restored.AllowedLanguages[0].Coverage);
+        Assert.AreEqual(LanguageRelation.NextTier, restored.AllowedLanguages[1].Relation);
+    }
+
+    // A profile saved with the old remove switches reads back as the soft policies,
+    // and the switches are never written again.
+    [TestMethod]
+    public void RemoveSwitches_InLegacyJson_BecomeSoftPolicies()
+    {
+        var restored = JsonHelper.Deserialize<TrackSettings>(
+            """{"Enabled":true,"AllowedLanguages":[{"Language":{"Name":"German"},"MaxTracks":1}],"RemoveImpaired":true,"RemoveCommentary":false}""");
+
+        Assert.IsNotNull(restored);
+        Assert.AreEqual(0, restored.Cases.Count);
+        Assert.IsNull(restored.AllowedLanguages[0].Coverage);
+        Assert.AreEqual(ExtraPolicy.KeepWhenAlone, restored.Impaired);
+        Assert.AreEqual(ExtraPolicy.Keep, restored.Commentary);
+        Assert.AreEqual(SubtitleCoverage.Both, restored.Coverage);
+        Assert.IsFalse(JsonHelper.Serialize(restored).Contains("RemoveImpaired"));
     }
 }

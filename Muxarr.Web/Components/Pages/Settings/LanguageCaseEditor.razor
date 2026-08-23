@@ -1,0 +1,81 @@
+@using Muxarr.Web.Attributes
+@attribute [type: RenderModeInteractiveServer]
+
+<div class="lce-case">
+    <div class="lce-head">
+        <span class="lce-when">When the original language is</span>
+        <div class="lce-picker">
+            <TagSelector @ref="_picker" TItem="IsoLanguage" SelectedItems="Case.OriginalLanguages"
+                         OnSearchInput="OnSearchInput" OnChange="OnChange" Placeholder="Choose a language">
+                <TagTemplate>@context.DisplayName</TagTemplate>
+                <ListTemplate>@context.DisplayName@(context.NativeName != context.Name ? $" · {context.NativeName}" : "")@(context.ThreeLetterCode != null ? $" ({context.ThreeLetterCode.ToUpperInvariant()})" : "")</ListTemplate>
+            </TagSelector>
+        </div>
+        <ToolTip Tip="Remove this rule">
+            <button type="button" class="lce-remove-btn" @onclick="Remove">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </ToolTip>
+    </div>
+    @if (Case.OriginalLanguages.Count == 0)
+    {
+        <small class="form-text text-muted d-block mb-2">Choose an original language before this rule can be used.</small>
+    }
+    else if (Case.Languages.Count == 0)
+    {
+        <small class="form-text text-warning d-block mb-2">
+            <i class="bi bi-exclamation-triangle me-1"></i>@(TrackType == MediaTrackType.Audio ? $"Add a language. Otherwise, anything originally in {Originals} keeps only one audio track." : $"Add a language. Otherwise, anything originally in {Originals} loses all subtitles.")
+        </small>
+    }
+    <LanguagePriorityEditor Languages="Case.Languages" TrackType="TrackType" Settings="Settings" OnChange="OnChange"/>
+</div>
+
+@code {
+    [Parameter] [EditorRequired] public required LanguageCase Case { get; set; }
+    [Parameter] public MediaTrackType TrackType { get; set; }
+    [Parameter] [EditorRequired] public required TrackSettings Settings { get; set; }
+
+    // Original languages already claimed by another rule.
+    [Parameter] public List<IsoLanguage> Taken { get; set; } = [];
+    [Parameter] public EventCallback OnRemove { get; set; }
+
+    // Raised when the original languages or the list change.
+    [Parameter] public EventCallback OnChange { get; set; }
+
+    // A list just added puts the cursor in its picker, so the next step is obvious.
+    [Parameter] public bool AutoFocus { get; set; }
+
+    [CascadingParameter] public required IModalService Modal { get; set; }
+
+    private TagSelector<IsoLanguage>? _picker;
+
+    private string Originals => string.Join(" and ", Case.OriginalLanguages.Select(l => l.DisplayName));
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && AutoFocus && _picker != null)
+        {
+            await _picker.FocusAsync();
+        }
+    }
+
+    // Cases match on the base language, so a variant would only duplicate it,
+    // and a language in another rule would make rule order matter.
+    private Task<List<IsoLanguage>> OnSearchInput(string input)
+    {
+        return Task.FromResult(IsoLanguage.Search(input)
+            .Where(l => !l.IsVariant && Case.OriginalLanguages.Concat(Taken).All(t => !t.Base.Equals(l.Base)))
+            .Take(10)
+            .ToList());
+    }
+
+    // An empty list goes without asking; a configured one is worth a second look.
+    private async Task Remove()
+    {
+        if (Case.Languages.Count == 0 || await Modal.ShowConfirm("Remove this original language rule?"))
+        {
+            await OnRemove.InvokeAsync();
+        }
+    }
+
+}

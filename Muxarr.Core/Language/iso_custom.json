@@ -11,6 +11,8 @@
   { "threeLetterCodes": ["spa"], "twoLetterCode": "es-mx", "ietf": "es-419", "base": "Spanish", "name": "Spanish (Latin America)", "nativeName": "Español (Latinoamérica)" },
   { "threeLetterCodes": [], "twoLetterCode": "es-es", "ietf": "es-ES", "base": "Spanish", "name": "Spanish (Spain)", "nativeName": "Español (España)" },
   { "threeLetterCodes": [], "twoLetterCode": "nl-be", "ietf": "nl-BE", "base": "Dutch", "name": "Flemish", "nativeName": "Vlaams" },
+  { "threeLetterCodes": ["nob"], "twoLetterCode": "nb", "base": "Norwegian", "name": "Bokmål, Norwegian", "displayName": "Norwegian Bokmål", "nativeName": "Norsk bokmål" },
+  { "threeLetterCodes": ["nno"], "twoLetterCode": "nn", "base": "Norwegian", "name": "Norwegian Nynorsk", "nativeName": "Norsk nynorsk" },
   { "threeLetterCodes": ["cmn"], "base": "Chinese", "name": "Mandarin Chinese", "nativeName": "普通话" },
   { "threeLetterCodes": ["yue"], "base": "Chinese", "name": "Cantonese", "nativeName": "廣東話" }
 ]

@@ -636,8 +636,8 @@ public class ComplexConversionTests : IntegrationTestBase
                         IsoLanguage.Find("English"),
                         IsoLanguage.Find("French")
                     ],
-                    RemoveCommentary = true,
-                    RemoveImpaired = false,
+                    Commentary = ExtraPolicy.KeepWhenAlone,
+                    Impaired = ExtraPolicy.Keep,
                     AssumeUndeterminedIsOriginal = true,
                     DefaultStrategy = DefaultTrackStrategy.SpecCompliant,
                     ReorderStrategy = TrackReorderStrategy.MatchLanguagePriority,
@@ -652,7 +652,7 @@ public class ComplexConversionTests : IntegrationTestBase
                         IsoLanguage.Find("English"),
                         IsoLanguage.Find("French")
                     ],
-                    RemoveCommentary = true,
+                    Commentary = ExtraPolicy.KeepWhenAlone,
                     StandardizeTrackNames = true,
                     TrackNameTemplate = "{language}",
                     TrackNameOverrides = new Dictionary<TrackFlag, string>

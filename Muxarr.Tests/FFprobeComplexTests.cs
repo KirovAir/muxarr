@@ -180,15 +180,15 @@ public class FFprobeComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = false
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.Keep
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = true
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.KeepWhenAlone
             }
         };
 
@@ -218,15 +218,15 @@ public class FFprobeComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = false
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.Keep
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = false
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.Keep
             }
         };
 

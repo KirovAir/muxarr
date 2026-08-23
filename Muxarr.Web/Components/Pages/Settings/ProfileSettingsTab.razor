@@ -50,14 +50,14 @@ else
                     <ToolTip Tip="Audio rules">
                         <i class="bi bi-volume-up text-muted" style="width: 18px;"></i>
                     </ToolTip>
-                    <TrackSettingsDisplay Settings="@profile.AudioSettings"/>
+                    <TrackSettingsDisplay Settings="@profile.AudioSettings" TrackType="MediaTrackType.Audio"/>
                 </div>
 
                 <div class="d-flex align-items-center gap-2 flex-wrap">
                     <ToolTip Tip="Subtitle rules">
                         <i class="bi bi-badge-cc text-muted" style="width: 18px;"></i>
                     </ToolTip>
-                    <TrackSettingsDisplay Settings="@profile.SubtitleSettings"/>
+                    <TrackSettingsDisplay Settings="@profile.SubtitleSettings" TrackType="MediaTrackType.Subtitles"/>
                 </div>
 
                 @if (profile.ClearVideoTrackNames || profile.ClearFileTitle || profile.RemoveChapters || profile.TrimToVideoLength || profile.SkipHardlinkedFiles)

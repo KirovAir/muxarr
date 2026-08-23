@@ -417,15 +417,15 @@ public class MkvToolNixComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = false
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.Keep
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = true
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.KeepWhenAlone
             }
         };
 
@@ -461,15 +461,15 @@ public class MkvToolNixComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = false // The user's preference: keep HI
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.Keep // The user's preference: keep HI
             },
             SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
-                RemoveImpaired = false // Keep HI subs
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.Keep // Keep HI subs
             }
         };
 
@@ -495,7 +495,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
+                Commentary = ExtraPolicy.KeepWhenAlone,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {channels}"
             },
@@ -503,7 +503,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveImpaired = true,
+                Impaired = ExtraPolicy.KeepWhenAlone,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {hi}"
             }
@@ -688,7 +688,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true,
+                Commentary = ExtraPolicy.KeepWhenAlone,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {channels}"
             },
@@ -696,7 +696,7 @@ public class MkvToolNixComplexTests : FixtureTestBase
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveImpaired = true,
+                Impaired = ExtraPolicy.KeepWhenAlone,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {forced}"
             }

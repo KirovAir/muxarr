@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Muxarr.Core.Extensions;
@@ -41,7 +42,34 @@ public enum DefaultTrackStrategy
     /// Requires AllowedLanguages to be configured for a meaningful priority order.
     /// Use when the player doesn't have language preference settings.
     /// </summary>
-    ForceFirstLanguage
+    ForceFirstLanguage,
+
+    /// <summary>ForceFirstLanguage, but a forced subtitle of that language wins over its full one.</summary>
+    ForceFirstLanguageForced
+}
+
+/// <summary>Which of a language's full and forced subtitles to keep. Audio ignores it.</summary>
+public enum SubtitleCoverage
+{
+    Both,
+
+    /// <summary>Forced goes when the language has a full subtitle.</summary>
+    PreferFull,
+
+    FullOnly,
+
+    ForcedOnly
+}
+
+/// <summary>What happens to an extra (SDH, audio description, commentary).</summary>
+public enum ExtraPolicy
+{
+    Keep,
+
+    /// <summary>Removed when the language has something better: a full subtitle for SDH, any other track for commentary.</summary>
+    KeepWhenAlone,
+
+    Remove
 }
 
 public enum TrackFlag
@@ -99,8 +127,49 @@ public class TrackSettings
 {
     public bool Enabled { get; set; }
     public List<LanguagePreference> AllowedLanguages { get; set; } = new();
-    public bool RemoveCommentary { get; set; }
-    public bool RemoveImpaired { get; set; }
+
+    /// <summary>Lists that replace AllowedLanguages for files in a specific original language. First match wins.</summary>
+    public List<LanguageCase> Cases { get; set; } = [];
+
+    /// <summary>The profile-wide subtitle type policy; a language can override each part.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public SubtitleCoverage Coverage { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ExtraPolicy Impaired { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public ExtraPolicy Commentary { get; set; }
+
+    /// <summary>Profiles saved before policies stored remove switches. Read, never written back.</summary>
+    [JsonPropertyName("RemoveCommentary")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool LegacyRemoveCommentary
+    {
+        get => false;
+        set
+        {
+            if (value && Commentary == ExtraPolicy.Keep)
+            {
+                Commentary = ExtraPolicy.KeepWhenAlone;
+            }
+        }
+    }
+
+    [JsonPropertyName("RemoveImpaired")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool LegacyRemoveImpaired
+    {
+        get => false;
+        set
+        {
+            if (value && Impaired == ExtraPolicy.Keep)
+            {
+                Impaired = ExtraPolicy.KeepWhenAlone;
+            }
+        }
+    }
+
     public bool AssumeUndeterminedIsOriginal { get; set; }
 
     /// <summary>
@@ -148,6 +217,53 @@ public class TrackSettings
     public string ResolveTemplate(IMediaTrack track)
     {
         return TryGetMatchingOverride(track, out var overrideTemplate) ? overrideTemplate : TrackNameTemplate;
+    }
+
+
+
+
+    /// <summary>The list that applies to a file: the first matching case, or AllowedLanguages.</summary>
+    public List<LanguagePreference> LanguagesFor(string? originalLanguage)
+    {
+        return Cases.FirstOrDefault(c => c.Matches(originalLanguage))?.Languages ?? AllowedLanguages;
+    }
+
+    /// <summary>
+    /// These settings as they apply to a file: a copy with the matching case's list
+    /// in place of AllowedLanguages, so everything downstream keeps reading one list.
+    /// Read-only: the lists are shared with the profile, not copied.
+    /// </summary>
+    public TrackSettings ForOriginalLanguage(string? originalLanguage)
+    {
+        var languages = LanguagesFor(originalLanguage);
+        if (ReferenceEquals(languages, AllowedLanguages))
+        {
+            return this;
+        }
+
+        var resolved = (TrackSettings)MemberwiseClone();
+        resolved.AllowedLanguages = languages;
+        resolved.Cases = [];
+        return resolved;
+    }
+}
+
+/// <summary>A language list for files originally in one of <see cref="OriginalLanguages"/>, matched on the base language.</summary>
+public class LanguageCase
+{
+    public List<IsoLanguage> OriginalLanguages { get; set; } = [];
+    public List<LanguagePreference> Languages { get; set; } = [];
+
+    public bool Matches(string? originalLanguage)
+    {
+        if (string.IsNullOrEmpty(originalLanguage))
+        {
+            return false;
+        }
+
+        var original = IsoLanguage.Find(originalLanguage);
+        return original != IsoLanguage.Unknown
+               && OriginalLanguages.Any(l => IsoLanguage.Find(l.Name).Base.Equals(original.Base));
     }
 }
 

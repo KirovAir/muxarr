@@ -1,137 +1,149 @@
 @using Muxarr.Web.Attributes
+@using Muxarr.Web.Helpers
 @attribute [type: RenderModeInteractiveServer]
 
 <div class="lpe-container">
-    @for (var i = 0; i < Languages.Count; i++)
+    @foreach (var group in Languages.Groups())
     {
-        var index = i;
-        var pref = Languages[index];
-        var isFirst = index == 0;
-        var isExpanded = _expandedIndex == index;
-        var isDragOver = _dragOverIndex == index;
-        var isOriginal = pref.IsOriginalLanguagePlaceholder;
+        var head = group[0][0];
+        var groupStart = Languages.IndexOf(head);
+        var isSet = group.Count > 1 || group[0].Count > 1;
+        var isOpen = _openHead == head;
+        var isDragOver = _dragOverIndex == groupStart;
 
-        <div
-            class="lpe-item @(isDragOver ? "lpe-item-dragover" : "") @(_dragSourceIndex == index ? "lpe-item-dragging" : "") @(isOriginal ? "lpe-item-original" : "") @(pref.IsFallback ? "lpe-item-fallback" : "")"
-            draggable="true"
-            @ondragstart="() => OnDragStart(index)"
-            @ondragenter="() => OnDragEnter(index)"
-            @ondragover:preventDefault
-            @ondrop="() => OnDrop(index)"
-            @ondragend="OnDragEnd">
+        <div class="lpe-item @(isDragOver ? "lpe-item-dragover" : "") @(_dragSourceIndex == groupStart ? "lpe-item-dragging" : "") @(isOpen ? "lpe-item-open" : "") @(head.IsOriginalLanguagePlaceholder && !isSet ? "lpe-item-original" : "")"
+             draggable="true" tabindex="0" role="button"
+             @ondragstart="() => OnDragStart(groupStart)"
+             @ondragenter="() => OnDragEnter(groupStart)"
+             @ondragover:preventDefault
+             @ondrop="() => OnDrop(groupStart)"
+             @ondragend="OnDragEnd"
+             @onclick="() => ToggleGroup(head)"
+             @onkeydown="e => OnRowKey(e, head)">
 
             <i class="bi bi-grip-vertical lpe-drag-handle"></i>
-            <span class="lpe-priority-number">@(pref.IsFallback ? "" : GroupNumber(index).ToString())</span>
-
-            @if (isOriginal)
+            @foreach (var member in group[0])
             {
-                <ToolTip
-                    Tip="Matches the language a movie or show was originally made in. Works like a wildcard - automatically picks the right language per file using data from Sonarr/Radarr.">
+                @if (member != group[0][0])
+                {
+                    <span class="lpe-plus">+</span>
+                }
+                @if (member.IsOriginalLanguagePlaceholder)
+                {
                     <i class="bi bi-film lpe-original-icon"></i>
-                </ToolTip>
-                <span class="lpe-lang-name">Original Language</span>
-            }
-            else
-            {
-                <span class="lpe-lang-name">@pref.Name</span>
-                <span class="lpe-lang-code">@pref.ThreeLetterCode</span>
-            }
-
-            @if (pref.IsFallback)
-            {
-                <span class="lpe-fallback-note">@FallbackNote(index)</span>
+                }
+                <span class="lpe-lang-name">@Label(member)</span>
+                @if (!member.IsOriginalLanguagePlaceholder && !isSet)
+                {
+                    <span class="lpe-lang-code">@member.ThreeLetterCode</span>
+                }
+                @if (PolicyText.Overrides(member, TrackType) is { Length: > 0 } note)
+                {
+                    <span class="lpe-note">@note</span>
+                }
             }
 
-            @if (!isFirst)
-            {
-                <ToolTip
-                    Tip="@(pref.IsFallback ? "Always keep this language" : "Keep this language only when the one above it is missing")">
-                    <button type="button"
-                            class="lpe-icon-btn @(pref.IsFallback ? "lpe-fallback-active" : "")"
-                            @onclick="() => ToggleFallback(index)">
-                        <i class="bi bi-arrow-return-right"></i>
-                    </button>
-                </ToolTip>
-            }
-
-            <ToolTip Tip="Per-language settings">
-                <button type="button"
-                        class="lpe-icon-btn @(pref.HasOverrides ? "lpe-gear-active" : "") @(isExpanded ? "lpe-gear-expanded" : "")"
-                        @onclick="() => ToggleExpanded(index)">
-                    <i class="bi @(pref.HasOverrides ? "bi-gear-fill" : "bi-gear")"></i>
-                </button>
-            </ToolTip>
-
-            <ToolTip Tip="Remove language">
-                <button type="button" class="lpe-icon-btn lpe-remove-btn" @onclick="() => OnRemove(index)">
+            <ToolTip Tip="@(isSet ? "Remove this fallback set" : $"Remove {Label(head)}")">
+                <button type="button" class="lpe-icon-btn lpe-remove-btn" @onclick="() => RemoveGroup(head)"
+                        @onclick:stopPropagation>
                     <i class="bi bi-x-lg"></i>
                 </button>
             </ToolTip>
         </div>
 
-        @if (isExpanded)
+        @for (var tier = 1; tier < group.Count; tier++)
         {
-            <div class="lpe-advanced-panel @(pref.IsFallback ? "lpe-panel-indent" : "")">
-                <div class="row g-2">
-                    <div class="col-6">
-                        <ToolTip
-                            Tip="Limit the number of tracks kept for this language. The preferred track is kept first.">
-                            <label class="lpe-advanced-label">Max tracks</label>
-                        </ToolTip>
-                        <select class="form-select form-select-sm"
-                                value="@(pref.MaxTracks?.ToString() ?? "")"
-                                @onchange="e => SetMaxTracks(pref, e.Value?.ToString())">
-                            <option value="">Default (all)</option>
-                            <option value="1">Keep 1 (best)</option>
-                            <option value="2">Keep 2</option>
-                            <option value="3">Keep 3</option>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        @if (IsAudio)
-                        {
-                            <ToolTip
-                                Tip="When limiting tracks, choose what to keep: the most surround channels, lossless audio first, or the smallest file size.">
-                                <label class="lpe-advanced-label">Quality preference</label>
-                            </ToolTip>
-                            <select class="form-select form-select-sm"
-                                    value="@pref.QualityStrategy.ToString()"
-                                    @onchange="e => SetQualityStrategy(pref, e.Value?.ToString())">
-                                <option value="@nameof(AudioQualityStrategy.BestQuality)">Lossless first (default)
-                                </option>
-                                <option value="@nameof(AudioQualityStrategy.MostChannels)">Most channels (surround)
-                                </option>
-                                <option value="@nameof(AudioQualityStrategy.SmallestSize)">Smallest size</option>
-                            </select>
-                        }
-                        else
-                        {
-                            <ToolTip
-                                Tip="When limiting tracks, choose what to keep: text subtitles (SRT), image subtitles (PGS), or accessibility (SDH) tracks.">
-                                <label class="lpe-advanced-label">Subtitle preference</label>
-                            </ToolTip>
-                            <select class="form-select form-select-sm"
-                                    value="@pref.SubtitleStrategy.ToString()"
-                                    @onchange="e => SetSubtitleStrategy(pref, e.Value?.ToString())">
-                                <option value="@nameof(SubtitleQualityStrategy.TextFirst)">Text first (SRT, default)
-                                </option>
-                                <option value="@nameof(SubtitleQualityStrategy.ImageFirst)">Image first (PGS)</option>
-                                <option value="@nameof(SubtitleQualityStrategy.Accessibility)">Accessibility (SDH)
-                                </option>
-                            </select>
-                        }
-                    </div>
-                </div>
-                <small class="lpe-advanced-hint">@RankingHint(pref)</small>
-                @if (pref.HasOverrides)
+            <div class="lpe-fallback-line">@FallbackLead(group[0].Count, tier) <b>@Names(group[tier], ", ")</b>@Notes(group[tier])</div>
+        }
+
+        @if (isOpen)
+        {
+            <div class="lpe-panel">
+                @if (isSet || _pendingTier >= 0)
                 {
-                    <button type="button" class="btn btn-link btn-sm text-muted p-0 mt-2"
-                            @onclick="() => ClearOverrides(pref)">
-                        <i class="bi bi-arrow-counterclockwise me-1"></i>Reset to defaults
-                    </button>
+                    @for (var tier = 0; tier < group.Count + (_pendingTier >= 0 ? 1 : 0); tier++)
+                    {
+                        var currentTier = tier;
+                        var members = tier < group.Count ? group[tier] : new List<LanguagePreference>();
+                        <div class="lpe-level">
+                            <div class="lpe-level-label">@(tier == 0 ? "Preferred languages" : FallbackLead(group[0].Count, tier).TrimEnd(':'))</div>
+                            @foreach (var member in members)
+                            {
+                                var current = member;
+                                <div class="lpe-member @(_openLanguage == current ? "lpe-member-open" : "")" tabindex="0" role="button"
+                                     @onclick="() => ToggleLanguage(current)" @onkeydown="e => OnMemberKey(e, current)">
+                                    @if (current.IsOriginalLanguagePlaceholder)
+                                    {
+                                        <i class="bi bi-film lpe-original-icon"></i>
+                                    }
+                                    <span class="lpe-lang-name">@Label(current)</span>
+                                    @if (PolicyText.Overrides(current, TrackType) is { Length: > 0 } memberNote)
+                                    {
+                                        <span class="lpe-note">@memberNote</span>
+                                    }
+                                    <ToolTip Tip="@($"Remove {Label(current)}")">
+                                        <button type="button" class="lpe-icon-btn lpe-remove-btn"
+                                                @onclick="() => RemoveLanguage(current)" @onclick:stopPropagation>
+                                            <i class="bi bi-x-lg"></i>
+                                        </button>
+                                    </ToolTip>
+                                </div>
+                                @if (_openLanguage == current)
+                                {
+                                    <div class="lpe-language-settings">@LanguageSettings(current, false)</div>
+                                }
+                            }
+                            @if (tier > 0 || group.Count > 1)
+                            {
+                                <div class="lpe-level-add">
+                                    <AutoComplete TItem="IsoLanguage" SearchInput=""
+                                                  OnSearchInput="OnSetSearchInput"
+                                                  OnSelectItem="item => AddToTier(head, currentTier, item)"
+                                                  Placeholder="@(tier == 0 ? "Add preferred language" : "Add fallback language")">
+                                        <ListTemplate>@ListEntry(context)</ListTemplate>
+                                    </AutoComplete>
+                                    @if (!HasOriginalLanguage)
+                                    {
+                                        <button type="button" class="btn btn-link btn-sm text-muted p-0"
+                                                @onclick="() => AddToTier(head, currentTier, IsoLanguage.OriginalLanguage)">
+                                            <i class="bi bi-film me-1"></i>Add original language
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            @if (tier == 0 && group.Count > 1)
+                            {
+                                <small class="lpe-hint">Keep every preferred language that is available.</small>
+                            }
+                            else if (tier >= group.Count)
+                            {
+                                <small class="lpe-hint">Leave empty to skip.</small>
+                            }
+                        </div>
+                    }
+                    <div class="lpe-panel-actions">
+                        @if (_pendingTier < 0)
+                        {
+                            <button type="button" class="btn btn-link btn-sm p-0" @onclick="AddLevel">
+                                <i class="bi bi-plus-lg me-1"></i>Add another fallback
+                            </button>
+                        }
+                        <button type="button" class="btn btn-link btn-sm p-0 text-muted" @onclick="CloseGroup">Done</button>
+                    </div>
+                }
+                else
+                {
+                    @LanguageSettings(head, true)
                 }
             </div>
         }
+    }
+
+    @if (Languages.Count == 0)
+    {
+        <small class="form-text text-warning d-block mb-1">
+            <i class="bi bi-exclamation-triangle me-1"></i>@(IsAudio ? "Add a language. Otherwise, files keep only one audio track." : "Add a language. Otherwise, all subtitles will be removed.")
+        </small>
     }
 
     <div class="lpe-add-row">
@@ -139,15 +151,15 @@
             <AutoComplete TItem="IsoLanguage"
                           SearchInput="@_searchInput"
                           OnSearchInput="OnSearchInput"
-                          OnSelectItem="OnSelect">
-                <ListTemplate>@context.Name@(context.NativeName != context.Name ? $" — {context.NativeName}" : "")@(context.ThreeLetterCode != null ? $" ({context.ThreeLetterCode.ToUpperInvariant()})" : "")</ListTemplate>
+                          OnSelectItem="OnSelect"
+                          Placeholder="Add language">
+                <ListTemplate>@ListEntry(context)</ListTemplate>
             </AutoComplete>
         </div>
         @if (!HasOriginalLanguage)
         {
-            <ToolTip
-                Tip="Matches the language a movie or show was originally made in. Works like a wildcard - automatically picks the right language per file using data from Sonarr/Radarr.">
-                <button type="button" class="btn btn-link btn-sm text-muted p-0" @onclick="AddOriginalLanguage">
+            <ToolTip Tip="Uses the original language reported by Sonarr or Radarr.">
+                <button type="button" class="btn btn-link btn-sm text-muted p-0" @onclick="() => OnSelect(IsoLanguage.OriginalLanguage)">
                     <i class="bi bi-film me-1"></i>Add original language
                 </button>
             </ToolTip>
@@ -156,11 +168,9 @@
 
     @foreach (var variant in SelectedVariants)
     {
-        <small class="form-text text-warning d-block mt-2">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            <strong>@variant.Name</strong> keeps @variant.Base.Name tracks, but drops any identified as a
-            different @variant.Base.Name region by their language tag or track name.
-            Tracks that have no region are kept.
+        <small class="form-text text-muted d-block mt-2">
+            <strong>@variant.DisplayName</strong> also keeps @variant.Base.Name tracks with no variant set. Other
+            @variant.Base.Name variants are removed.
         </small>
     }
 </div>
@@ -169,16 +179,30 @@
     [Parameter] [EditorRequired] public required List<LanguagePreference> Languages { get; set; }
     [Parameter] public MediaTrackType TrackType { get; set; }
 
+    // The profile's policy, so a language's settings can say what "Same as profile" means.
+    [Parameter] [EditorRequired] public required TrackSettings Settings { get; set; }
+
+    // Raised when a language is added or removed, for parents whose options depend on the list.
+    [Parameter] public EventCallback OnChange { get; set; }
+
+    [CascadingParameter] public required IModalService Modal { get; set; }
+
     private bool IsAudio => TrackType == MediaTrackType.Audio;
 
     private string _searchInput = string.Empty;
-    private int _expandedIndex = -1;
+
+    // Open state points at rows, not indexes, since every edit shifts indexes.
+    private LanguagePreference? _openHead;
+    private LanguagePreference? _openLanguage;
+    private int _pendingTier = -1;
     private int _dragSourceIndex = -1;
     private int _dragOverIndex = -1;
 
+    // A shared tier without a fallback means nothing, so it never reaches the profile that way.
     protected override void OnParametersSet()
     {
         Languages.AnchorTop();
+        Languages.Tidy();
     }
 
     // Explained only when the base is absent; with both listed the base keeps everything anyway.
@@ -189,44 +213,162 @@
 
     private bool HasOriginalLanguage => Languages.Any(l => l.IsOriginalLanguagePlaceholder);
 
-    // --- Fallback groups ---
-
     private static string Label(LanguagePreference pref)
     {
-        return pref.IsOriginalLanguagePlaceholder ? "original language" : pref.Name;
+        return pref.IsOriginalLanguagePlaceholder ? "Original language" : pref.DisplayName;
     }
 
-    // Only the anchors are numbered: a group is one slot in the priority order,
-    // since just one of its languages ever survives.
-    private int GroupNumber(int index)
+    private static string Names(List<LanguagePreference> languages, string joiner)
     {
-        return Languages.Take(index + 1).Count(l => !l.IsFallback);
+        return string.Join(joiner, languages.Select(Label));
     }
 
-    private string FallbackNote(int index)
+    private string Notes(List<LanguagePreference> languages)
     {
-        var covered = Languages.FallbackFor(index).Select(Label).ToList();
-        return covered.Count switch
+        var notes = languages.Select(l => PolicyText.Overrides(l, TrackType)).Where(n => n.Length > 0).ToList();
+        return notes.Count == 0 ? "" : " · " + string.Join(" · ", notes);
+    }
+
+    private static string ListEntry(IsoLanguage language)
+    {
+        var native = language.NativeName != language.Name ? $" · {language.NativeName}" : "";
+        var code = language.ThreeLetterCode != null ? $" ({language.ThreeLetterCode.ToUpperInvariant()})" : "";
+        return language.DisplayName + native + code;
+    }
+
+    // "If unavailable:", "If neither is available:", "If none are available:", then "If still unavailable:".
+    private static string FallbackLead(int preferred, int tier)
+    {
+        if (tier > 1)
         {
-            0 => string.Empty,
-            1 => $"if no {covered[0]}",
-            _ => $"if no {string.Join(", ", covered.SkipLast(1))} or {covered[^1]}"
+            return "If still unavailable:";
+        }
+
+        return preferred switch
+        {
+            1 => "If unavailable:",
+            2 => "If neither is available:",
+            _ => "If none are available:"
         };
     }
 
-    private void ToggleFallback(int index)
+    private List<List<LanguagePreference>> OpenGroup =>
+        Languages.Groups().FirstOrDefault(g => g[0][0] == _openHead) ?? [];
+
+    // --- Open and close ---
+
+    private void ToggleGroup(LanguagePreference head)
     {
-        Languages[index].IsFallback = !Languages[index].IsFallback;
-        _expandedIndex = -1;
+        var open = _openHead == head;
+        CloseGroup();
+        if (!open)
+        {
+            _openHead = head;
+        }
     }
 
-    // --- Drag and drop ---
+    private void OnRowKey(KeyboardEventArgs e, LanguagePreference head)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            ToggleGroup(head);
+        }
+    }
+
+    private void ToggleLanguage(LanguagePreference language)
+    {
+        _openLanguage = _openLanguage == language ? null : language;
+    }
+
+    private void OnMemberKey(KeyboardEventArgs e, LanguagePreference language)
+    {
+        if (e.Key is "Enter" or " ")
+        {
+            ToggleLanguage(language);
+        }
+    }
+
+    // A set that ends up without a fallback is plain languages again.
+    private void CloseGroup()
+    {
+        _openHead = null;
+        _openLanguage = null;
+        _pendingTier = -1;
+        Languages.Tidy();
+    }
+
+    // --- Sets ---
+
+    // An empty fallback level waiting for its first language; from a plain
+    // language this turns its panel into the set editor.
+    private void AddLevel()
+    {
+        _pendingTier = Math.Max(1, OpenGroup.Count);
+    }
+
+    // A language already in the list as a plain row is moved into the set rather
+    // than refused, so "Norwegian, Bokmål" can become a pair without re-adding.
+    private async Task AddToTier(LanguagePreference head, int tier, IsoLanguage language)
+    {
+        var existing = Languages.FirstOrDefault(l => l.Name == language.Name);
+        if (existing != null)
+        {
+            var ownGroup = Languages.Groups().FirstOrDefault(g => g[0][0] == existing);
+            if (existing == head || ownGroup == null || ownGroup.Sum(t => t.Count) > 1)
+            {
+                return;
+            }
+
+            Languages.RemoveGroup(Languages.IndexOf(existing));
+        }
+
+        Languages.AddToGroup(Languages.IndexOf(head), tier, existing ?? new LanguagePreference(language));
+        if (tier == _pendingTier)
+        {
+            _pendingTier = -1;
+        }
+
+        await OnChange.InvokeAsync();
+    }
+
+    private async Task RemoveLanguage(LanguagePreference language)
+    {
+        Languages.RemoveFromGroup(Languages.IndexOf(language));
+        _openLanguage = null;
+        if (_openHead != null && (!Languages.Contains(_openHead) || _openHead.Relation != LanguageRelation.NewGroup))
+        {
+            CloseGroup();
+        }
+
+        await OnChange.InvokeAsync();
+    }
+
+    private async Task RemoveGroup(LanguagePreference head)
+    {
+        var group = Languages.Groups().FirstOrDefault(g => g[0][0] == head);
+        if (group == null)
+        {
+            return;
+        }
+
+        var isSet = group.Count > 1 || group[0].Count > 1;
+        if (isSet && !await Modal.ShowConfirm("Remove this fallback set?"))
+        {
+            return;
+        }
+
+        Languages.RemoveGroup(Languages.IndexOf(head));
+        CloseGroup();
+        await OnChange.InvokeAsync();
+    }
+
+    // --- Drag and drop (whole sets move together) ---
 
     private void OnDragStart(int index)
     {
         _dragSourceIndex = index;
         _dragOverIndex = -1;
-        _expandedIndex = -1;
+        CloseGroup();
     }
 
     private void OnDragEnter(int index)
@@ -238,7 +380,7 @@
         }
     }
 
-    private void OnDrop(int targetIndex)
+    private async Task OnDrop(int targetIndex)
     {
         if (_dragSourceIndex >= 0)
         {
@@ -247,6 +389,7 @@
 
         _dragSourceIndex = -1;
         _dragOverIndex = -1;
+        await OnChange.InvokeAsync();
     }
 
     private void OnDragEnd()
@@ -255,97 +398,172 @@
         _dragOverIndex = -1;
     }
 
-    // --- Add / Remove ---
+    // --- Add ---
 
-    private void OnSelect(IsoLanguage item)
+    private Task OnSelect(IsoLanguage item)
     {
         _searchInput = string.Empty;
         if (Languages.All(l => l.Name != item.Name))
         {
             Languages.Add(new LanguagePreference(item));
         }
-    }
 
-    private void AddOriginalLanguage()
-    {
-        if (!HasOriginalLanguage)
-        {
-            Languages.Add(new LanguagePreference(IsoLanguage.OriginalLanguage));
-        }
-    }
-
-    private void OnRemove(int index)
-    {
-        Languages.RemoveEntry(index);
-
-        if (_expandedIndex == index)
-        {
-            _expandedIndex = -1;
-        }
-        else if (_expandedIndex > index)
-        {
-            _expandedIndex--;
-        }
+        return OnChange.InvokeAsync();
     }
 
     private Task<List<IsoLanguage>> OnSearchInput(string input)
     {
-        return Task.FromResult(IsoLanguage.Search(input).Take(10).ToList());
+        return Task.FromResult(IsoLanguage.Search(input)
+            .Where(l => Languages.All(p => p.Name != l.Name))
+            .Take(10)
+            .ToList());
     }
 
-    // --- Advanced panel ---
-
-    private void ToggleExpanded(int index)
+    // Inside a set, a plain row elsewhere in the list is still offered: picking it moves it in.
+    private Task<List<IsoLanguage>> OnSetSearchInput(string input)
     {
-        _expandedIndex = _expandedIndex == index ? -1 : index;
+        var unavailable = Languages.Groups()
+            .Where(g => g.Count > 1 || g[0].Count > 1 || g[0][0] == _openHead)
+            .SelectMany(g => g.SelectMany(t => t))
+            .ToList();
+        return Task.FromResult(IsoLanguage.Search(input)
+            .Where(l => unavailable.All(p => p.Name != l.Name))
+            .Take(10)
+            .ToList());
     }
 
+    // --- Language settings ---
+
+    private RenderFragment LanguageSettings(LanguagePreference pref, bool offerFallback) => __builder =>
+    {
+        <div class="lpe-settings">
+            @if (!IsAudio)
+            {
+                <div>
+                    <label class="lpe-advanced-label">Full and forced subtitles</label>
+                    <select class="form-select form-select-sm" value="@(pref.Coverage?.ToString() ?? "")"
+                            @onchange="e => pref.Coverage = Enum.TryParse<SubtitleCoverage>(e.Value?.ToString(), out var v) ? v : null">
+                        <option value="">Same as profile: @PolicyText.Coverage(Settings.Coverage)</option>
+                        @foreach (var coverage in Enum.GetValues<SubtitleCoverage>())
+                        {
+                            <option value="@coverage">@PolicyText.Coverage(coverage)</option>
+                        }
+                    </select>
+                </div>
+            }
+            <div>
+                <label class="lpe-advanced-label">@PolicyText.ImpairedName(TrackType)</label>
+                <select class="form-select form-select-sm" value="@(pref.Impaired?.ToString() ?? "")"
+                        @onchange="e => pref.Impaired = Enum.TryParse<ExtraPolicy>(e.Value?.ToString(), out var v) ? v : null">
+                    <option value="">Same as profile: @PolicyText.Extra(Settings.Impaired, PolicyText.ImpairedBetter(TrackType))</option>
+                    @foreach (var policy in Enum.GetValues<ExtraPolicy>())
+                    {
+                        <option value="@policy">@PolicyText.Extra(policy, PolicyText.ImpairedBetter(TrackType))</option>
+                    }
+                </select>
+            </div>
+            <div>
+                <label class="lpe-advanced-label">@PolicyText.CommentaryName(TrackType)</label>
+                <select class="form-select form-select-sm" value="@(pref.Commentary?.ToString() ?? "")"
+                        @onchange="e => pref.Commentary = Enum.TryParse<ExtraPolicy>(e.Value?.ToString(), out var v) ? v : null">
+                    <option value="">Same as profile: @PolicyText.Extra(Settings.Commentary, PolicyText.CommentaryBetter(TrackType))</option>
+                    @foreach (var policy in Enum.GetValues<ExtraPolicy>())
+                    {
+                        <option value="@policy">@PolicyText.Extra(policy, PolicyText.CommentaryBetter(TrackType))</option>
+                    }
+                </select>
+            </div>
+            <div class="lpe-settings-rule"></div>
+            <div>
+                <label class="lpe-advanced-label">Maximum tracks</label>
+                <select class="form-select form-select-sm"
+                        value="@(pref.MaxTracks?.ToString() ?? "")"
+                        @onchange="e => SetMaxTracks(pref, e.Value?.ToString())">
+                    <option value="">No limit</option>
+                    @foreach (var n in new[] { 1, 2, 3 })
+                    {
+                        <option value="@n">@MaxTracksLabel(n)</option>
+                    }
+                </select>
+                @if (!IsAudio)
+                {
+                    <small class="lpe-hint">Full and forced subtitles are counted separately.</small>
+                }
+            </div>
+            @if (pref.MaxTracks != null)
+            {
+                <div>
+                    <label class="lpe-advanced-label">Which to keep</label>
+                    @if (IsAudio)
+                    {
+                        <select class="form-select form-select-sm" value="@pref.QualityStrategy.ToString()"
+                                @onchange="e => pref.QualityStrategy = Enum.TryParse<AudioQualityStrategy>(e.Value?.ToString(), out var v) ? v : AudioQualityStrategy.BestQuality">
+                            <option value="@nameof(AudioQualityStrategy.BestQuality)">Prefer lossless audio</option>
+                            <option value="@nameof(AudioQualityStrategy.MostChannels)">Prefer most channels</option>
+                            <option value="@nameof(AudioQualityStrategy.SmallestSize)">Prefer smallest size</option>
+                        </select>
+                    }
+                    else
+                    {
+                        <select class="form-select form-select-sm" value="@pref.SubtitleStrategy.ToString()"
+                                @onchange="e => pref.SubtitleStrategy = Enum.TryParse<SubtitleQualityStrategy>(e.Value?.ToString(), out var v) ? v : SubtitleQualityStrategy.TextFirst">
+                            <option value="@nameof(SubtitleQualityStrategy.TextFirst)">Prefer text subtitles</option>
+                            <option value="@nameof(SubtitleQualityStrategy.ImageFirst)">Prefer image subtitles</option>
+                            <option value="@nameof(SubtitleQualityStrategy.Accessibility)">Prefer SDH subtitles</option>
+                        </select>
+                    }
+                </div>
+            }
+        </div>
+        <div class="lpe-panel-actions">
+            @if (offerFallback)
+            {
+                <button type="button" class="btn btn-link btn-sm p-0" @onclick="AddLevel">
+                    <i class="bi bi-plus-lg me-1"></i>Add a fallback
+                </button>
+            }
+            @if (pref.HasOverrides)
+            {
+                <button type="button" class="btn btn-link btn-sm p-0 text-muted" @onclick="() => ClearOverrides(pref)">
+                    Reset to profile settings
+                </button>
+            }
+            @if (offerFallback)
+            {
+                <button type="button" class="btn btn-link btn-sm p-0 text-muted" @onclick="CloseGroup">Done</button>
+            }
+        </div>
+    };
+
+    private string MaxTracksLabel(int n)
+    {
+        if (!IsAudio)
+        {
+            return $"{n} of each";
+        }
+
+        return n == 1 ? "Best track only" : $"Best {n} tracks";
+    }
+
+    // No limit means no preference either, so the row does not read as changed.
     private static void SetMaxTracks(LanguagePreference pref, string? value)
     {
         pref.MaxTracks = int.TryParse(value, out var v) ? v : null;
-    }
-
-    private static void SetQualityStrategy(LanguagePreference pref, string? value)
-    {
-        pref.QualityStrategy = Enum.TryParse<AudioQualityStrategy>(value, out var v) ? v : AudioQualityStrategy.BestQuality;
-    }
-
-    private static void SetSubtitleStrategy(LanguagePreference pref, string? value)
-    {
-        pref.SubtitleStrategy = Enum.TryParse<SubtitleQualityStrategy>(value, out var v) ? v : SubtitleQualityStrategy.TextFirst;
+        if (pref.MaxTracks == null)
+        {
+            pref.QualityStrategy = AudioQualityStrategy.BestQuality;
+            pref.SubtitleStrategy = SubtitleQualityStrategy.TextFirst;
+        }
     }
 
     private static void ClearOverrides(LanguagePreference pref)
     {
         pref.MaxTracks = null;
+        pref.Coverage = null;
+        pref.Impaired = null;
+        pref.Commentary = null;
         pref.QualityStrategy = AudioQualityStrategy.BestQuality;
         pref.SubtitleStrategy = SubtitleQualityStrategy.TextFirst;
-    }
-
-    private string RankingHint(LanguagePreference pref)
-    {
-        if (IsAudio)
-        {
-            return pref.QualityStrategy switch
-            {
-                AudioQualityStrategy.MostChannels =>
-                    "Most channels first (surround > stereo), then spatial & lossless. Commentary ranked lowest.",
-                AudioQualityStrategy.SmallestSize =>
-                    "Lossy > lossless, fewest channels first. Commentary ranked lowest.",
-                _ =>
-                    "Lossless + spatial > lossless > lossy, most channels as tiebreak. Commentary ranked lowest."
-            };
-        }
-
-        return pref.SubtitleStrategy switch
-        {
-            SubtitleQualityStrategy.ImageFirst =>
-                "Image (PGS) > text, then Regular > SDH > Forced. Commentary ranked lowest.",
-            SubtitleQualityStrategy.Accessibility =>
-                "SDH/HI first, then text > image. Keeps accessibility subtitles.",
-            _ =>
-                "Text > image, then Regular > SDH > Forced. Commentary ranked lowest."
-        };
     }
 
 }

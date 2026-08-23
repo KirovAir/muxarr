@@ -132,13 +132,13 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveCommentary = true
+                Commentary = ExtraPolicy.KeepWhenAlone
             },
             new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveCommentary = true
+                Commentary = ExtraPolicy.KeepWhenAlone
             });
 
         var outputs = RunPipeline(file, profile);
@@ -168,7 +168,7 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveImpaired = true
+                Impaired = ExtraPolicy.KeepWhenAlone
             });
 
         var outputs = RunPipeline(file, profile);
@@ -192,7 +192,7 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveImpaired = false
+                Impaired = ExtraPolicy.Keep
             });
 
         var outputs = RunPipeline(file, profile);
@@ -556,7 +556,7 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveCommentary = true
+                Commentary = ExtraPolicy.KeepWhenAlone
             });
 
         // Custom conversion explicitly keeps French
@@ -644,7 +644,7 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveImpaired = false,
+                Impaired = ExtraPolicy.Keep,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {hi}"
             });
@@ -752,14 +752,14 @@ public class ConversionPipelineTests
                 Enabled = true,
                 AllowedLanguages =
                     [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
-                RemoveCommentary = true
+                Commentary = ExtraPolicy.KeepWhenAlone
             },
             new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages =
                     [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch"), IsoLanguage.OriginalLanguage],
-                RemoveImpaired = true
+                Impaired = ExtraPolicy.KeepWhenAlone
             });
 
         var outputs = RunPipeline(file, profile);
@@ -796,7 +796,7 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch")],
-                RemoveCommentary = true,
+                Commentary = ExtraPolicy.KeepWhenAlone,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {codec} {channels}"
             },
@@ -804,7 +804,7 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English"), IsoLanguage.Find("Dutch")],
-                RemoveImpaired = true,
+                Impaired = ExtraPolicy.KeepWhenAlone,
                 StandardizeTrackNames = true,
                 TrackNameTemplate = "{language} {hi}"
             });
@@ -944,7 +944,7 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveCommentary = true
+                Commentary = ExtraPolicy.KeepWhenAlone
             });
 
         var outputs = RunPipeline(file, profile);
@@ -1182,14 +1182,14 @@ public class ConversionPipelineTests
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveCommentary = true
+                Commentary = ExtraPolicy.KeepWhenAlone
             },
             new TrackSettings
             {
                 Enabled = true,
                 AllowedLanguages = [IsoLanguage.Find("English")],
-                RemoveCommentary = true,
-                RemoveImpaired = true
+                Commentary = ExtraPolicy.KeepWhenAlone,
+                Impaired = ExtraPolicy.KeepWhenAlone
             });
 
         var outputs = RunPipeline(file, profile);

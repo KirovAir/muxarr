@@ -31,17 +31,42 @@ public class LanguagePreference
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public SubtitleQualityStrategy SubtitleStrategy { get; set; } = SubtitleQualityStrategy.TextFirst;
 
-    /// <summary>
-    /// Keeps this language only when the file has none of the languages above it
-    /// in its group. A group starts at the first entry that is not a fallback and
-    /// runs down through the fallbacks following it, and only one language in a
-    /// group survives: the highest-ranked one the file actually has.
-    /// </summary>
+    /// <summary>Per-language overrides of the profile's subtitle type policy; null follows the profile.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public SubtitleCoverage? Coverage { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExtraPolicy? Impaired { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public ExtraPolicy? Commentary { get; set; }
+
+    /// <summary>How this entry attaches to the one above it: starts a group, shares its tier, or opens the next tier down.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool IsFallback { get; set; }
+    public LanguageRelation Relation { get; set; }
+
+    /// <summary>Pre-tier profiles stored a bare IsFallback flag. Read it, never write it back.</summary>
+    [JsonPropertyName("IsFallback")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool LegacyIsFallback
+    {
+        get => false;
+        set
+        {
+            if (value && Relation == LanguageRelation.NewGroup)
+            {
+                Relation = LanguageRelation.NextTier;
+            }
+        }
+    }
+
+    /// <summary>True when this entry belongs to the group above rather than starting one.</summary>
+    [JsonIgnore]
+    public bool IsAttached => Relation != LanguageRelation.NewGroup;
 
     [JsonIgnore]
     public bool HasOverrides => MaxTracks.HasValue
+                                || Coverage.HasValue || Impaired.HasValue || Commentary.HasValue
                                 || QualityStrategy != AudioQualityStrategy.BestQuality
                                 || SubtitleStrategy != SubtitleQualityStrategy.TextFirst;
 
@@ -56,8 +81,11 @@ public class LanguagePreference
     [JsonIgnore]
     public string Name => Language.Name;
 
+    // Through the canonical entry, so a profile saved under an older display name shows the current one.
     [JsonIgnore]
-    public string DisplayName => Language.DisplayName;
+    public string DisplayName => IsoLanguage.Find(Language.Name) is var canonical && canonical != IsoLanguage.Unknown
+        ? canonical.DisplayName
+        : Language.DisplayName;
 
     [JsonIgnore]
     public string? ThreeLetterCode => Language.ThreeLetterCode;
@@ -78,6 +106,21 @@ public class LanguagePreference
     {
         return new LanguagePreference(language);
     }
+}
+
+public enum LanguageRelation
+{
+    /// <summary>Starts its own group. Kept whenever the file has it.</summary>
+    NewGroup,
+
+    /// <summary>Shares the tier of the entry above, so both are kept side by side.</summary>
+    SameTier,
+
+    /// <summary>
+    /// Opens the next tier down in its group: kept only when the file has none of
+    /// the languages in the tiers above it.
+    /// </summary>
+    NextTier
 }
 
 public enum AudioQualityStrategy

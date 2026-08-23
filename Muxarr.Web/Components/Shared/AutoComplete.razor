@@ -4,13 +4,15 @@
 
 
 <div class="autocomplete">
-    <input @bind="@SearchInput"
+    <input @ref="_input"
+           @bind="@SearchInput"
            @oninput="HandleInput"
            @onkeydown="HandleKeyDown"
            @onfocus="HandleFocus"
            @onclick:preventDefault
            class="form-control"
-           type="text"/>
+           type="text"
+           placeholder="@Placeholder"/>
     @if (ItemList is not null)
     {
         <div class="dropdown-menu show">
@@ -51,7 +53,15 @@
 
     [Parameter] public bool ShowListOnFocus { get; set; }
 
+    [Parameter] public string? Placeholder { get; set; }
+
     private int _selectedIndex = -1;
+    private ElementReference _input;
+
+    public ValueTask FocusAsync()
+    {
+        return _input.FocusAsync();
+    }
 
     private async Task HandleFocus()
     {
@@ -90,7 +100,9 @@
 
     private async Task HandleInput(ChangeEventArgs e)
     {
+        // Track the typed text, or a keyboard pick leaves it in the box after the parent clears it.
         var filter = e.Value?.ToString();
+        SearchInput = filter ?? string.Empty;
         if (filter?.Length > 0)
         {
             ItemList = await OnSearchInput.Invoke(filter);
@@ -108,11 +120,14 @@
         }
     }
 
+    // The box is cleared and refocused, so the next language can be typed right away.
     private async Task SelectItem(TItem item)
     {
         ItemList = null;
         _selectedIndex = -1;
+        SearchInput = string.Empty;
         await OnSelectItem.InvokeAsync(item);
+        await _input.FocusAsync();
     }
 
 }

@@ -1,6 +1,8 @@
+@using Muxarr.Web.Helpers
+
 @if (IsUnmodified)
 {
-    <ToolTip Tip="No modifications will be made to tracks">
+    <ToolTip Tip="Tracks are left untouched">
         <span class="badge text-bg-success me-1">Unmodified</span>
     </ToolTip>
 }
@@ -8,151 +10,170 @@ else
 {
     @if (Settings.Enabled)
     {
-        @for (var i = 0; i < Settings.AllowedLanguages.Count; i++)
+        @foreach (var languageCase in Settings.Cases)
         {
-            var lang = Settings.AllowedLanguages[i];
-            var label = lang.IsOriginalLanguagePlaceholder ? "Original" : lang.DisplayName;
-            var covered = Settings.AllowedLanguages.FallbackFor(i);
-
-            @if (covered.Count > 0)
+            var originals = string.Join(", ", languageCase.OriginalLanguages.Select(l => l.DisplayName));
+            @if (originals.Length == 0)
             {
-                <ToolTip Tip="@($"Tracks in {label} are only kept when the file has no {Names(covered)}")">
-                    <span class="badge text-bg-secondary me-1">
-                        <i class="bi bi-arrow-return-right me-1"></i>@label
-                    </span>
-                </ToolTip>
-            }
-            else if (lang.IsOriginalLanguagePlaceholder)
-            {
-                <ToolTip Tip="Original language track will be preserved">
-                    <span class="badge text-bg-success me-1"><i class="bi bi-film me-1"></i>Original</span>
+                <ToolTip Tip="This rule is not used until it has an original language">
+                    <span class="badge text-bg-warning me-1"><i class="bi bi-signpost-split me-1"></i>Choose an original language</span>
                 </ToolTip>
             }
             else
             {
-                <ToolTip Tip="@($"Tracks in {label} will be kept")">
+                <ToolTip Tip="@($"When the original language is {originals}: {Sentence(languageCase.Languages)}")">
+                    <span class="badge text-bg-info me-1"><i class="bi bi-signpost-split me-1"></i>When @originals: @Sentence(languageCase.Languages)</span>
+                </ToolTip>
+            }
+        }
+
+        @if (Settings.Cases.Count > 0 && Settings.AllowedLanguages.Count > 0)
+        {
+            <span class="small text-secondary me-1">Otherwise:</span>
+        }
+
+        @foreach (var group in Settings.AllowedLanguages.Groups())
+        {
+            var head = group[0][0];
+            var label = string.Join(" + ", group[0].Select(Label)) + Note(group[0]);
+
+            @if (head.IsOriginalLanguagePlaceholder && group[0].Count == 1)
+            {
+                <ToolTip Tip="Tracks in the original language are kept">
+                    <span class="badge text-bg-success me-1"><i class="bi bi-film me-1"></i>@label</span>
+                </ToolTip>
+            }
+            else
+            {
+                <ToolTip Tip="@($"Tracks in {string.Join(" and ", group[0].Select(Label))} are kept")">
                     <span class="badge text-bg-success me-1">@label</span>
                 </ToolTip>
             }
+
+            @for (var tierIndex = 1; tierIndex < group.Count; tierIndex++)
+            {
+                var tier = group[tierIndex];
+                var above = string.Join(" or ", group.Take(tierIndex).SelectMany(t => t).Select(Label));
+                <ToolTip Tip="@($"Only kept when the file has no {above}")">
+                    <span class="badge text-bg-secondary me-1"><i class="bi bi-arrow-return-right me-1"></i>@(string.Join(", ", tier.Select(Label)) + Note(tier))</span>
+                </ToolTip>
+            }
         }
 
-        if (Settings.AllowedLanguages.Count == 0)
+        @if (Settings.AllowedLanguages.Count == 0)
         {
-            <ToolTip Tip="WARNING: All tracks will be removed with this configuration!">
+            <ToolTip Tip="@(Settings.Cases.Count == 0
+                              ? (IsAudio ? "Files keep only one audio track" : "All subtitles are removed")
+                              : "Files in any other original language lose their tracks")">
                 <span class="badge text-bg-danger me-1">None</span>
             </ToolTip>
         }
-        else
-        {
-            @if (!Settings.RemoveCommentary)
-            {
-                <ToolTip Tip="Commentary tracks will be kept. (When in a allowed language)">
-                    <span class="badge text-bg-success me-1">
-                        <i class="bi bi-check-lg me-1"></i>
-                        <i class="bi bi-chat-quote"></i>
-                    </span>
-                </ToolTip>
-            }
-            else
-            {
-                <ToolTip Tip="All Commentary tracks will be removed">
-                    <span class="badge text-bg-warning me-1">
-                        <i class="bi bi-x-lg me-1"></i>
-                        <i class="bi bi-chat-quote"></i>
-                    </span>
-                </ToolTip>
-            }
 
-            @if (!Settings.RemoveImpaired)
+        @if (Settings.AllowedLanguages.Count > 0 || Settings.Cases.Count > 0)
+        {
+            @if (HasTypePolicy)
             {
-                <ToolTip Tip="Hearing/Visual impaired tracks will be kept (When in an allowed language)">
-                    <span class="badge text-bg-success me-1">
-                        <i class="bi bi-check-lg me-1"></i>
-                        <i class="bi bi-ear me-1"></i>
-                        <i class="bi bi-eye"></i>
-                    </span>
-                </ToolTip>
-            }
-            else
-            {
-                <ToolTip Tip="All hearing/visual impaired tracks will be removed">
-                    <span class="badge text-bg-warning me-1">
-                        <i class="bi bi-x-lg me-1"></i>
-                        <i class="bi bi-ear me-1"></i>
-                        <i class="bi bi-eye"></i>
-                    </span>
+                <ToolTip Tip="@PolicyText.Summary(Settings, TrackType)">
+                    <span class="badge text-bg-warning me-1">@PolicyText.Summary(Settings, TrackType, onlyChanges: true).TrimEnd('.')</span>
                 </ToolTip>
             }
 
             @if (Settings.ExcludeCodecs && Settings.ExcludedCodecs.Count > 0)
             {
-                <ToolTip
-                    Tip="@($"Excluding codecs: {string.Join(", ", Settings.ExcludedCodecs.Select(c => c.DisplayName()))}")">
-                    <span class="badge text-bg-warning me-1">
-                        <i class="bi bi-x-lg me-1"></i>@string.Join(", ", Settings.ExcludedCodecs.Select(c => c.DisplayName()))
-                    </span>
+                <ToolTip Tip="@($"Removes {string.Join(", ", Settings.ExcludedCodecs.Select(c => c.DisplayName()))}")">
+                    <span class="badge text-bg-warning me-1"><i class="bi bi-x-lg me-1"></i>@string.Join(", ", Settings.ExcludedCodecs.Select(c => c.DisplayName()))</span>
                 </ToolTip>
             }
 
             @if (Settings.StandardizeTrackNames)
             {
-                <ToolTip Tip="@($"Track names will be standardized using: {Settings.TrackNameTemplate}")">
-                    <span class="badge text-bg-info me-1">
-                        <i class="bi bi-magic me-1"></i>Rename
-                    </span>
+                <ToolTip Tip="@($"Track names are standardized using: {Settings.TrackNameTemplate}")">
+                    <span class="badge text-bg-info me-1"><i class="bi bi-magic me-1"></i>Rename</span>
                 </ToolTip>
             }
         }
     }
 
-    @if (Settings.DefaultStrategy == DefaultTrackStrategy.SpecCompliant)
+    @switch (Settings.DefaultStrategy)
     {
-        <ToolTip
-            Tip="Default track: commentary and accessibility tracks marked as non-default. Player picks from the rest.">
-            <span class="badge text-bg-info me-1">
-                <i class="bi bi-shield-check me-1"></i>Spec defaults
-            </span>
-        </ToolTip>
-    }
-    else if (Settings.DefaultStrategy == DefaultTrackStrategy.ForceFirstLanguage)
-    {
-        <ToolTip Tip="Default track: the first language in the priority list is forced as default.">
-            <span class="badge text-bg-info me-1">
-                <i class="bi bi-pin-fill me-1"></i>Force default
-            </span>
-        </ToolTip>
+        case DefaultTrackStrategy.SpecCompliant:
+            <ToolTip Tip="Default track: commentary and accessibility tracks are never the default. The player picks from the rest.">
+                <span class="badge text-bg-info me-1"><i class="bi bi-shield-check me-1"></i>Default: player chooses</span>
+            </ToolTip>
+            break;
+        case DefaultTrackStrategy.ForceFirstLanguage:
+            <ToolTip Tip="Default track: the first language in the list is marked as the default.">
+                <span class="badge text-bg-info me-1"><i class="bi bi-pin-fill me-1"></i>Default: first language</span>
+            </ToolTip>
+            break;
+        case DefaultTrackStrategy.ForceFirstLanguageForced:
+            <ToolTip Tip="Default track: a forced subtitle of the first language, or its full subtitle when there is none">
+                <span class="badge text-bg-info me-1"><i class="bi bi-pin-fill me-1"></i>Default: forced subtitles</span>
+            </ToolTip>
+            break;
     }
 
-    @if (Settings.ReorderStrategy == TrackReorderStrategy.Alphabetical)
+    @switch (Settings.ReorderStrategy)
     {
-        <ToolTip Tip="Tracks will be physically reordered alphabetically by language. Requires remux.">
-            <span class="badge text-bg-info me-1">
-                <i class="bi bi-sort-alpha-down me-1"></i>A-Z order
-            </span>
-        </ToolTip>
-    }
-    else if (Settings.ReorderStrategy == TrackReorderStrategy.MatchLanguagePriority)
-    {
-        <ToolTip Tip="Tracks will be physically reordered to match the priority list. Requires remux.">
-            <span class="badge text-bg-info me-1">
-                <i class="bi bi-sort-down-alt me-1"></i>Priority order
-            </span>
-        </ToolTip>
+        case TrackReorderStrategy.Alphabetical:
+            <ToolTip Tip="Reorders tracks alphabetically by language. Requires remux.">
+                <span class="badge text-bg-info me-1"><i class="bi bi-sort-alpha-down me-1"></i>A-Z order</span>
+            </ToolTip>
+            break;
+        case TrackReorderStrategy.MatchLanguagePriority:
+            <ToolTip Tip="Reorders tracks to match the language list. Requires remux.">
+                <span class="badge text-bg-info me-1"><i class="bi bi-sort-down-alt me-1"></i>List order</span>
+            </ToolTip>
+            break;
     }
 }
 
 @code {
     [Parameter] [EditorRequired] public TrackSettings Settings { get; set; } = null!;
+    [Parameter] public MediaTrackType TrackType { get; set; }
 
-    private static string Names(List<LanguagePreference> languages)
-    {
-        return string.Join(" or ",
-            languages.Select(l => l.IsOriginalLanguagePlaceholder ? "original language" : l.DisplayName));
-    }
+    private bool IsAudio => TrackType == MediaTrackType.Audio;
 
     private bool IsUnmodified =>
         !Settings.Enabled
         && Settings.DefaultStrategy == DefaultTrackStrategy.DontChange
         && Settings.ReorderStrategy == TrackReorderStrategy.DontReorder;
+
+    private bool HasTypePolicy =>
+        (!IsAudio && Settings.Coverage != SubtitleCoverage.Both)
+        || Settings.Impaired != ExtraPolicy.Keep
+        || Settings.Commentary != ExtraPolicy.Keep;
+
+    private static string Label(LanguagePreference pref)
+    {
+        return pref.IsOriginalLanguagePlaceholder ? "Original" : pref.DisplayName;
+    }
+
+    // " · forced subtitles only" when a language in the tier has its own settings.
+    private string Note(List<LanguagePreference> tier)
+    {
+        var notes = tier.Select(p => PolicyText.Overrides(p, TrackType)).Where(n => n.Length > 0).ToList();
+        return notes.Count == 0 ? "" : " · " + string.Join(" · ", notes);
+    }
+
+    // "Dutch, otherwise English; original language"
+    private string Sentence(List<LanguagePreference> languages)
+    {
+        if (languages.Count == 0)
+        {
+            return IsAudio ? "one audio track" : "no subtitles";
+        }
+
+        return string.Join("; ", languages.Groups().Select(group =>
+        {
+            var text = string.Join(" + ", group[0].Select(Label)) + Note(group[0]);
+            foreach (var tier in group.Skip(1))
+            {
+                text += ", otherwise " + string.Join(", ", tier.Select(Label)) + Note(tier);
+            }
+
+            return text;
+        }));
+    }
 
 }

@@ -77,12 +77,13 @@ public class IsoLanguage(
     /// iso_custom.json for regional variants and ISO 639-3 codes common in media files.
     ///
     /// Data sources and how to update:
-    ///   iso_639-2.json — generated from github.com/wooorm/iso-639-2 (MIT license),
+    ///   iso_639-2.json: generated from github.com/wooorm/iso-639-2 (MIT license),
     ///     enriched with native names from github.com/haliaeetus/iso-639 (MIT license).
     ///     Covers all ISO 639-2 bibliographic and terminological codes.
     ///     To regenerate: run IsoLanguageTests.GenerateIso639Data (manual test)
-    ///   iso_custom.json — manually maintained regional variants (pt-br, fr-ca, zh-tw, etc.)
-    ///     and ISO 639-3 codes that appear in media but aren't in 639-2 (cmn, yue, etc.)
+    ///   iso_custom.json: manually maintained regional variants (pt-br, fr-ca, zh-tw, etc.)
+    ///     and ISO 639-3 codes that appear in media but aren't in 639-2 (cmn, yue, etc.).
+    ///     An entry with the same name as a 639-2 one replaces it (nob under Norwegian).
     /// </summary>
     private static List<IsoLanguage> LoadIsoList()
     {
@@ -141,8 +142,20 @@ public class IsoLanguage(
                 var twoLetterCode = entry.TwoLetterCode ??
                                     (threeLetterCodes.Count > 0 ? threeLetterCodes[0] : "");
 
-                list.Add(new IsoLanguage(entry.Name, entry.Name, twoLetterCode, threeLetterCodes,
-                    entry.NativeName, entry.Ietf, entry.Base));
+                var language = new IsoLanguage(entry.Name, entry.DisplayName ?? entry.Name, twoLetterCode,
+                    threeLetterCodes, entry.NativeName, entry.Ietf, entry.Base);
+
+                // A custom entry named like an ISO 639-2 one refines it in place, so a
+                // language with its own code (nob) can still join a family.
+                var existing = list.FindIndex(l => l.Name == entry.Name);
+                if (existing >= 0)
+                {
+                    list[existing] = language;
+                }
+                else
+                {
+                    list.Add(language);
+                }
             }
         }
 
@@ -187,7 +200,7 @@ public class IsoLanguage(
         int score;
 
         // Exact matches
-        if (lang.Name.Equals(input, ic))
+        if (lang.Name.Equals(input, ic) || lang.DisplayName.Equals(input, ic))
         {
             score = 1000;
         }
@@ -208,7 +221,7 @@ public class IsoLanguage(
             score = 840;
         }
         // Prefix matches
-        else if (lang.Name.StartsWith(input, ic))
+        else if (lang.Name.StartsWith(input, ic) || lang.DisplayName.StartsWith(input, ic))
         {
             score = 500;
         }
@@ -217,7 +230,7 @@ public class IsoLanguage(
             score = 450;
         }
         // Substring matches
-        else if (lang.Name.Contains(input, ic))
+        else if (lang.Name.Contains(input, ic) || lang.DisplayName.Contains(input, ic))
         {
             score = 200;
         }
@@ -446,6 +459,9 @@ public class IsoLanguage(
 
         [JsonPropertyName("name")]
         public string? Name { get; set; }
+
+        [JsonPropertyName("displayName")]
+        public string? DisplayName { get; set; }
 
         [JsonPropertyName("nativeName")]
         public string? NativeName { get; set; }

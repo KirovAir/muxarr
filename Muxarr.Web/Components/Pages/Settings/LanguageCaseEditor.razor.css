@@ -1,0 +1,54 @@
+.lce-case {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.375rem;
+    padding: 0.6rem 0.75rem 0.75rem;
+    margin-bottom: 0.75rem;
+}
+
+.lce-head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.lce-when {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.lce-picker {
+    flex: 1 1 auto;
+    min-width: 200px;
+    max-width: 480px;
+}
+
+.lce-picker ::deep .tagselector-control {
+    padding: 0.15rem 0.4rem;
+    font-size: 0.85rem;
+}
+
+.lce-picker ::deep input {
+    font-size: 0.85rem;
+    padding: 0.15rem 0.3rem;
+}
+
+.lce-remove-btn {
+    display: inline-flex;
+    align-items: center;
+    background: none;
+    border: none;
+    padding: 0 0.15rem;
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color);
+    opacity: 0.5;
+    cursor: pointer;
+    margin-left: auto;
+}
+
+.lce-remove-btn:hover {
+    opacity: 1;
+    color: var(--bs-danger);
+}

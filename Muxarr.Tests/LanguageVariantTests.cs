@@ -67,6 +67,26 @@ public class LanguageVariantTests
         Assert.IsFalse(french.Includes(IsoLanguage.Find("Spanish (Spain)")));
     }
 
+    // Bokmål and Nynorsk have their own ISO 639-2 codes, so they refine the list
+    // entry in place rather than adding a second "nob" (issue #66).
+    [TestMethod]
+    public void NorwegianFamily_RefinesTheIsoEntriesInPlace()
+    {
+        var norwegian = IsoLanguage.Find("Norwegian");
+        var bokmal = IsoLanguage.Find("nob");
+        var nynorsk = IsoLanguage.Find("nno");
+
+        Assert.AreEqual("Bokmål, Norwegian", bokmal.Name, "the stored name must not change");
+        Assert.AreEqual("nob", bokmal.WriteCode);
+        Assert.AreEqual(norwegian, bokmal.Base);
+        Assert.IsTrue(norwegian.Includes(bokmal));
+        Assert.IsTrue(norwegian.Includes(nynorsk));
+        Assert.IsFalse(bokmal.Includes(nynorsk));
+        Assert.AreEqual(1, IsoLanguage.Languages.Count(l => l.ThreeLetterCodes.Contains("nob")));
+        Assert.AreEqual("Norwegian Bokmål", bokmal.DisplayName);
+        Assert.AreEqual(bokmal, IsoLanguage.Search("Norwegian Bokmål").First(), "the picker finds it by what it shows");
+    }
+
     // Profiles serialize IsoLanguage into JSON. Base is self-referential and must
     // stay out of the payload, and entries stored before the ietf/base fields
     // existed must still equal the canonical list entry so matching keeps working.
@@ -149,6 +169,7 @@ public class LanguageVariantTests
     [DataRow("fre", "fr", "fre", DisplayName = "Redundant base tag keeps the legacy code")]
     [DataRow("fra", "fr", "fra", DisplayName = "Terminological code survives too")]
     [DataRow("fre", "fr-CA", "fr-CA", DisplayName = "Regional tag wins")]
+    [DataRow("nob", "nb", "nob", DisplayName = "A variant with its own ISO code keeps it")]
     [DataRow("fre", "nl", "nl", DisplayName = "Disagreement: IETF is authoritative")]
     [DataRow("und", "fr", "fr", DisplayName = "IETF fills an unset header")]
     [DataRow("fre", "x-unknown", "fre", DisplayName = "Unresolvable IETF tag falls back to the header")]

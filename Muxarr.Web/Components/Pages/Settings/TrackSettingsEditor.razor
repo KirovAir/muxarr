@@ -1,3 +1,4 @@
+@using Muxarr.Web.Helpers
 <div>
     @* --- Track Removal --- *@
     <div class="mb-3 form-check form-switch">
@@ -11,99 +12,160 @@
     {
         <div class="ms-3 ps-3 border-start mb-3">
             <div class="mb-3">
-                <label class="form-label mb-1">Allowed @(TrackTypeLabel.ToLower()) languages</label>
-                <LanguagePriorityEditor Languages="Settings.AllowedLanguages"
-                                        TrackType="TrackType"/>
-                <small class="form-text text-muted">
-                    Drag to set priority. Click <i class="bi bi-arrow-return-right"></i> to keep a language only when
-                    the one above it is missing, or <i class="bi bi-gear"></i> for per-language settings like track
-                    limits. This order is used by the default track and track order options below.
-                </small>
+                <label class="form-label mb-1">Languages to keep</label>
+                <LanguagePriorityEditor Languages="Settings.AllowedLanguages" TrackType="TrackType" Settings="Settings"
+                                        OnChange="StateHasChanged"/>
+                <small class="form-text text-muted">@(IsAudio ? "Only audio in these languages is kept." : "Only subtitles in these languages are kept.") Click a language to change its settings. Drag to reorder.</small>
             </div>
 
-            <div class="mb-3 form-check form-switch">
-                <InputCheckbox id="@($"removeCommentary{TrackTypeLabel}")" class="form-check-input"
-                               @bind-Value="Settings.RemoveCommentary"/>
-                <label class="form-check-label" for="@($"removeCommentary{TrackTypeLabel}")">Remove
-                    commentary @(TrackTypeLabel.ToLower()) tracks</label>
-                <small class="form-text text-muted d-block">Removes commentary @(TrackTypeLabel.ToLower()) tracks. Keeps
-                    them if they're the only option for that language.</small>
-            </div>
-
-            <div class="mb-3 form-check form-switch">
-                <InputCheckbox id="@($"removeImpaired{TrackTypeLabel}")" class="form-check-input"
-                               @bind-Value="Settings.RemoveImpaired"/>
-                <label class="form-check-label" for="@($"removeImpaired{TrackTypeLabel}")">Remove
-                    @(IsAudio ? "audio description tracks" : "SDH subtitle tracks")</label>
-                <small class="form-text text-muted d-block">@if (IsAudio)
-                    {
-                        <text>Removes audio-description tracks for blind and low-vision viewers. Keeps them if they're
-                            the only option.</text>
-                    }
-                    else
-                    {
-                        <text>Removes subtitles for deaf and hard-of-hearing viewers (SDH and closed captions). Keeps
-                            them if they're the only option. A forced subtitle doesn't count as an alternative; it only
-                            covers foreign dialogue.</text>
-                    }</small>
-            </div>
-
-            <div class="mb-3 form-check form-switch">
-                <InputCheckbox id="@($"assumeUnd{TrackTypeLabel}")" class="form-check-input"
-                               @bind-Value="Settings.AssumeUndeterminedIsOriginal"/>
-                <label class="form-check-label" for="@($"assumeUnd{TrackTypeLabel}")">Assume undetermined language is
-                    original language</label>
-                <small class="form-text text-muted d-block">When a file has exactly
-                    one @(TrackTypeLabel.ToLower()) track with no language set, this treats it as the original language
-                    detected by Sonarr/Radarr. Does not apply when there are multiple tracks. Alternatively, add
-                    "Undetermined" to the allowed languages above to always keep unlabeled tracks.</small>
-            </div>
-
-            @if (!IsAudio)
-            {
-                <div class="mb-3 form-check form-switch">
-                    <InputCheckbox id="@($"excludeCodecs{TrackTypeLabel}")" class="form-check-input"
-                                   @bind-Value="Settings.ExcludeCodecs"/>
-                    <label class="form-check-label" for="@($"excludeCodecs{TrackTypeLabel}")">Exclude subtitle
-                        codecs</label>
-                    <small class="form-text text-muted d-block">Remove subtitle tracks that match specific codecs during
-                        conversion. Useful for dropping image-based formats like PGS or VobSub.</small>
-                </div>
-
-                @if (Settings.ExcludeCodecs)
+            <div class="mb-2">
+                <a class="text-decoration-none small" role="button" @onclick="() => _moreOpen = !_moreOpen">
+                    <i class="bi @(_moreOpen ? "bi-chevron-down" : "bi-chevron-right") me-1"></i>More @(TrackTypeLabel.ToLower()) options
+                </a>
+                @if (!_moreOpen && MoreSummary is { Length: > 0 } summary)
                 {
-                    <div class="mb-3 ms-4">
-                        <CodecSelector SelectedItems="Settings.ExcludedCodecs"/>
-                    </div>
+                    <span class="small text-muted ms-2">@summary</span>
                 }
+            </div>
+
+            @if (_moreOpen)
+            {
+                <div class="ms-2 ps-3 border-start mb-3">
+                    <div class="mb-3">
+                        <label class="form-label mb-0">@(IsAudio ? "Audio track types" : "Subtitle types")</label>
+                        <small class="form-text text-muted d-block mb-2">@PolicyText.Summary(Settings, TrackType)</small>
+                        <div class="row g-2" style="max-width: 720px;">
+                            @if (!IsAudio)
+                            {
+                                <div class="col-12">
+                                    <div class="option-label text-muted small mb-1">Full and forced subtitles</div>
+                                    <select class="form-select form-select-sm" value="@Settings.Coverage"
+                                            @onchange="e => Settings.Coverage = Enum.Parse<SubtitleCoverage>(e.Value?.ToString() ?? nameof(SubtitleCoverage.Both))">
+                                        @foreach (var coverage in Enum.GetValues<SubtitleCoverage>())
+                                        {
+                                            <option value="@coverage">@PolicyText.Coverage(coverage)</option>
+                                        }
+                                    </select>
+                                    @if (Settings.Coverage != SubtitleCoverage.Both)
+                                    {
+                                        <small class="form-text text-muted d-block">@PolicyText.CoverageHelp(Settings.Coverage)</small>
+                                    }
+                                </div>
+                            }
+                            <div class="col-6">
+                                <div class="option-label text-muted small mb-1">@PolicyText.ImpairedName(TrackType)</div>
+                                <select class="form-select form-select-sm" value="@Settings.Impaired"
+                                        @onchange="e => Settings.Impaired = Enum.Parse<ExtraPolicy>(e.Value?.ToString() ?? nameof(ExtraPolicy.Keep))">
+                                    @foreach (var policy in Enum.GetValues<ExtraPolicy>())
+                                    {
+                                        <option value="@policy">@PolicyText.Extra(policy, PolicyText.ImpairedBetter(TrackType))</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <div class="option-label text-muted small mb-1">@PolicyText.CommentaryName(TrackType)</div>
+                                <select class="form-select form-select-sm" value="@Settings.Commentary"
+                                        @onchange="e => Settings.Commentary = Enum.Parse<ExtraPolicy>(e.Value?.ToString() ?? nameof(ExtraPolicy.Keep))">
+                                    @foreach (var policy in Enum.GetValues<ExtraPolicy>())
+                                    {
+                                        <option value="@policy">@PolicyText.Extra(policy, PolicyText.CommentaryBetter(TrackType))</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <small class="form-text text-muted d-block">To set this for one language, click it in the list above.</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label mb-0">Rules by original language</label>
+                        <small class="form-text text-muted d-block mb-2">A different list of languages to keep when a film or show is originally in a given language. Everything else stays the same.</small>
+                        @foreach (var languageCase in Settings.Cases)
+                        {
+                            var current = languageCase;
+                            <LanguageCaseEditor @key="current" Case="current" TrackType="TrackType" Settings="Settings"
+                                                Taken="TakenOriginals(current)" AutoFocus="current == _newCase"
+                                                OnRemove="() => Settings.Cases.Remove(current)"
+                                                OnChange="StateHasChanged"/>
+                        }
+                        @if (Settings.Cases.Count > 0)
+                        {
+                            <small class="form-text text-muted d-block mb-2">All other original languages use the list above.</small>
+                        }
+                        @if (Settings.Cases.All(c => c.OriginalLanguages.Count > 0))
+                        {
+                            <button type="button" class="btn btn-link btn-sm p-0" @onclick="AddCase">
+                                <i class="bi bi-plus-lg me-1"></i>Add original language rule
+                            </button>
+                        }
+                    </div>
+
+                    <div class="mb-3 form-check form-switch">
+                        <InputCheckbox id="@($"assumeUnd{TrackTypeLabel}")" class="form-check-input"
+                                       @bind-Value="Settings.AssumeUndeterminedIsOriginal"/>
+                        <label class="form-check-label" for="@($"assumeUnd{TrackTypeLabel}")">Treat one undetermined
+                            @(TrackTypeLabel.ToLower()) track as the original language</label>
+                        <small class="form-text text-muted d-block">When a file has exactly one @(TrackTypeLabel.ToLower())
+                            track with no language set, it counts as the original language reported by Sonarr or Radarr.
+                            To always keep undetermined tracks, add Undetermined to the languages above.</small>
+                    </div>
+
+                    @if (!IsAudio)
+                    {
+                        <div class="mb-3 form-check form-switch">
+                            <InputCheckbox id="@($"excludeCodecs{TrackTypeLabel}")" class="form-check-input"
+                                           @bind-Value="Settings.ExcludeCodecs"/>
+                            <label class="form-check-label" for="@($"excludeCodecs{TrackTypeLabel}")">Remove selected
+                                subtitle formats</label>
+                            <small class="form-text text-muted d-block">Useful for dropping image subtitles like PGS or
+                                VobSub.</small>
+                        </div>
+
+                        @if (Settings.ExcludeCodecs)
+                        {
+                            <div class="mb-3 ms-4">
+                                <CodecSelector SelectedItems="Settings.ExcludedCodecs"/>
+                            </div>
+                        }
+                    }
+                </div>
             }
         </div>
     }
 
     @* --- Default Track --- *@
     <div class="mb-3">
-        <label class="form-label mb-1">Default track</label>
+        <label class="form-label mb-1">@(IsAudio ? "Default audio track" : "Default subtitle")</label>
         <select class="form-select form-select-sm" style="max-width: 320px;"
                 value="@Settings.DefaultStrategy"
                 @onchange="e => Settings.DefaultStrategy = Enum.Parse<DefaultTrackStrategy>(e.Value?.ToString() ?? nameof(DefaultTrackStrategy.DontChange))">
-            <option value="@nameof(DefaultTrackStrategy.DontChange)">Don't change (preserve original)</option>
-            <option value="@nameof(DefaultTrackStrategy.SpecCompliant)">Spec compliant</option>
+            <option value="@nameof(DefaultTrackStrategy.DontChange)">Don't change</option>
+            <option value="@nameof(DefaultTrackStrategy.SpecCompliant)">Let the player choose</option>
             <option value="@nameof(DefaultTrackStrategy.ForceFirstLanguage)"
                     disabled="@(!HasLanguagePriority)">
-                Always prefer first language@(!HasLanguagePriority ? " (set up allowed languages first)" : "")
+                First language in the list@(!HasLanguagePriority ? " (add a language first)" : "")
             </option>
+            @if (!IsAudio)
+            {
+                <option value="@nameof(DefaultTrackStrategy.ForceFirstLanguageForced)"
+                        disabled="@(!HasLanguagePriority)">
+                    Forced subtitles of the first language@(!HasLanguagePriority ? " (add a language first)" : "")
+                </option>
+            }
         </select>
         <small class="form-text text-muted d-block">
             @switch (Settings.DefaultStrategy)
             {
                 case DefaultTrackStrategy.SpecCompliant:
-                    <text>
-                        Commentary, accessibility, and dub tracks are marked as non-default. Your player picks from the
-                        rest.</text>
+                    <text>Commentary, @(IsAudio ? "audio description" : "SDH") and dub tracks are never the default. Your
+                        player picks from the rest.</text>
                     break;
                 case DefaultTrackStrategy.ForceFirstLanguage:
-                    <text>Finds the best matching language based on your priority list and marks it as default. For
-                        players without language settings.</text>
+                    <text>The first language in your list that the file has becomes the default. For players without
+                        language settings.</text>
+                    break;
+                case DefaultTrackStrategy.ForceFirstLanguageForced:
+                    <text>A forced subtitle of the first language becomes the default, so the player only subtitles
+                        foreign dialogue. If there isn't one, the full subtitle of that language is used.</text>
                     break;
                 default:
                     <text>Original default flags from the source file are preserved.</text>
@@ -114,15 +176,15 @@
 
     @* --- Track Order --- *@
     <div class="mb-3">
-        <label class="form-label mb-1">Track order</label>
+        <label class="form-label mb-1">@(IsAudio ? "Audio track order" : "Subtitle order")</label>
         <select class="form-select form-select-sm" style="max-width: 320px;"
                 value="@Settings.ReorderStrategy"
                 @onchange="e => Settings.ReorderStrategy = Enum.Parse<TrackReorderStrategy>(e.Value?.ToString() ?? nameof(TrackReorderStrategy.DontReorder))">
-            <option value="@nameof(TrackReorderStrategy.DontReorder)">Don't reorder (preserve original)</option>
-            <option value="@nameof(TrackReorderStrategy.Alphabetical)">Alphabetical by language</option>
+            <option value="@nameof(TrackReorderStrategy.DontReorder)">Don't change</option>
+            <option value="@nameof(TrackReorderStrategy.Alphabetical)">A to Z by language</option>
             <option value="@nameof(TrackReorderStrategy.MatchLanguagePriority)"
                     disabled="@(!HasLanguagePriority)">
-                Match language priority@(!HasLanguagePriority ? " (set up allowed languages first)" : "")
+                Same as the language list@(!HasLanguagePriority ? " (add a language first)" : "")
             </option>
         </select>
         <small class="form-text text-muted d-block">
@@ -134,7 +196,7 @@
                     break;
                 case TrackReorderStrategy.MatchLanguagePriority:
                     <text>
-                        Tracks are sorted to match your priority list. Within a language the file's own order is kept.
+                        Tracks are sorted like the language list. Within a language the file's own order is kept.
                         Requires remux.</text>
                     break;
                 default:
@@ -255,7 +317,43 @@
 
     private string TrackTypeLabel => TrackType == MediaTrackType.Audio ? "Audio" : "Subtitle";
     private bool IsAudio => TrackType == MediaTrackType.Audio;
-    private bool HasLanguagePriority => Settings.AllowedLanguages.Count > 0;
+    private bool HasLanguagePriority =>
+        Settings.AllowedLanguages.Count > 0
+        || Settings.Cases.Any(c => c.OriginalLanguages.Count > 0 && c.Languages.Count > 0);
+
+    private bool _moreOpen;
+
+    // What is set behind the fold, so nothing configured is out of sight while it is closed.
+    private string MoreSummary
+    {
+        get
+        {
+            var parts = new List<string>();
+            var types = PolicyText.Summary(Settings, TrackType, onlyChanges: true).TrimEnd('.');
+            if (types.Length > 0)
+            {
+                parts.Add(types);
+            }
+
+            if (Settings.Cases.Count > 0)
+            {
+                parts.Add(Settings.Cases.Count == 1 ? "1 original language rule" : $"{Settings.Cases.Count} original language rules");
+            }
+
+            if (Settings.ExcludeCodecs && Settings.ExcludedCodecs.Count > 0)
+            {
+                parts.Add($"{Settings.ExcludedCodecs.Count} format{(Settings.ExcludedCodecs.Count == 1 ? "" : "s")} removed");
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    // Each original language belongs to one rule, so order never matters.
+    private List<IsoLanguage> TakenOriginals(LanguageCase except)
+    {
+        return Settings.Cases.Where(c => c != except).SelectMany(c => c.OriginalLanguages).ToList();
+    }
     private string DefaultTemplate => IsAudio ? "{language} {channels} {dub}" : "{language} {dub}";
 
     private string PreviewLanguage =>
@@ -357,9 +455,18 @@
         }
     }
 
+    private LanguageCase? _newCase;
+
+    // A new rule starts as a copy of the main list: most people tweak it, not rebuild it.
+    private void AddCase()
+    {
+        _newCase = new LanguageCase { Languages = Settings.AllowedLanguages.LazyClone() };
+        Settings.Cases.Add(_newCase);
+    }
+
     private void OnEnabledToggled()
     {
-        if (Settings.Enabled && Settings.AllowedLanguages.Count == 0 && IsAudio)
+        if (Settings.Enabled && Settings.AllowedLanguages.Count == 0 && Settings.Cases.Count == 0 && IsAudio)
         {
             Settings.AllowedLanguages.Add(new LanguagePreference(IsoLanguage.OriginalLanguage));
         }

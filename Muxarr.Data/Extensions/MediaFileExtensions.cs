@@ -384,7 +384,7 @@ public static class MediaFileExtensions
             var iso = IsoLanguage.Find(ietf);
             if (iso != IsoLanguage.Unknown)
             {
-                var redundant = legacy != null && !iso.IsVariant && IsoLanguage.Find(legacy) == iso;
+                var redundant = legacy != null && iso.IetfTag == null && IsoLanguage.Find(legacy) == iso;
                 return redundant ? legacy! : ietf;
             }
         }
@@ -523,6 +523,7 @@ public static class MediaFileExtensions
 
         // Source order is track order, whatever order the list was loaded in.
         tracks = tracks.OrderBy(t => t.Index).ToList();
+        s = s.ForOriginalLanguage(originalLanguage);
 
         // --- Track filtering (only when removal is enabled) ---
         var allowedTracks = tracks.ToList();
@@ -537,25 +538,24 @@ public static class MediaFileExtensions
                                      && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
             // 1. Which entries keep each track, most specific first. A track no
-            //    entry keeps is out. The first entry is the one it is bound to:
-            //    that entry's overrides apply, and tracks bound to the same entry
-            //    are filtered as one language ("French (Canada)" under "French").
+            //    entry keeps is out.
             var keptBy = tracks.ToDictionary(t => t,
                 t => MatchingPreferences(ResolveLanguage(t, originalLanguage, assumeUndetermined), originalLanguage, s));
 
-            // 2. The per-language rules: commentary, SDH/AD, codecs, track limits.
-            var kept = new HashSet<T>();
-            foreach (var group in tracks.Where(t => keptBy[t].Count > 0).GroupBy(t => keptBy[t][0]))
-            {
-                kept.UnionWith(FilterLanguage(group.ToList(), group.Key, s));
-            }
+            // 2. Fallbacks: which tiers the file did not need.
+            var inactive = InactiveTiers(tracks, keptBy, s);
 
-            // 3. Fallbacks. A track stays as long as any entry keeping it is still
-            //    active, not just the one it is bound to: an unconditional
-            //    "Original Language" or base entry keeps tracks whose exact entry
-            //    is a fallback the file did not need.
-            var inactive = InactiveFallbacks(kept, keptBy, s);
-            kept.RemoveWhere(t => keptBy[t].All(inactive.Contains));
+            // 3. The per-language rules: commentary, SDH/AD, codecs, track limits.
+            //    A track is bound to its most specific active entry: that entry's
+            //    overrides apply, and tracks bound to the same entry are filtered
+            //    as one language ("French (Canada)" under "French").
+            var kept = new HashSet<T>();
+            var bound = tracks.Select(t => (Track: t, Entry: keptBy[t].FirstOrDefault(e => !inactive.Contains(e))))
+                .Where(x => x.Entry != null);
+            foreach (var group in bound.GroupBy(x => x.Entry!))
+            {
+                kept.UnionWith(FilterLanguage(group.Select(x => x.Track).ToList(), group.Key, s));
+            }
 
             allowedTracks = tracks.Where(kept.Contains).ToList();
 
@@ -564,8 +564,10 @@ public static class MediaFileExtensions
             //    languages if they want to keep unlabeled tracks.
             if (allowedTracks.Count == 0 && tracks[0].Type != MediaTrackType.Subtitles)
             {
+                //    A track a policy removes outright is the last resort, behind any other language.
                 var bestTracks = tracks
-                    .OrderByDescending(t =>
+                    .OrderByDescending(t => !RemovedOutright(t, keptBy[t].FirstOrDefault(), s))
+                    .ThenByDescending(t =>
                         MatchingPreferences(t.LanguageName, originalLanguage, s).Count > 0 ||
                         SameBaseLanguage(t.LanguageName, originalLanguage))
                     .ThenByDescending(t => !t.IsCommentary)
@@ -619,36 +621,50 @@ public static class MediaFileExtensions
             : track.LanguageName;
     }
 
-    // The rules that run within one language, in order. Commentary and SDH/AD
-    // removal each keep the track when it is the only option for the language.
+    // The rules that run within one language, in order. The hard coverage cases
+    // go first, so the soft steps only vouch against tracks that will survive:
+    // with "forced only" a full subtitle must not excuse dropping a forced SDH one
+    // and then disappear itself. A language's own policy wins over the profile's.
     private static IEnumerable<T> FilterLanguage<T>(List<T> tracksInLanguage, LanguagePreference pref,
         TrackSettings s) where T : IMediaTrack
     {
-        var filteredTracks = tracksInLanguage.AsEnumerable();
-
-        if (s.RemoveCommentary)
+        var isSubtitles = tracksInLanguage[0].Type == MediaTrackType.Subtitles;
+        var coverage = isSubtitles ? pref.Coverage ?? s.Coverage : SubtitleCoverage.Both;
+        var remaining = coverage switch
         {
-            var nonCommentaryTracks = tracksInLanguage.Where(t => !t.IsCommentary).ToList();
-            if (nonCommentaryTracks.Any())
-            {
-                filteredTracks = filteredTracks.Where(t => !t.IsCommentary);
-            }
+            SubtitleCoverage.FullOnly => tracksInLanguage.Where(t => !t.IsForced).ToList(),
+            SubtitleCoverage.ForcedOnly => tracksInLanguage.Where(t => t.IsForced).ToList(),
+            _ => tracksInLanguage
+        };
+
+        switch (pref.Commentary ?? s.Commentary)
+        {
+            case ExtraPolicy.Remove:
+                remaining = remaining.Where(t => !t.IsCommentary).ToList();
+                break;
+            case ExtraPolicy.KeepWhenAlone when remaining.Any(t => !t.IsCommentary):
+                remaining = remaining.Where(t => !t.IsCommentary).ToList();
+                break;
         }
 
-        if (s.RemoveImpaired)
+        switch (pref.Impaired ?? s.Impaired)
         {
+            case ExtraPolicy.Remove:
+                remaining = remaining.Where(t => !IsImpaired(t)).ToList();
+                break;
             // A forced subtitle only translates foreign dialogue and signs, so it
             // is no substitute for the full captions an SDH track carries.
-            var isSubtitles = tracksInLanguage[0].Type == MediaTrackType.Subtitles;
-
-            // Vouch against what survived the filters above, or a commentary
-            // track just removed can stand in for the alternative we need.
-            var remaining = filteredTracks.ToList();
-            if (remaining.Any(t => !IsImpaired(t) && !(isSubtitles && t.IsForced)))
-            {
-                filteredTracks = remaining.Where(t => !IsImpaired(t));
-            }
+            case ExtraPolicy.KeepWhenAlone when remaining.Any(t => !IsImpaired(t) && !(isSubtitles && t.IsForced)):
+                remaining = remaining.Where(t => !IsImpaired(t)).ToList();
+                break;
         }
+
+        if (coverage == SubtitleCoverage.PreferFull && remaining.Any(t => !t.IsForced))
+        {
+            remaining = remaining.Where(t => !t.IsForced).ToList();
+        }
+
+        var filteredTracks = remaining.AsEnumerable();
 
         if (s.ExcludeCodecs && s.ExcludedCodecs.Count > 0)
         {
@@ -664,75 +680,102 @@ public static class MediaFileExtensions
         // Apply per-language track limits (MaxTracks).
         // After language/flag/codec filtering, keep only the top N tracks by quality score.
         // Audio and subtitles score on different axes, so each uses its own strategy.
-        // Ties go to the earlier track in the file.
+        // Ties go to the earlier track in the file. Forced subtitles are no
+        // alternative to a full one, so they are limited as a pool of their own.
         if (pref.MaxTracks is > 0)
         {
             var isAudio = tracksInLanguage[0].Type == MediaTrackType.Audio;
             filteredTracks = filteredTracks
-                .OrderByDescending(t => isAudio
-                    ? TrackQualityScorer.ScoreAudio(t, pref.QualityStrategy)
-                    : TrackQualityScorer.ScoreSubtitle(t, pref.SubtitleStrategy))
-                .ThenBy(t => t.Index)
-                .Take(pref.MaxTracks.Value);
+                .GroupBy(t => !isAudio && t.IsForced)
+                .SelectMany(pool => pool
+                    .OrderByDescending(t => isAudio
+                        ? TrackQualityScorer.ScoreAudio(t, pref.QualityStrategy)
+                        : TrackQualityScorer.ScoreSubtitle(t, pref.SubtitleStrategy))
+                    .ThenBy(t => t.Index)
+                    .Take(pref.MaxTracks.Value));
         }
 
         return filteredTracks;
     }
 
     /// <summary>
-    /// The fallback entries the file did not need. Walks the priority list in
-    /// order: the first entry of a group the file has a track for claims it, and
-    /// the fallbacks below it go inactive. Presence goes by every entry that keeps
-    /// a track, not just the one it is bound to, so original-language English
-    /// counts for "Original Language" even when an exact English entry took the
-    /// tracks. A language whose tracks were all filtered out counts as absent, and
-    /// so does one left with only tracks that cannot stand in for it, so the next
-    /// one down gets its turn.
+    /// The entries the file did not need: within a group, every tier under the
+    /// first one the file has a language for. Each tier is tried on its own terms,
+    /// its entries filtering the tracks they match, so a tier above never hides the
+    /// tracks a tier below would keep, and the other way round. A language whose
+    /// tracks were all filtered out counts as absent, and so does one left with
+    /// only tracks that cannot stand in for it, so the next tier down gets its turn.
     /// </summary>
-    private static HashSet<LanguagePreference> InactiveFallbacks<T>(HashSet<T> kept,
+    private static HashSet<LanguagePreference> InactiveTiers<T>(List<T> tracks,
         Dictionary<T, List<LanguagePreference>> keptBy, TrackSettings s) where T : IMediaTrack
     {
-        var present = kept.Where(t => RepresentsLanguage(t, s)).SelectMany(t => keptBy[t]).ToHashSet();
         var inactive = new HashSet<LanguagePreference>();
-        var claimed = false;
-        foreach (var pref in s.AllowedLanguages)
+        foreach (var group in s.AllowedLanguages.Groups())
         {
-            if (!pref.IsFallback)
+            var claimed = false;
+            foreach (var tier in group)
             {
-                claimed = false;
-            }
-
-            if (claimed)
-            {
-                inactive.Add(pref);
-            }
-            else
-            {
-                claimed = present.Contains(pref);
+                if (claimed)
+                {
+                    inactive.UnionWith(tier);
+                }
+                else
+                {
+                    claimed = TierPresent(tier, tracks, keptBy, s);
+                }
             }
         }
 
         return inactive;
     }
 
-    // Whether a track counts as its language being present when deciding if a
-    // fallback is needed. Commentary and forced subtitles never do: they are extras,
-    // not the language. SDH and audio description do unless the profile removes
-    // them, in which case a language left with only those still wants its fallback.
-    private static bool RepresentsLanguage(IMediaTrack track, TrackSettings s)
+    // A track is judged by the entry it is bound to, but its presence counts for
+    // the whole tier, so original-language English counts for "Original Language"
+    // even when an exact English entry took the tracks.
+    private static bool TierPresent<T>(List<LanguagePreference> tier, List<T> tracks,
+        Dictionary<T, List<LanguagePreference>> keptBy, TrackSettings s) where T : IMediaTrack
     {
-        return !track.IsCommentary
-               && !(track.Type == MediaTrackType.Subtitles && track.IsForced)
-               && !(s.RemoveImpaired && IsImpaired(track));
+        var bound = tracks.Select(t => (Track: t, Entry: keptBy[t].FirstOrDefault(tier.Contains)))
+            .Where(x => x.Entry != null);
+
+        return bound.GroupBy(x => x.Entry!)
+            .Any(g => FilterLanguage(g.Select(x => x.Track).ToList(), g.Key, s).Any(t => RepresentsLanguage(t, g.Key, s)));
+    }
+
+    // Whether a hard policy drops the track no matter what else the language has.
+    private static bool RemovedOutright(IMediaTrack track, LanguagePreference? pref, TrackSettings s)
+    {
+        return (track.IsCommentary && (pref?.Commentary ?? s.Commentary) == ExtraPolicy.Remove)
+               || (IsImpaired(track) && (pref?.Impaired ?? s.Impaired) == ExtraPolicy.Remove);
+    }
+
+    // Whether a track counts as its language being present when deciding if a
+    // fallback is needed. Commentary never does. A forced subtitle only does for
+    // an entry that wants forced subtitles alone, since then it is the language.
+    // SDH and audio description do unless they are only kept as a last resort, in
+    // which case a language left with only those still wants its fallback.
+    private static bool RepresentsLanguage(IMediaTrack track, LanguagePreference pref, TrackSettings s)
+    {
+        if (track.IsCommentary)
+        {
+            return false;
+        }
+
+        if (track.Type == MediaTrackType.Subtitles && track.IsForced)
+        {
+            return (pref.Coverage ?? s.Coverage) == SubtitleCoverage.ForcedOnly;
+        }
+
+        return !(IsImpaired(track) && (pref.Impaired ?? s.Impaired) == ExtraPolicy.KeepWhenAlone);
     }
 
     /// <summary>
     /// The entries that keep a language, most specific first: an exact name match,
     /// then a base-language entry covering one of its variants ("French" keeps
     /// "French (Canada)"), then the Original Language placeholder. Per-language
-    /// overrides come from the first, so overrides on "English" are used instead of
-    /// "Original Language" overrides when both apply; whether the language is kept
-    /// at all can come from any of them.
+    /// overrides and kinds come from the first, so overrides on "English" are used
+    /// instead of "Original Language" overrides when both apply; whether the
+    /// language is kept at all can come from any of them.
     /// </summary>
     private static List<LanguagePreference> MatchingPreferences(string language, string? originalLanguage,
         TrackSettings s)
@@ -753,31 +796,38 @@ public static class MediaFileExtensions
     /// Returns the priority index for a language based on its position in AllowedLanguages.
     /// Lower = higher priority. Handles the Original Language sentinel and variant
     /// matching: an exact entry wins over a base entry covering the variant,
-    /// regardless of list position, mirroring FindMatchingPreference.
+    /// regardless of list position, mirroring FindMatchingPreference. The Original
+    /// Language placeholder competes on position alone, since that is its meaning.
     /// Returns int.MaxValue if not found (sorts to end).
     /// </summary>
     private static int GetLanguagePriority(string trackLanguage, TrackSettings s, string? originalLanguage)
     {
         var exact = int.MaxValue;
         var fallback = int.MaxValue;
+        var original = int.MaxValue;
         var lang = IsoLanguage.Find(trackLanguage);
 
         for (var i = 0; i < s.AllowedLanguages.Count; i++)
         {
             var pref = s.AllowedLanguages[i];
-            if (pref.Name == trackLanguage)
+            if (pref.IsOriginalLanguagePlaceholder)
+            {
+                if (SameBaseLanguage(trackLanguage, originalLanguage))
+                {
+                    original = Math.Min(original, i);
+                }
+            }
+            else if (pref.Name == trackLanguage)
             {
                 exact = Math.Min(exact, i);
             }
-            else if (pref.IsOriginalLanguagePlaceholder
-                         ? SameBaseLanguage(trackLanguage, originalLanguage)
-                         : IsoLanguage.Find(pref.Name).Includes(lang))
+            else if (IsoLanguage.Find(pref.Name).Includes(lang))
             {
                 fallback = Math.Min(fallback, i);
             }
         }
 
-        return exact != int.MaxValue ? exact : fallback;
+        return Math.Min(original, exact != int.MaxValue ? exact : fallback);
     }
 
     public static bool IsAllowed(this IMediaTrack track, IEnumerable<IMediaTrack> allowedTracks)
@@ -1051,12 +1101,9 @@ public static class MediaFileExtensions
                 // A marker for the old language has to go whatever the container,
                 // since the scan reads it as a second source and it would override
                 // the new tag. Writing the new marker in is only needed where the
-                // tag cannot say it: MP4 packs a plain ISO code, and even Matroska
-                // has nothing for a variant that shares its base's code.
+                // tag cannot say it.
                 var picked = IsoLanguage.Find(track.LanguageName);
-                var tagSaysIt = family == ContainerFamily.Matroska
-                                && !string.Equals(picked.WriteCode, picked.Base.WriteCode, StringComparison.Ordinal);
-                name = tagSaysIt
+                name = TagCarries(picked, family)
                     ? LanguageVariants.StripContradictions(name, picked)
                     : LanguageVariants.EncodeInName(name, picked);
             }
@@ -1093,9 +1140,25 @@ public static class MediaFileExtensions
     // Matroska has no FlagDub element, and only Matroska holds a BCP 47 tag.
     private static string? CarryInName(string? name, TrackSnapshot track, ContainerFamily family)
     {
-        return family == ContainerFamily.Matroska
-            ? TrackNameFlags.EncodeDubInName(name, track.IsDub)
-            : LanguageVariants.EncodeInName(name, IsoLanguage.Find(track.LanguageName));
+        if (family == ContainerFamily.Matroska)
+        {
+            return TrackNameFlags.EncodeDubInName(name, track.IsDub);
+        }
+
+        var lang = IsoLanguage.Find(track.LanguageName);
+        return TagCarries(lang, family)
+            ? LanguageVariants.StripContradictions(name, lang)
+            : LanguageVariants.EncodeInName(name, lang);
+    }
+
+    // Whether the language tag alone says which variant a track is. MP4 packs a
+    // plain ISO code, so only a variant with a code of its own (nob, cmn) fits;
+    // Matroska holds BCP 47 but still has nothing for a variant sharing its
+    // base's code.
+    private static bool TagCarries(IsoLanguage language, ContainerFamily family)
+    {
+        return !string.Equals(language.WriteCode, language.Base.WriteCode, StringComparison.Ordinal)
+               && (family == ContainerFamily.Matroska || language.IetfTag == null);
     }
 
     public static void CorrectFlagsFromTrackName(this TrackSnapshot track)
@@ -1343,6 +1406,7 @@ public static class MediaFileExtensions
     /// DontChange: no-op, preserve original flags.
     /// SpecCompliant: commentary/HI/VI/dub = not default, everything else = default.
     /// ForceFirstLanguage: only the first track matching the highest-priority language = default.
+    /// ForceFirstLanguageForced: the same, but a forced subtitle of that language wins.
     /// </summary>
     private static void ReassignPreviewDefaultFlags(List<TrackSnapshot> previews, TrackSettings? settings,
         MediaTrackType trackType, string? originalLanguage)
@@ -1352,30 +1416,19 @@ public static class MediaFileExtensions
             return;
         }
 
+        settings = settings.ForOriginalLanguage(originalLanguage);
         var tracksOfType = previews.Where(t => t.Type == trackType).ToList();
 
-        if (settings.DefaultStrategy == DefaultTrackStrategy.ForceFirstLanguage && settings.AllowedLanguages.Count > 0)
+        if (settings.DefaultStrategy is (DefaultTrackStrategy.ForceFirstLanguage or DefaultTrackStrategy.ForceFirstLanguageForced)
+            && settings.AllowedLanguages.Count > 0)
         {
             // Find the first track of the highest-priority language. Works regardless of track order.
-            // Supplementary tracks (commentary/forced/HI/AD/dub) are skipped - they shouldn't win
+            // Supplementary tracks (commentary/forced/HI/AD/dub) are skipped, they shouldn't win
             // the default flag even when they happen to be the first track at the top priority.
             // If no eligible tracks remain, preserve original flags (don't remove all defaults).
-            TrackSnapshot? bestTrack = null;
-            var bestPriority = int.MaxValue;
-            foreach (var track in tracksOfType)
-            {
-                if (IsSupplementary(track))
-                {
-                    continue;
-                }
-
-                var priority = GetLanguagePriority(track.LanguageName, settings, originalLanguage);
-                if (priority < bestPriority)
-                {
-                    bestPriority = priority;
-                    bestTrack = track;
-                }
-            }
+            var preferForced = settings.DefaultStrategy == DefaultTrackStrategy.ForceFirstLanguageForced
+                               && trackType == MediaTrackType.Subtitles;
+            var bestTrack = BestDefaultCandidate(tracksOfType, settings, originalLanguage, preferForced);
 
             if (bestTrack != null)
             {
@@ -1392,6 +1445,27 @@ public static class MediaFileExtensions
                 track.IsDefault = !IsSupplementary(track);
             }
         }
+    }
+
+    // The highest-priority track that may carry the default flag, file order within
+    // a language. With preferForced a plain forced subtitle wins over the full one.
+    private static TrackSnapshot? BestDefaultCandidate(List<TrackSnapshot> tracksOfType, TrackSettings settings,
+        string? originalLanguage, bool preferForced)
+    {
+        return tracksOfType
+            .Where(t => !IsSupplementary(t) || (preferForced && IsPlainForced(t)))
+            .Select(t => (Track: t, Priority: GetLanguagePriority(t.LanguageName, settings, originalLanguage)))
+            .Where(x => x.Priority < int.MaxValue)
+            .OrderBy(x => x.Priority)
+            .ThenBy(x => preferForced && x.Track.IsForced ? 0 : 1)
+            .Select(x => x.Track)
+            .FirstOrDefault();
+    }
+
+    // Forced and nothing else that makes a track supplementary.
+    private static bool IsPlainForced(IMediaTrack track)
+    {
+        return track.IsForced && !track.IsCommentary && !IsImpaired(track) && !track.IsDub;
     }
 
     // A track is "supplementary" when it shouldn't win the default flag even
