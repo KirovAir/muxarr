@@ -59,23 +59,38 @@
                     "Undetermined" to the allowed languages above to always keep unlabeled tracks.</small>
             </div>
 
-            @if (!IsAudio)
-            {
-                <div class="mb-3 form-check form-switch">
-                    <InputCheckbox id="@($"excludeCodecs{TrackTypeLabel}")" class="form-check-input"
-                                   @bind-Value="Settings.ExcludeCodecs"/>
-                    <label class="form-check-label" for="@($"excludeCodecs{TrackTypeLabel}")">Exclude subtitle
-                        codecs</label>
-                    <small class="form-text text-muted d-block">Remove subtitle tracks that match specific codecs during
-                        conversion. Useful for dropping image-based formats like PGS or VobSub.</small>
-                </div>
+            <div class="mb-3 form-check form-switch">
+                <InputCheckbox id="@($"excludeCodecs{TrackTypeLabel}")" class="form-check-input"
+                               @bind-Value="Settings.ExcludeCodecs"/>
+                <label class="form-check-label" for="@($"excludeCodecs{TrackTypeLabel}")">Exclude
+                    @(TrackTypeLabel.ToLower()) codecs</label>
+                <small class="form-text text-muted d-block">@if (IsAudio)
+                    {
+                        <text>Removes audio tracks that match specific codecs during conversion, regardless of
+                            language. Useful when your player can't decode a format like TrueHD or DTS-HD, or to
+                            settle a tie between two lossless tracks.</text>
+                    }
+                    else
+                    {
+                        <text>Removes subtitle tracks that match specific codecs during conversion. Useful for dropping
+                            image-based formats like PGS or VobSub.</text>
+                    }</small>
+            </div>
 
-                @if (Settings.ExcludeCodecs)
-                {
-                    <div class="mb-3 ms-4">
-                        <CodecSelector SelectedItems="Settings.ExcludedCodecs"/>
-                    </div>
-                }
+            @if (Settings.ExcludeCodecs)
+            {
+                <div class="mb-3 ms-4">
+                    @if (IsAudio)
+                    {
+                        <CodecSelector SelectedItems="Settings.ExcludedAudioCodecs"
+                                       Values="AudioCodecExtensions.SelectableValues"/>
+                    }
+                    else
+                    {
+                        <CodecSelector SelectedItems="Settings.ExcludedCodecs"
+                                       Values="SubtitleCodecExtensions.SelectableValues"/>
+                    }
+                </div>
             }
         </div>
     }
