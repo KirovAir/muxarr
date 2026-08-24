@@ -66,7 +66,14 @@ public static class PagingExtensions
         if (!string.IsNullOrEmpty(sortProperty))
         {
             var parameter = Expression.Parameter(typeof(T), "f");
-            var property = Expression.Property(parameter, sortProperty);
+
+            // Dotted paths reach into navigations, e.g. Snapshot.TrackCount.
+            Expression property = parameter;
+            foreach (var member in sortProperty.Split('.'))
+            {
+                property = Expression.Property(property, member);
+            }
+
             var conversion = Expression.Convert(property, typeof(object));
             var lambda = Expression.Lambda<Func<T, object>>(conversion, parameter);
 
