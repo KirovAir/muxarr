@@ -155,7 +155,7 @@ Until you do, Muxarr keeps running from `/data` and shows a reminder in the app.
 
 ### API
 
-Muxarr exposes a stats API at `/api/stats` (authenticated via `X-Api-Key` header). Works with [Homepage](https://gethomepage.dev/widgets/services/customapi/) and other dashboards. See Settings > API for examples.
+Muxarr exposes a stats API at `/api/stats` (authenticated via `X-Api-Key` header). Works with [Homepage](https://gethomepage.dev/widgets/services/customapi/) and other dashboards. `POST /api/queue` queues every file that needs work, so you can turn off auto-queue and let a cron job start conversions during off-peak hours. See Settings > API for examples.
 
 ## Built With
 

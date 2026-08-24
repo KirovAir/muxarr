@@ -19,6 +19,20 @@
 
     <div class="col-lg-6">
         <div class="card mb-4">
+            <div class="card-header"><i class="bi bi-collection-play me-2"></i>POST /api/queue</div>
+            <div class="card-body">
+                <p class="text-muted small mb-2">
+                    Queues every file that needs work, like the Library's <em>Needs Any Work</em> filter.
+                    Use <code>?filter=tracks</code> or <code>?filter=metadata</code> to narrow it down. Turn off
+                    auto-queue and call this from a cron job to convert during off-peak hours.
+                </p>
+                <CodeBlock Value="@QueueCurlExample"/>
+                <p class="text-muted small mb-2 mt-3">Response</p>
+                <CodeBlock Value="@QueueResponseExample"/>
+            </div>
+        </div>
+
+        <div class="card mb-4">
             <div class="card-header"><i class="bi bi-layout-text-sidebar me-2"></i>Homepage Widget</div>
             <div class="card-body">
                 <p class="text-muted small mb-2">
@@ -51,6 +65,11 @@
 
     private string CurlExample =>
         $"curl -H \"X-Api-Key: {_apiKey}\" {StatsUrl}";
+
+    private string QueueCurlExample =>
+        $"curl -X POST -H \"X-Api-Key: {_apiKey}\" \"{_baseUrl}/api/queue?filter=any\"";
+
+    private const string QueueResponseExample = "{\n  \"queued\": 12,\n  \"skipped\": 0\n}";
 
     private static readonly Lazy<string> ExampleJson = new(() =>
     {

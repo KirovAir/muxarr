@@ -518,14 +518,7 @@
             );
         }
 
-        query = FileFilter switch
-        {
-            "tracks" => query.Where(x => x.HasRedundantTracks),
-            "metadata" => query.Where(x => x.HasNonStandardMetadata || x.HasRemovableChapters),
-            "any" => query.Where(x => x.HasRedundantTracks || x.HasNonStandardMetadata || x.HasRemovableChapters),
-            "warnings" => query.Where(x => x.HasScanWarning),
-            _ => query
-        };
+        query = query.ApplyFileFilter(FileFilter);
 
         // Scalar column filters. Values come from dropdowns populated by
         // LibraryStatsService from the same rows, so exact match is safe.

@@ -23,6 +23,19 @@ public static class MediaFileExtensions
         return query.Include(f => f.Snapshot.Tracks).Include(f => f.Profile);
     }
 
+    // The library's file filter, also the shape the queue API takes.
+    public static IQueryable<MediaFile> ApplyFileFilter(this IQueryable<MediaFile> query, string? filter)
+    {
+        return filter switch
+        {
+            "tracks" => query.Where(x => x.HasRedundantTracks),
+            "metadata" => query.Where(x => x.HasNonStandardMetadata || x.HasRemovableChapters),
+            "any" => query.Where(x => x.HasRedundantTracks || x.HasNonStandardMetadata || x.HasRemovableChapters),
+            "warnings" => query.Where(x => x.HasScanWarning),
+            _ => query
+        };
+    }
+
     public static bool NeedsFileProbe(this MediaFile file, FileInfo fileInfo)
     {
         return file.Snapshot is null || file.Snapshot.Tracks.Count == 0 || file.Snapshot.Resolution == null ||
