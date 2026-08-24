@@ -31,7 +31,7 @@ public static class Configurator
             .AddInterceptors(new SqlitePerformanceInterceptor());
     }
 
-    public static async Task Initialize(this AppDbContext context, ILogger? logger = null)
+    public static async Task Initialize(this AppDbContext context, ILogger? logger = null, bool resetAuth = false)
     {
         var migrated = await BackupBeforeMigration(context, logger);
         await context.Database.MigrateAsync();
@@ -51,6 +51,15 @@ public static class Configurator
         {
             context.Configs.Set(new SetupConfig { CompletedAt = DateTime.UtcNow });
             await context.SaveChangesAsync();
+        }
+
+        // Lost password escape hatch; without the row there is no login.
+        if (resetAuth)
+        {
+            context.Configs.Set<AuthConfig>(null, AuthConfig.Key);
+            await context.SaveChangesAsync();
+            logger?.LogWarning(
+                "Login removed because MUXARR__AUTH__RESET is set. Remove the variable and set a new password under Settings > Security.");
         }
 
         // Ensure WebhookConfig has a persisted API key.
