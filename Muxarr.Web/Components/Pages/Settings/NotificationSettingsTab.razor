@@ -35,7 +35,7 @@ else
                             {
                                 if (config.HasTrigger(trigger))
                                 {
-                                    <span class="badge text-bg-light border">@trigger</span>
+                                    <span class="badge text-bg-light border">@trigger.DisplayName()</span>
                                 }
                             }
                         </div>
@@ -158,7 +158,7 @@ else
     }
 
     private static readonly NotificationEventType[] TriggerBadges =
-        [NotificationEventType.Started, NotificationEventType.Completed, NotificationEventType.Failed];
+        [NotificationEventType.Started, NotificationEventType.Completed, NotificationEventType.Failed, NotificationEventType.QueueFinished];
 
     private static NotificationConfig CloneConfig(NotificationConfig src)
     {

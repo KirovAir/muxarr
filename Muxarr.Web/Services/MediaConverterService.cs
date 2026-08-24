@@ -21,12 +21,14 @@ public class MediaConverterService(
 {
     private CancellationTokenSource? _currentConversionCts;
     private bool _firstRun = true;
+    private bool _workedSinceIdle;
 
     public override TimeSpan? Interval => TimeSpan.FromMinutes(60);
 
     public bool IsPaused { get; private set; }
     public event Action<ConverterProgressEvent>? ConverterStateChanged;
     public event Action? QueueStateChanged;
+    public event Action? QueueFinished;
 
     public void TogglePause()
     {
@@ -120,9 +122,17 @@ public class MediaConverterService(
 
         if (conversion == null)
         {
+            // Once per batch, so a media server can refresh a single time.
+            if (_workedSinceIdle)
+            {
+                _workedSinceIdle = false;
+                QueueFinished?.Invoke();
+            }
+
             return;
         }
 
+        _workedSinceIdle = true;
         _currentConversionCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
         try
         {
@@ -397,6 +407,7 @@ public class MediaConverterService(
             conversion.State = ConversionState.Failed;
             context.Update(conversion);
             await context.SaveChangesAsync(token);
+            ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
             return;
         }
 

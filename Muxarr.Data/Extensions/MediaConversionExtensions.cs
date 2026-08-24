@@ -33,12 +33,17 @@ public static class MediaConversionExtensions
 
     public static string GetSizeChangePercentage(this MediaConversion conversion)
     {
-        if (conversion.SizeBefore == 0)
+        return GetSizeChangePercentage(conversion.SizeBefore, conversion.SizeAfter);
+    }
+
+    public static string GetSizeChangePercentage(long sizeBefore, long sizeAfter)
+    {
+        if (sizeBefore == 0)
         {
             return "0.0%";
         }
 
-        var reduction = Math.Abs(100 - (double)conversion.SizeAfter / conversion.SizeBefore * 100);
+        var reduction = Math.Abs(100 - (double)sizeAfter / sizeBefore * 100);
         return $"{reduction:F1}%";
     }
 }
