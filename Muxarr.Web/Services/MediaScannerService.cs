@@ -53,6 +53,8 @@ public class MediaScannerService(
 
     protected override async Task ExecuteAsync(CancellationToken token)
     {
+        ReloadConfig();
+        var discovered = new List<int>();
         var lockTaken = false;
 
         try
@@ -71,7 +73,7 @@ public class MediaScannerService(
 
             while (!linked.IsCancellationRequested && _directoryQueue.TryDequeue(out var directory))
             {
-                await ScanDirectory(directory.Path, directory.ForceRescan, directory.Profile, linked)
+                await ScanDirectory(directory.Path, directory.ForceRescan, directory.Profile, discovered, linked)
                     .ConfigureAwait(false);
             }
 
@@ -94,6 +96,12 @@ public class MediaScannerService(
             {
                 _libraryMutationSemaphore.Release();
             }
+        }
+
+        // After the lock: a conversion swaps the file out briefly, which must not overlap the purge above.
+        if (Config.QueueScannedFiles && discovered.Count > 0 && !token.IsCancellationRequested)
+        {
+            await QueueDiscovered(discovered, token);
         }
     }
 
@@ -155,7 +163,8 @@ public class MediaScannerService(
         _ = RunAsync(CancellationToken.None);
     }
 
-    private async Task ScanDirectory(string directory, bool forceRescan, Profile profile, CancellationToken token)
+    private async Task ScanDirectory(string directory, bool forceRescan, Profile profile, List<int> discovered,
+        CancellationToken token)
     {
         if (!Directory.Exists(directory))
         {
@@ -181,7 +190,7 @@ public class MediaScannerService(
                 continue;
             }
 
-            await ScanFileCore(file, forceRescan, profile, context).ConfigureAwait(false);
+            await ScanFileCore(file, forceRescan, profile, context, discovered: discovered).ConfigureAwait(false);
             scanned++;
 
             // Update file list.
@@ -193,6 +202,31 @@ public class MediaScannerService(
         }
 
         logger.LogInformation("Scanned {Count} file(s) in '{Directory}'", scanned, directory);
+    }
+
+    // Files the scan just added, including ones skipped as hardlinked before the extra link went away.
+    private async Task QueueDiscovered(List<int> ids, CancellationToken token)
+    {
+        using var scope = ServiceScopeFactory.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var converter = scope.ServiceProvider.GetRequiredService<MediaConverterService>();
+        var files = await context.MediaFiles.WithTracksAndProfile().WhereIdsAsync(ids);
+
+        var queued = 0;
+        foreach (var file in files)
+        {
+            if (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            if (await converter.AddMediaToQueue(file))
+            {
+                queued++;
+            }
+        }
+
+        logger.LogInformation("Queued {Queued} of {Count} new file(s) found by the scan", queued, files.Count);
     }
 
     public async Task ScanFile(string filePath, bool forceRescan, Profile profile,
@@ -218,7 +252,8 @@ public class MediaScannerService(
     }
 
     private async Task ScanFileCore(string filePath, bool forceRescan, Profile profile,
-        AppDbContext context, string? webhookTitle = null, string? webhookOriginalLanguage = null)
+        AppDbContext context, string? webhookTitle = null, string? webhookOriginalLanguage = null,
+        List<int>? discovered = null)
     {
         // A webhook can fire before the file lands. Creating the row anyway leaves
         // it with no snapshot, which the library page cannot render.
@@ -244,6 +279,7 @@ public class MediaScannerService(
         }
 
         var dbFile = await context.MediaFiles.WithTracks().FirstOrDefaultAsync(x => x.Path == filePath);
+        var isNew = dbFile == null;
         if (dbFile == null)
         {
             dbFile = new MediaFile
@@ -280,6 +316,11 @@ public class MediaScannerService(
         if (context.Entry(dbFile).State == EntityState.Modified)
         {
             await context.SaveChangesAsync();
+        }
+
+        if (isNew && dbFile.NeedsWork)
+        {
+            discovered?.Add(dbFile.Id);
         }
     }
 

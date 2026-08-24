@@ -69,6 +69,15 @@
             </div>
             <small class="form-text text-muted">Maximum time for a single file conversion. Set to 0 to disable.</small>
         </div>
+
+        <div class="mb-3 form-check form-switch">
+            <InputCheckbox id="scan-queue" class="form-check-input" @bind-Value="ProcessingConfig.QueueScannedFiles"/>
+            <label for="scan-queue" class="form-check-label">Queue new files found by a scan</label>
+            <br/>
+            <small class="form-text text-muted">A file a scan adds to the library that needs work is queued right
+                away. This is how a file skipped as hardlinked earlier gets picked up once the extra link is gone.
+                Mind that the first scan of a new library then queues everything that needs work.</small>
+        </div>
     </div>
 
     <div class="border rounded p-4 mb-4">
