@@ -274,6 +274,8 @@ namespace Muxarr.Data.Migrations
 
                     b.HasIndex("ProfileId");
 
+                    b.HasIndex("Size");
+
                     b.HasIndex("SnapshotId");
 
                     b.ToTable("MediaFile", (string)null);

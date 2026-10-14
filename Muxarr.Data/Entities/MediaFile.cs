@@ -40,6 +40,7 @@ public class MediaFileConfiguration : AuditEntityConfiguration<MediaFile>
         builder.HasKey(e => e.Id);
         builder.HasIndex(e => e.Path);
         builder.HasIndex(e => e.FileCreationTime);
+        builder.HasIndex(e => e.Size);
 
         builder.Property(e => e.Id)
             .IsRequired();
