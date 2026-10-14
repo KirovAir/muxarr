@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace Muxarr.Core.Config;
 
 public class NotificationConfig
@@ -25,5 +27,8 @@ public enum NotificationEventType
     Started = 1 << 0,
     Completed = 1 << 1,
     Failed = 1 << 2,
-    Test = 1 << 3
+    Test = 1 << 3,
+
+    [Display(Name = "Queue finished")]
+    QueueFinished = 1 << 4
 }

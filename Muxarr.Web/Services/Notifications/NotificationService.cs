@@ -42,6 +42,7 @@ public sealed class NotificationService
     private readonly IMemoryCache _cache;
     private readonly ILogger<NotificationService> _logger;
     private readonly ConcurrentDictionary<int, byte> _startedFired = new();
+    private readonly ConcurrentDictionary<int, MediaConversion> _finished = new();
 
     public IReadOnlyList<NotificationProvider> Providers { get; }
 
@@ -60,6 +61,7 @@ public sealed class NotificationService
         _logger = logger;
 
         converter.ConverterStateChanged += OnConverterStateChanged;
+        converter.QueueFinished += OnQueueFinished;
     }
 
     private void OnConverterStateChanged(ConverterProgressEvent e)
@@ -88,24 +90,27 @@ public sealed class NotificationService
         else
         {
             _startedFired.TryRemove(conversion.Id, out _);
+            _finished[conversion.Id] = conversion;
         }
 
         _ = SendAsync(eventType.Value, conversion);
     }
 
+    private void OnQueueFinished()
+    {
+        var finished = _finished.Values.ToList();
+        _finished.Clear();
+
+        if (finished.Count > 0)
+        {
+            _ = SendQueueFinishedAsync(finished);
+        }
+    }
+
     public async Task SendAsync(NotificationEventType eventType, MediaConversion conversion)
     {
-        var configs = await LoadConfigsAsync();
-        if (configs is null)
-        {
-            return;
-        }
-
-        var matched = configs.Where(c => c.Enabled && c.HasTrigger(eventType)).ToList();
-        _logger.LogDebug(
-            "Notification event {EventType} for conversion {ConversionId}: {Matched}/{Total} configs matched",
-            eventType, conversion.Id, matched.Count, configs.Count);
-
+        var subject = $"conversion {conversion.Id}";
+        var matched = await MatchConfigsAsync(eventType, subject);
         if (matched.Count == 0)
         {
             return;
@@ -113,7 +118,34 @@ public sealed class NotificationService
 
         var filePath = await ResolveFilePathAsync(conversion);
         var payload = BuildPayload(eventType, conversion, filePath);
-        await Task.WhenAll(matched.Select(config => DispatchAsync(config, payload, eventType, conversion.Id)));
+        await Task.WhenAll(matched.Select(config => DispatchAsync(config, payload, eventType, subject)));
+    }
+
+    private async Task SendQueueFinishedAsync(List<MediaConversion> finished)
+    {
+        const NotificationEventType eventType = NotificationEventType.QueueFinished;
+        var matched = await MatchConfigsAsync(eventType, "the queue");
+        if (matched.Count == 0)
+        {
+            return;
+        }
+
+        var payload = BuildQueuePayload(finished);
+        await Task.WhenAll(matched.Select(config => DispatchAsync(config, payload, eventType, "the queue")));
+    }
+
+    private async Task<List<NotificationConfig>> MatchConfigsAsync(NotificationEventType eventType, string subject)
+    {
+        var configs = await LoadConfigsAsync();
+        if (configs is null)
+        {
+            return [];
+        }
+
+        var matched = configs.Where(c => c.Enabled && c.HasTrigger(eventType)).ToList();
+        _logger.LogDebug("Notification event {EventType} for {Subject}: {Matched}/{Total} configs matched",
+            eventType, subject, matched.Count, configs.Count);
+        return matched;
     }
 
     private async Task<string?> ResolveFilePathAsync(MediaConversion conversion)
@@ -146,14 +178,14 @@ public sealed class NotificationService
     }
 
     private async Task DispatchAsync(NotificationConfig config, NotificationPayload payload,
-        NotificationEventType eventType, int conversionId)
+        NotificationEventType eventType, string subject)
     {
         var provider = Providers.FirstOrDefault(p => p.Type == config.Provider);
         if (provider is null)
         {
             _logger.LogWarning(
-                "Notification '{Name}' references unknown provider '{Provider}' (conversion {ConversionId})",
-                config.Name, config.Provider, conversionId);
+                "Notification '{Name}' references unknown provider '{Provider}' ({Subject})",
+                config.Name, config.Provider, subject);
             return;
         }
 
@@ -161,14 +193,14 @@ public sealed class NotificationService
         {
             await provider.SendAsync(_httpClient, config, payload);
             _logger.LogDebug(
-                "Sent {EventType} notification via {Provider} to '{Name}' for conversion {ConversionId}",
-                eventType, config.Provider, config.Name, conversionId);
+                "Sent {EventType} notification via {Provider} to '{Name}' for {Subject}",
+                eventType, config.Provider, config.Name, subject);
         }
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "Notification '{Name}' ({Provider}) failed for conversion {ConversionId}",
-                config.Name, config.Provider, conversionId);
+                "Notification '{Name}' ({Provider}) failed for {Subject}",
+                config.Name, config.Provider, subject);
         }
     }
 
@@ -247,7 +279,7 @@ public sealed class NotificationService
             NotificationEventType.Started =>
                 ("Conversion Started", $"{name} - {conversion.SizeBefore.DisplayFileSize()}"),
             NotificationEventType.Completed =>
-                ("Conversion Completed", $"{name} - {BuildSizeChangeSummary(conversion)}"),
+                ("Conversion Completed", $"{name} - {BuildSizeChangeSummary(conversion.SizeBefore, conversion.SizeAfter)}"),
             NotificationEventType.Failed =>
                 ("Conversion Failed", $"{name} - {lastError}"),
             _ => ("Muxarr", name)
@@ -267,15 +299,41 @@ public sealed class NotificationService
         };
     }
 
-    private static string BuildSizeChangeSummary(MediaConversion conversion)
+    // Cancelled conversions never reach here, so anything not completed failed.
+    private static NotificationPayload BuildQueuePayload(List<MediaConversion> finished)
     {
-        if (conversion.SizeAfter == conversion.SizeBefore)
+        var completed = finished.Where(c => c.State == ConversionState.Completed).ToList();
+        var failed = finished.Count - completed.Count;
+        var sizeBefore = completed.Sum(c => c.SizeBefore);
+        var sizeAfter = completed.Sum(c => c.SizeAfter);
+
+        var body = $"{completed.Count} file(s) processed, {BuildSizeChangeSummary(sizeBefore, sizeAfter)}";
+        if (failed > 0)
+        {
+            body += $", {failed} failed";
+        }
+
+        return new NotificationPayload
+        {
+            Title = "Queue Finished",
+            Body = body,
+            EventType = NotificationEventType.QueueFinished,
+            SizeBefore = sizeBefore,
+            SizeAfter = sizeAfter,
+            SizeSaved = Math.Abs(sizeBefore - sizeAfter)
+        };
+    }
+
+    private static string BuildSizeChangeSummary(long sizeBefore, long sizeAfter)
+    {
+        if (sizeAfter == sizeBefore)
         {
             return "no size change";
         }
 
-        var verb = conversion.SizeAfter < conversion.SizeBefore ? "saved" : "grew by";
-        return $"{verb} {conversion.SizeDifference.DisplayFileSize()} ({conversion.GetSizeChangePercentage()})";
+        var verb = sizeAfter < sizeBefore ? "saved" : "grew by";
+        var difference = Math.Abs(sizeBefore - sizeAfter);
+        return $"{verb} {difference.DisplayFileSize()} ({MediaConversionExtensions.GetSizeChangePercentage(sizeBefore, sizeAfter)})";
     }
 
     private static string GetLastError(MediaConversion conversion)
