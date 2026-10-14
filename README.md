@@ -192,10 +192,6 @@ Until you do, Muxarr keeps running from `/data` and shows a reminder in the app.
 
 Muxarr exposes a stats API at `/api/stats` (authenticated via `X-Api-Key` header). Works with [Homepage](https://gethomepage.dev/widgets/services/customapi/) and other dashboards. `POST /api/queue` queues every file that needs work, so you can turn off auto-queue and let a cron job start conversions during off-peak hours. See Settings > API for examples.
 
-## Contributing
-
-Issues and PRs are welcome. Have a look at [CONTRIBUTING.md](CONTRIBUTING.md) first, it explains what fits the project and how to get a change merged.
-
 ## Built With
 
 - [.NET 10](https://dotnet.microsoft.com/) / Blazor
