@@ -18,8 +18,12 @@ public class WebhookPayload
     [JsonPropertyName("episodes")]
     public List<WebhookEpisode>? Episodes { get; set; }
 
+    // Sonarr v3 sent a single episodeFile, v4 sends an episodeFiles array.
     [JsonPropertyName("episodeFile")]
     public WebhookFile? EpisodeFile { get; set; }
+
+    [JsonPropertyName("episodeFiles")]
+    public List<WebhookFile>? EpisodeFiles { get; set; }
 
     [JsonPropertyName("renamedEpisodeFiles")]
     public List<WebhookRenamedFile>? RenamedEpisodeFiles { get; set; }
@@ -51,13 +55,23 @@ public class WebhookPayload
                     items.Add(new WebhookFileItem(MovieFile.Path, Movie.Title, originalLanguage));
                 }
 
-                if (!string.IsNullOrEmpty(EpisodeFile?.Path) && Series != null)
+                if (Series != null)
                 {
-                    var episode = Episodes?.FirstOrDefault();
-                    var title = episode != null
-                        ? $"{Series.Title} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}"
-                        : Series.Title;
-                    items.Add(new WebhookFileItem(EpisodeFile.Path, title, originalLanguage));
+                    var files = (EpisodeFiles ?? [])
+                        .Concat(EpisodeFile != null ? [EpisodeFile] : [])
+                        .Where(f => !string.IsNullOrEmpty(f.Path))
+                        .DistinctBy(f => f.Path)
+                        .ToList();
+
+                    // Episodes line up with the files for a single download; a season pack has more episodes than files.
+                    for (var i = 0; i < files.Count; i++)
+                    {
+                        var episode = Episodes != null && Episodes.Count == files.Count ? Episodes[i] : null;
+                        var title = episode != null
+                            ? $"{Series.Title} S{episode.SeasonNumber:D2}E{episode.EpisodeNumber:D2}"
+                            : Series.Title;
+                        items.Add(new WebhookFileItem(files[i].Path!, title, originalLanguage));
+                    }
                 }
 
                 break;
