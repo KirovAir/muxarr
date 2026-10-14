@@ -57,6 +57,12 @@ public class MediaScannerService(
         var discovered = new List<int>();
         var lockTaken = false;
 
+        // A scheduled run comes in with an empty queue; only the Library buttons fill it.
+        if (_directoryQueue.IsEmpty)
+        {
+            await QueueAllDirectories(false);
+        }
+
         try
         {
             await _libraryMutationSemaphore.WaitAsync(token);
@@ -151,6 +157,12 @@ public class MediaScannerService(
 
     public async Task ScanAll(bool forceRescan)
     {
+        await QueueAllDirectories(forceRescan);
+        _ = RunAsync(CancellationToken.None);
+    }
+
+    private async Task QueueAllDirectories(bool forceRescan)
+    {
         using var scope = ServiceScopeFactory.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -159,8 +171,6 @@ public class MediaScannerService(
         {
             _directoryQueue.Enqueue(new ScanDirectory(directory, forceRescan, profile));
         }
-
-        _ = RunAsync(CancellationToken.None);
     }
 
     private async Task ScanDirectory(string directory, bool forceRescan, Profile profile, List<int> discovered,

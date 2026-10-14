@@ -145,6 +145,7 @@
 @code {
     [Inject] public required IDbContextFactory<AppDbContext> ContextFactory { get; set; }
     [Inject] public required IToastService ToastService { get; set; }
+    [Inject] public required MediaScannerService MediaScanner { get; set; }
 
     private WebhookConfig WebhookConfig { get; set; } = new();
     private ProcessingConfig ProcessingConfig { get; set; } = new();
@@ -164,6 +165,9 @@
             context.Configs.Set(WebhookConfig);
             context.Configs.Set(ProcessingConfig);
             await context.SaveChangesAsync();
+
+            // The scanner only re-reads its config when it runs, and with the interval at 0 it never runs.
+            MediaScanner.ReloadConfig();
             ToastService.ShowSuccess("Processing settings saved.");
         }
         catch (Exception ex)
