@@ -159,30 +159,24 @@ public class ArrApiClient
             n.Name.Equals("Muxarr", StringComparison.OrdinalIgnoreCase));
     }
 
-    public async Task<bool> CreateWebhookNotification(IApiCredentials config, string webhookUrl)
+    // Returns the arr's own error message when it refuses, null when the webhook is in place.
+    public Task<string?> CreateWebhookNotification(IApiCredentials config, string webhookUrl)
     {
-        var payload = ArrNotification.CreateMuxarr(webhookUrl);
-        var result = await Post(config, NotificationUrl, payload);
-        return result;
+        return Post(config, NotificationUrl, ArrNotification.CreateMuxarr(webhookUrl));
     }
 
-    public async Task<bool> UpdateWebhookNotification(IApiCredentials config, ArrNotification existing,
+    public async Task<string?> UpdateWebhookNotification(IApiCredentials config, ArrNotification existing,
         string webhookUrl)
     {
         // Delete and recreate rather than PUT, because our model only maps a subset
-        // of fields — PUTting back would lose unmapped fields (tags, extra event flags, etc.)
-        var deleted = await Delete(config, $"{NotificationUrl}/{existing.Id}");
-        if (!deleted)
-        {
-            return false;
-        }
-
-        return await CreateWebhookNotification(config, webhookUrl);
+        // of fields; PUTting back would lose unmapped fields (tags, extra event flags, etc.)
+        var error = await Delete(config, $"{NotificationUrl}/{existing.Id}");
+        return error ?? await CreateWebhookNotification(config, webhookUrl);
     }
 
     public async Task<bool> DeleteWebhookNotification(IApiCredentials config, int notificationId)
     {
-        return await Delete(config, $"{NotificationUrl}/{notificationId}");
+        return await Delete(config, $"{NotificationUrl}/{notificationId}") == null;
     }
 
     private async Task<T?> Get<T>(IApiCredentials config, string url) where T : class
@@ -228,9 +222,9 @@ public class ArrApiClient
         }
     }
 
-    private async Task<bool> Post<T>(IApiCredentials config, string url, T body)
+    private Task<string?> Post<T>(IApiCredentials config, string url, T body)
     {
-        return await SendJson(config, HttpMethod.Post, url, body);
+        return SendJson(config, HttpMethod.Post, url, body);
     }
 
     private async Task<TResponse?> Post<T, TResponse>(IApiCredentials config, string url, T body) where TResponse : class
@@ -267,16 +261,17 @@ public class ArrApiClient
         }
     }
 
-    private async Task<bool> Delete(IApiCredentials config, string url)
+    private Task<string?> Delete(IApiCredentials config, string url)
     {
-        return await SendJson<object?>(config, HttpMethod.Delete, url, null);
+        return SendJson<object?>(config, HttpMethod.Delete, url, null);
     }
 
-    private async Task<bool> SendJson<T>(IApiCredentials config, HttpMethod method, string url, T? body)
+    // Null when the arr accepted it, otherwise what went wrong in the arr's own words.
+    private async Task<string?> SendJson<T>(IApiCredentials config, HttpMethod method, string url, T? body)
     {
         if (string.IsNullOrEmpty(config.Url) || string.IsNullOrEmpty(config.ApiKey))
         {
-            return false;
+            return "no URL or API key configured";
         }
 
         var requestUrl = $"{config.Url.Trim().TrimEnd('/')}{url}";
@@ -299,15 +294,35 @@ public class ArrApiClient
                 var responseBody = await response.Content.ReadAsStringAsync();
                 _logger.LogWarning("{Method} {Url} returned {StatusCode}: {Body}",
                     method, requestUrl, response.StatusCode, responseBody);
-                return false;
+                return ArrErrorMessage(responseBody) ?? $"{(int)response.StatusCode} {response.ReasonPhrase}";
             }
 
-            return true;
+            return null;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending {Method} to {Url}", method, requestUrl);
-            return false;
+            return ex.Message;
         }
+    }
+
+    // Sonarr and Radarr answer errors with {"message": "..."}; the webhook test failing lands here too.
+    private static string? ArrErrorMessage(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("message", out var message) &&
+                message.ValueKind == JsonValueKind.String)
+            {
+                return message.GetString();
+            }
+        }
+        catch (JsonException)
+        {
+        }
+
+        return null;
     }
 }

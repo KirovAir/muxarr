@@ -193,18 +193,19 @@
             }
 
             var existing = await ArrApi.FindMuxarrNotification(svc);
-            var success = existing != null
+            var error = existing != null
                 ? await ArrApi.UpdateWebhookNotification(svc, existing, webhookUrl)
                 : await ArrApi.CreateWebhookNotification(svc, webhookUrl);
 
-            if (success)
+            if (error == null)
             {
                 _isWebhookConnected = true;
                 ToastService.ShowSuccess($"Webhook {(existing != null ? "updated" : "created")} in {Service.Name}!");
             }
             else
             {
-                ToastService.ShowError($"Failed to set up webhook in {Service.Name}.");
+                // The arr tests the webhook before saving it, so this is usually "it cannot reach the Muxarr URL".
+                ToastService.ShowError($"{Service.Name} could not set up the webhook: {error}. Check that it can reach the Muxarr URL.");
             }
         }
         catch (Exception ex)
