@@ -23,6 +23,12 @@ public abstract class ScheduledServiceBase(ILogger logger) : MutexServiceBase(lo
         return _isRunning;
     }
 
+    // What the scheduler calls; a service that needs setup before a timed run overrides this.
+    public virtual Task RunScheduledAsync(CancellationToken token)
+    {
+        return RunAsync(token);
+    }
+
     public override async Task RunAsync(CancellationToken token)
     {
         try

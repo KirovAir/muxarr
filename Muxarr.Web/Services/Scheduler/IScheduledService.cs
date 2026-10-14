@@ -8,6 +8,7 @@ public interface IScheduledService : IMutexService
     TimeSpan? Interval { get; }
     bool ShouldRun();
     bool IsRunning();
+    Task RunScheduledAsync(CancellationToken token);
 }
 
 public interface IMutexService

@@ -30,7 +30,7 @@ public class ScheduledServiceManager(ILogger<ScheduledServiceManager> logger, IE
                 {
                     if (service.ShouldRun() && !service.IsRunning())
                     {
-                        _ = service.RunAsync(stoppingToken);
+                        _ = service.RunScheduledAsync(stoppingToken);
                     }
                 }
             }
