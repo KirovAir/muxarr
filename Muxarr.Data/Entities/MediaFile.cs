@@ -20,6 +20,8 @@ public class MediaFile : AuditableEntity, IHasId
     public DateTime FileLastWriteTime { get; set; }
     public DateTime FileCreationTime { get; set; }
 
+    public bool NeedsWork => HasRedundantTracks || HasNonStandardMetadata || HasRemovableChapters;
+
     public int? SnapshotId { get; set; }
     public MediaSnapshot Snapshot { get; set; } = null!;
 
