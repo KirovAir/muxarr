@@ -17,30 +17,21 @@ public class ConversionsController(IDbContextFactory<AppDbContext> contextFactor
     {
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 500);
+        page = Math.Min(page, int.MaxValue / pageSize);
 
         await using var context = await contextFactory.CreateDbContextAsync();
 
-        var query = context.MediaConversions
-            .Include(c => c.MediaFile)
-            .AsQueryable();
-
+        var query = context.MediaConversions.AsNoTracking();
         if (filePath != null)
         {
             query = query.Where(c => c.MediaFile != null && c.MediaFile.Path == filePath);
         }
 
-        query = query.OrderByDescending(c => c.CreatedDate);
-
-        var (data, total, totalPages) = await query.FindPagedAsync(page, pageSize, noTracking: true);
-        var items = await data.ToListAsync();
-
-        return Ok(new PaginatedResponse<ConversionResponse>
-        {
-            Page = page,
-            PageSize = pageSize,
-            TotalItems = total,
-            TotalPages = totalPages,
-            Items = items.Select(c => new ConversionResponse
+        // Project in SQL; a conversion row carries its whole log and the file its probe output.
+        var (data, total, totalPages) = await query
+            .OrderByDescending(c => c.CreatedDate)
+            .ThenByDescending(c => c.Id)
+            .Select(c => new ConversionResponse
             {
                 Id = c.Id,
                 Name = c.Name,
@@ -49,12 +40,22 @@ public class ConversionsController(IDbContextFactory<AppDbContext> contextFactor
                 SizeBefore = c.SizeBefore,
                 SizeAfter = c.SizeAfter,
                 SizeDifference = c.SizeDifference,
-                FilePath = c.MediaFile?.Path,
+                FilePath = c.MediaFile != null ? c.MediaFile.Path : null,
                 IsCustomConversion = c.IsCustomConversion,
                 StartedDate = c.StartedDate,
                 CreatedDate = c.CreatedDate,
                 UpdatedDate = c.UpdatedDate
-            }).ToList()
+            })
+            .FindPagedAsync(page, pageSize);
+        var items = await data.ToListAsync();
+
+        return Ok(new PaginatedResponse<ConversionResponse>
+        {
+            Page = page,
+            PageSize = pageSize,
+            TotalItems = total,
+            TotalPages = totalPages,
+            Items = items
         });
     }
 }
