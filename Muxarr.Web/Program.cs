@@ -65,7 +65,7 @@ await builder.RunWithLoggingAsync(async b =>
     {
         var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var logger = scope.ServiceProvider.GetRequiredService<ILogger<AppDbContext>>();
-        await context.Initialize(logger);
+        await context.Initialize(logger, app.Configuration.GetValue<bool>("Muxarr:Auth:Reset"));
     }
 
     // HTTP pipeline

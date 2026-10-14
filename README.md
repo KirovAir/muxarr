@@ -137,6 +137,7 @@ Until you do, Muxarr keeps running from `/data` and shows a reminder in the app.
 | `PUID` | User ID for file permissions | `888` |
 | `PGID` | Group ID for file permissions | `888` |
 | `UMASK` | Permission mask for files Muxarr writes, e.g. `002` for group-writable libraries | `022` |
+| `MUXARR__AUTH__RESET` | Set to `true` to remove the login on the next start if you lost the password. Remove it again afterwards | unset |
 
 ### Volumes
 
