@@ -59,6 +59,13 @@ public class NotificationProviderTests
     }
 
     [TestMethod]
+    public async Task Telegram_BadTopicIdFailsInsteadOfPostingToTheChat()
+    {
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() =>
+            Send(new TelegramProvider(), new() { ["BotToken"] = "t", ["ChatId"] = "-100", ["TopicId"] = "general" }));
+    }
+
+    [TestMethod]
     public async Task Telegram_NoTopicIdOmitsThreadId()
     {
         var root = await Send(new TelegramProvider(), new() { ["BotToken"] = "t", ["ChatId"] = "-100" });

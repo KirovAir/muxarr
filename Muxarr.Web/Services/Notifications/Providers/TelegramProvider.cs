@@ -32,8 +32,13 @@ public class TelegramProvider : NotificationProvider<TelegramSettings>
             ["parse_mode"] = "HTML"
         };
 
-        if (long.TryParse(s.TopicId, out var threadId))
+        if (!string.IsNullOrWhiteSpace(s.TopicId))
         {
+            if (!long.TryParse(s.TopicId, out var threadId) || threadId <= 0)
+            {
+                throw new InvalidOperationException($"Topic ID '{s.TopicId}' is not a number. Leave it empty for a normal chat.");
+            }
+
             body["message_thread_id"] = threadId;
         }
 
