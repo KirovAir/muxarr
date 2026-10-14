@@ -46,6 +46,12 @@ public enum AudioCodec
 
 public static class AudioCodecExtensions
 {
+    private static readonly AudioCodec[] Selectable = Enum.GetValues<AudioCodec>()
+        .Where(c => c != AudioCodec.Unknown)
+        .ToArray();
+
+    public static IReadOnlyList<AudioCodec> SelectableValues => Selectable;
+
     /// <summary>
     /// Parses a codec string from mkvmerge or ffprobe. The optional
     /// <paramref name="profile"/> is ffprobe's codec profile, used to

@@ -38,9 +38,7 @@ public static class TrackQualityScorer
     /// </summary>
     public static int ScoreAudio(IMediaTrack track, AudioQualityStrategy strategy = AudioQualityStrategy.BestQuality)
     {
-        var codec = Enum.TryParse<AudioCodec>(track.Codec, out var parsed)
-            ? parsed
-            : AudioCodecExtensions.ParseAudioCodec(track.Codec);
+        var codec = track.GetAudioCodec();
 
         var isLossless = LosslessAudioCodecs.Contains(codec) ? 1 : 0;
         var isSpatial = IsSpatialAudio(track) ? 1 : 0;

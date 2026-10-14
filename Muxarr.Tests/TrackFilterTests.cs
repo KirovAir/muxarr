@@ -861,6 +861,30 @@ public class TrackFilterTests
         CollectionAssert.AreEquivalent(new[] { 1 }, result.Select(t => t.Index).ToArray());
     }
 
+    // The audio safety net keeps one track when everything is filtered out; an
+    // excluded codec is the last resort, not the first pick.
+    [TestMethod]
+    public void ExcludedAudioCodec_SafetyNetPrefersAnotherCodec()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveCommentary = true,
+            ExcludeCodecs = true,
+            ExcludedAudioCodecs = [AudioCodec.TrueHd]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "English", nameof(AudioCodec.TrueHd)),
+            Audio(2, "English", nameof(AudioCodec.Aac), commentary: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEquivalent(new[] { 2 }, result.Select(t => t.Index).ToArray());
+    }
+
     // A language the other filters emptied out never made it into the file, so
     // the fallback still applies.
     [TestMethod]

@@ -568,6 +568,7 @@ public static class MediaFileExtensions
                     .OrderByDescending(t =>
                         MatchingPreferences(t.LanguageName, originalLanguage, s).Count > 0 ||
                         SameBaseLanguage(t.LanguageName, originalLanguage))
+                    .ThenByDescending(t => !s.ExcludeCodecs || !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
                     .ThenByDescending(t => !t.IsCommentary)
                     .ThenByDescending(t => !IsImpaired(t))
                     .ThenByDescending(x => x.Index);
@@ -650,15 +651,11 @@ public static class MediaFileExtensions
             }
         }
 
-        if (s.ExcludeCodecs && s.ExcludedCodecs.Count > 0)
+        if (s.ExcludeCodecs)
         {
-            filteredTracks = filteredTracks.Where(t =>
-            {
-                var parsed = Enum.TryParse<SubtitleCodec>(t.Codec, out var e)
-                    ? e
-                    : SubtitleCodecExtensions.ParseSubtitleCodec(t.Codec);
-                return parsed == SubtitleCodec.Unknown || !s.ExcludedCodecs.Contains(parsed);
-            });
+            filteredTracks = tracksInLanguage[0].Type == MediaTrackType.Audio
+                ? filteredTracks.Where(t => !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
+                : filteredTracks.Where(t => !s.ExcludedCodecs.Contains(t.GetSubtitleCodec()));
         }
 
         // Apply per-language track limits (MaxTracks).
@@ -815,6 +812,21 @@ public static class MediaFileExtensions
             8 => "7.1",
             _ => $"{channels}ch"
         };
+    }
+
+    // Stored as the enum name since the codec migration; older rows still hold the raw tool string.
+    public static AudioCodec GetAudioCodec(this IMediaTrack track)
+    {
+        return Enum.TryParse<AudioCodec>(track.Codec, out var codec)
+            ? codec
+            : AudioCodecExtensions.ParseAudioCodec(track.Codec);
+    }
+
+    public static SubtitleCodec GetSubtitleCodec(this IMediaTrack track)
+    {
+        return Enum.TryParse<SubtitleCodec>(track.Codec, out var codec)
+            ? codec
+            : SubtitleCodecExtensions.ParseSubtitleCodec(track.Codec);
     }
 
     public static string? GetChannelLayout(this IMediaTrack track)

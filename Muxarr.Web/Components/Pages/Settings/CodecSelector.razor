@@ -1,14 +1,17 @@
-<TagSelector TItem="SubtitleCodec" SelectedItems="SelectedItems" OnSearchInput="OnSearchInput" ShowListOnFocus="true">
+@typeparam TCodec where TCodec : struct, Enum
+
+<TagSelector TItem="TCodec" SelectedItems="SelectedItems" OnSearchInput="OnSearchInput" ShowListOnFocus="true">
     <TagTemplate>@context.DisplayName()</TagTemplate>
     <ListTemplate>@context.DisplayName()</ListTemplate>
 </TagSelector>
 
 @code {
-    [Parameter] [EditorRequired] public required List<SubtitleCodec> SelectedItems { get; set; }
+    [Parameter] [EditorRequired] public required List<TCodec> SelectedItems { get; set; }
+    [Parameter] [EditorRequired] public required IReadOnlyList<TCodec> Values { get; set; }
 
-    private Task<List<SubtitleCodec>> OnSearchInput(string query)
+    private Task<List<TCodec>> OnSearchInput(string query)
     {
-        var results = SubtitleCodecExtensions.SelectableValues
+        var results = Values
             .Where(c => !SelectedItems.Contains(c))
             .Where(c => string.IsNullOrEmpty(query)
                         || c.DisplayName().Contains(query, StringComparison.OrdinalIgnoreCase))

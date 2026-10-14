@@ -119,6 +119,7 @@ public class TrackSettings
     public Dictionary<TrackFlag, string> TrackNameOverrides { get; set; } = new();
     public bool ExcludeCodecs { get; set; }
     public List<SubtitleCodec> ExcludedCodecs { get; set; } = [];
+    public List<AudioCodec> ExcludedAudioCodecs { get; set; } = [];
 
     /// <summary>
     /// Finds the first flag-specific override that applies to the track.

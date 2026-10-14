@@ -859,6 +859,30 @@ public class ConversionPipelineTests
     }
 
     [TestMethod]
+    public void Pipeline_ExcludedAudioCodecs_RemovesDtsHdMa()
+    {
+        var file = MakeFile("English",
+            Video(0),
+            Audio(1, "English", nameof(AudioCodec.DtsHdMa), 8),
+            Audio(2, "English", nameof(AudioCodec.TrueHd), 8));
+
+        var profile = MakeProfile(
+            audio: new TrackSettings
+            {
+                Enabled = true,
+                AllowedLanguages = [IsoLanguage.Find("English")],
+                ExcludeCodecs = true,
+                ExcludedAudioCodecs = [AudioCodec.DtsHdMa]
+            });
+
+        var outputs = RunPipeline(file, profile);
+
+        var audio = outputs.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        Assert.AreEqual(1, audio.Count, "DTS-HD MA track should be removed");
+        Assert.AreEqual(2, audio[0].Index, "Only the TrueHD track should remain");
+    }
+
+    [TestMethod]
     public void Pipeline_ExcludedCodecs_AllExcluded_ResultsInEmpty()
     {
         var file = MakeFile("English",
