@@ -25,6 +25,9 @@ public class EpisodeResponse
 
 public class EpisodeFile
 {
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 

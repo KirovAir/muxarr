@@ -24,6 +24,9 @@ public class ArrApiClient
     private const string EpisodesUrl = "/api/v3/episode?seriesId={0}&includeEpisodeFile=true";
     private const string TestUrl = "/api/v3/diskspace";
     private const string NotificationUrl = "/api/v3/notification";
+    private const string EpisodeFilesUrl = "/api/v3/episodefile?seriesId={0}";
+    private const string CommandUrl = "/api/v3/command";
+    private const string RenameUrl = "/api/v3/rename?{0}={1}";
 
     public async Task<bool> CanConnect(IApiCredentials config)
     {
@@ -88,6 +91,64 @@ public class ArrApiClient
     {
         var data = await Get<List<MovieResponse>>(config, MovieUrl);
         return data ?? [];
+    }
+
+    public Task<List<SeriesResponse>?> GetSeries(IApiCredentials config)
+    {
+        return Get<List<SeriesResponse>>(config, SeriesUrl);
+    }
+
+    public Task<SeriesResponse?> GetSeries(IApiCredentials config, int seriesId)
+    {
+        return Get<SeriesResponse>(config, $"{SeriesUrl}/{seriesId}");
+    }
+
+    public Task<List<EpisodeFileResponse>?> GetEpisodeFiles(IApiCredentials config, int seriesId)
+    {
+        return Get<List<EpisodeFileResponse>>(config, string.Format(EpisodeFilesUrl, seriesId));
+    }
+
+    public Task<List<MovieResponse>?> GetMovies(IApiCredentials config)
+    {
+        return Get<List<MovieResponse>>(config, MovieUrl);
+    }
+
+    public Task<MovieResponse?> GetMovie(IApiCredentials config, int movieId)
+    {
+        return Get<MovieResponse>(config, $"{MovieUrl}/{movieId}");
+    }
+
+    public Task<EpisodeResponse?> GetEpisode(IApiCredentials config, int episodeId)
+    {
+        return Get<EpisodeResponse>(config, $"/api/v3/episode/{episodeId}");
+    }
+
+    // Rescans the file's series or movie so the arr picks up the new tracks.
+    public Task<ArrCommand?> Rescan(IApiCredentials config, ArrFile file)
+    {
+        return file.IsMovie
+            ? Post<object, ArrCommand>(config, CommandUrl, new { name = "RescanMovie", movieId = file.ParentId })
+            : Post<object, ArrCommand>(config, CommandUrl, new { name = "RescanSeries", seriesId = file.ParentId });
+    }
+
+    // What the arr would rename the file to under its own naming format, if anything.
+    public async Task<RenamePreview?> GetRename(IApiCredentials config, ArrFile file)
+    {
+        var url = string.Format(RenameUrl, file.IsMovie ? "movieId" : "seriesId", file.ParentId);
+        var previews = await Get<List<RenamePreview>>(config, url);
+        return previews?.FirstOrDefault(p => (file.IsMovie ? p.MovieFileId : p.EpisodeFileId) == file.FileId);
+    }
+
+    public Task<ArrCommand?> Rename(IApiCredentials config, ArrFile file)
+    {
+        return file.IsMovie
+            ? Post<object, ArrCommand>(config, CommandUrl, new { name = "RenameFiles", movieId = file.ParentId, files = new[] { file.FileId } })
+            : Post<object, ArrCommand>(config, CommandUrl, new { name = "RenameFiles", seriesId = file.ParentId, files = new[] { file.FileId } });
+    }
+
+    public Task<ArrCommand?> GetCommand(IApiCredentials config, int commandId)
+    {
+        return Get<ArrCommand>(config, $"{CommandUrl}/{commandId}");
     }
 
     public async Task<ArrNotification?> FindMuxarrNotification(IApiCredentials config)
@@ -170,6 +231,40 @@ public class ArrApiClient
     private async Task<bool> Post<T>(IApiCredentials config, string url, T body)
     {
         return await SendJson(config, HttpMethod.Post, url, body);
+    }
+
+    private async Task<TResponse?> Post<T, TResponse>(IApiCredentials config, string url, T body) where TResponse : class
+    {
+        if (string.IsNullOrEmpty(config.Url) || string.IsNullOrEmpty(config.ApiKey))
+        {
+            return null;
+        }
+
+        var requestUrl = $"{config.Url.Trim().TrimEnd('/')}{url}";
+
+        try
+        {
+            using var client = _httpClientFactory.CreateClient(HttpClientName);
+            using var request = new HttpRequestMessage(HttpMethod.Post, requestUrl);
+            request.Headers.Add("X-Api-Key", config.ApiKey.Trim());
+            var json = JsonSerializer.Serialize(body, JsonHelper.Settings);
+            request.Content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            var response = await client.SendAsync(request);
+            var content = await response.Content.ReadAsStringAsync();
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("POST {Url} returned {StatusCode}: {Body}", requestUrl, response.StatusCode, content);
+                return null;
+            }
+
+            return JsonHelper.Deserialize<TResponse>(content);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending POST to {Url}", requestUrl);
+            return null;
+        }
     }
 
     private async Task<bool> Delete(IApiCredentials config, string url)

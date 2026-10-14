@@ -13,12 +13,18 @@ public class MovieResponse
     [JsonPropertyName("originalLanguage")]
     public Language OriginalLanguage { get; set; } = new();
 
+    [JsonPropertyName("path")]
+    public string Path { get; set; } = string.Empty;
+
     [JsonPropertyName("movieFile")]
     public MovieFile MovieFile { get; set; } = new();
 }
 
 public class MovieFile
 {
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
     [JsonPropertyName("path")]
     public string Path { get; set; } = string.Empty;
 }

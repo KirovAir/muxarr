@@ -1,7 +1,8 @@
 @using Muxarr.Core.Config
 @using Muxarr.Data.Entities
 <p class="text-muted">Connect Muxarr to Sonarr and Radarr to pull original language metadata and trigger automatic
-    processing when new files are imported.</p>
+    processing when new files are imported. After a conversion they rescan the file, and rename it when their naming
+    format has something in it that changed, like the audio codec or languages. Muxarr follows the new name.</p>
 
 <EditForm Model="Services" OnValidSubmit="HandleSubmit">
     <DataAnnotationsValidator/>

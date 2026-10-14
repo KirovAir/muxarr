@@ -16,6 +16,7 @@ namespace Muxarr.Web.Services;
 public class MediaConverterService(
     IServiceScopeFactory serviceScopeFactory,
     MediaScannerService scanner,
+    ArrUpdateService arrUpdater,
     ILogger<MediaConverterService> logger)
     : ConfigurableServiceBase<ProcessingConfig>(serviceScopeFactory, logger)
 {
@@ -432,9 +433,10 @@ public class MediaConverterService(
 
         if (conversion.State is ConversionState.Completed or ConversionState.Failed)
         {
+            // The file is done, a cancel landing now must not undo the outcome.
             conversion.Progress = 100;
             context.Update(conversion);
-            await context.SaveChangesAsync(token);
+            await context.SaveChangesAsync(CancellationToken.None);
             ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
             return;
         }
@@ -559,6 +561,7 @@ public class MediaConverterService(
         conversion.SizeAfter = mediaFile.Size;
         conversion.AfterSnapshot = mediaFile.Snapshot;
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
+        await UpdateArr(conversion, context);
         conversion.State = ConversionState.Completed;
     }
 
@@ -753,12 +756,15 @@ public class MediaConverterService(
         conversion.AfterSnapshot = conversion.MediaFile.Snapshot;
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
 
+        await UpdateArr(conversion, context);
+
         await RunPostProcessing(conversion);
 
+        // The swap is committed, a cancel landing now must not undo the outcome.
         conversion.State = ConversionState.Completed;
         conversion.Progress = 100;
         conversion.Log("Done!", logger);
-        await context.SaveChangesAsync(token);
+        await context.SaveChangesAsync(CancellationToken.None);
 
         try
         {
@@ -897,6 +903,26 @@ public class MediaConverterService(
                     }
                 }
             }
+        }
+    }
+
+    // Best effort after the file is already done: nothing here may change the outcome,
+    // so it does not take the conversion's cancel token either.
+    private async Task UpdateArr(MediaConversion conversion, AppDbContext context)
+    {
+        try
+        {
+            var newPath = await arrUpdater.AfterConversion(conversion, context);
+            if (newPath != null)
+            {
+                // Saved right away, the arr's rename webhook must find the row at the new path.
+                conversion.MediaFile!.Path = newPath;
+                await context.SaveChangesAsync(CancellationToken.None);
+            }
+        }
+        catch (Exception e)
+        {
+            conversion.Log($"Updating Sonarr/Radarr failed: {e.Message}", logger, true);
         }
     }
 

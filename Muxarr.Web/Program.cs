@@ -36,6 +36,7 @@ await builder.RunWithLoggingAsync(async b =>
 
     // Background services
     b.Services.AddSingleton<ArrApiClient>();
+    b.Services.AddSingleton<ArrUpdateService>();
     b.Services.AddScheduledService<TimeAgoService>();
     b.Services.AddScheduledService<MediaConverterService>();
     b.Services.AddScheduledService<ArrSyncService>();

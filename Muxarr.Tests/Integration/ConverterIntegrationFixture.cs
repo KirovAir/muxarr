@@ -62,6 +62,7 @@ public sealed class ConverterIntegrationFixture : IDisposable
         services.AddDbContext<AppDbContext>();
 
         services.AddSingleton<ArrApiClient>();
+        services.AddSingleton<ArrUpdateService>();
         services.AddSingleton<ArrSyncService>();
         services.AddSingleton<MediaScannerService>();
         services.AddSingleton<MediaConverterService>();
