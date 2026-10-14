@@ -68,6 +68,9 @@ await builder.RunWithLoggingAsync(async b =>
         await context.Initialize(logger, app.Configuration.GetValue<bool>("Muxarr:Auth:Reset"));
     }
 
+    // Subscribes to converter events in its constructor, so it has to exist before the first conversion.
+    app.Services.GetRequiredService<NotificationService>();
+
     // HTTP pipeline
     if (!app.Environment.IsDevelopment())
     {
