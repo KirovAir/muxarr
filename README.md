@@ -113,6 +113,40 @@ docker run -d \
   ghcr.io/kirovair/muxarr:latest
 ```
 
+### Running without Docker
+
+Muxarr is a plain ASP.NET Core app, so it also runs in a Proxmox LXC, a VM or on a NAS without Docker. There are no prebuilt binaries, so build it yourself. The steps below assume Debian or Ubuntu and a user `media` that can write to your media files.
+
+1. Install `git`, the [.NET 10 SDK](https://dotnet.microsoft.com/download), `mkvtoolnix` and ffmpeg 8.1 or newer. Distro packages of ffmpeg are usually too old; take a static build from [BtbN](https://github.com/BtbN/FFmpeg-Builds/releases) like the Docker image does. `mkvmerge`, `mkvpropedit`, `ffmpeg` and `ffprobe` have to be on the `PATH`.
+2. Build it and create a folder for the database:
+   ```bash
+   git clone https://github.com/KirovAir/muxarr.git
+   cd muxarr
+   sudo install -d -o "$USER" /opt/muxarr
+   dotnet publish Muxarr.Web/Muxarr.Web.csproj -c Release -o /opt/muxarr
+   sudo install -d -o media -g media /var/lib/muxarr
+   ```
+3. Save this as `/etc/systemd/system/muxarr.service` and run `sudo systemctl enable --now muxarr`. The two variables set the database path (without it Muxarr uses `/config/muxarr.db`, the Docker default) and the port. The working directory matters: that is where it looks for `appsettings.json` and `wwwroot`.
+   ```ini
+   [Unit]
+   Description=Muxarr
+   After=network.target
+
+   [Service]
+   User=media
+   WorkingDirectory=/opt/muxarr
+   Environment="ConnectionStrings__DefaultConnection=Data Source=/var/lib/muxarr/muxarr.db"
+   Environment="ASPNETCORE_HTTP_PORTS=8183"
+   ExecStart=/usr/bin/dotnet /opt/muxarr/Muxarr.Web.dll
+   Restart=on-failure
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+4. Open `http://your-ip:8183` and continue with [Setup](#setup).
+
+To update, `git pull`, publish again and `sudo systemctl restart muxarr`. Settings, history and logs all live in `/var/lib/muxarr`; stop the service before copying that folder, SQLite keeps recent writes in the `-wal` file next to the database.
+
 ### Upgrading from older versions
 
 Older versions stored the database in `/data`. To upgrade an existing install, point your appdata volume at `/config` instead of `/data` and keep the same host path:
