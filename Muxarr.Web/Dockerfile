@@ -1,4 +1,5 @@
 ARG FFMPEG_VERSION=8.1
+ARG MKVTOOLNIX_VERSION=102.0
 
 # ffmpeg static build from BtbN (linked from ffmpeg.org). Debian's
 # apt ffmpeg is 5.1 - too old to round-trip MP4 udta.name titles.
@@ -21,11 +22,20 @@ RUN set -eux; \
     /out/ffmpeg -version
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
+ARG MKVTOOLNIX_VERSION
 
+# mkvtoolnix from the project's own repo; the Ubuntu one in the base image is v82 from 2024.
+# The key is checked against the fingerprint published on mkvtoolnix.download/authenticity.html.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gosu \
     curl \
-    mkvtoolnix \
+    ca-certificates \
+    gnupg \
+    && . /etc/os-release \
+    && curl -fsSL https://mkvtoolnix.download/gpg-pub-moritzbunkus.gpg -o /usr/share/keyrings/mkvtoolnix.gpg \
+    && gpg --show-keys --with-colons /usr/share/keyrings/mkvtoolnix.gpg | grep -q '^fpr:::::::::D9199745B0545F2E8197062B0F92290A445B9007:' \
+    && echo "deb [signed-by=/usr/share/keyrings/mkvtoolnix.gpg] https://mkvtoolnix.download/ubuntu/ ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/mkvtoolnix.list \
+    && apt-get update && apt-get install -y --no-install-recommends "mkvtoolnix=${MKVTOOLNIX_VERSION}-*" \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 888 appgroup \
     && useradd -u 888 -g 888 -d /config -s /bin/false appuser \
