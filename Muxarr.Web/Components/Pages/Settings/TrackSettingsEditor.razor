@@ -95,6 +95,20 @@
         </div>
     }
 
+    @if (!IsAudio)
+    {
+        @* --- Extract to Files --- *@
+        <div class="mb-3 form-check form-switch">
+            <InputCheckbox id="extractSubtitlesToFiles" class="form-check-input"
+                           @bind-Value="Settings.ExtractToFiles"/>
+            <label class="form-check-label" for="extractSubtitlesToFiles">Extract kept text subtitles to
+                files</label>
+            <small class="form-text text-muted d-block">Writes each kept SRT, ASS or WebVTT subtitle next to the
+                file, named by language (Movie.pt-BR.srt, Movie.en.forced.srt), and removes it from the file.
+                Image subtitles like PGS stay embedded. Requires remux.</small>
+        </div>
+    }
+
     @* --- Default Track --- *@
     <div class="mb-3">
         <label class="form-label mb-1">Default track</label>

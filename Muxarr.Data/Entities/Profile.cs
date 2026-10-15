@@ -122,6 +122,12 @@ public class TrackSettings
     public List<AudioCodec> ExcludedAudioCodecs { get; set; } = [];
 
     /// <summary>
+    /// Subtitles only. Kept text subtitles are written next to the file as
+    /// "name.lang[.forced].ext" and taken out of the container. Image subtitles stay.
+    /// </summary>
+    public bool ExtractToFiles { get; set; }
+
+    /// <summary>
     /// Finds the first flag-specific override that applies to the track.
     /// Flags are checked in enum order (SDH > Forced > Commentary > AD).
     /// Empty-string entries count as "no override" (user cleared the box).
