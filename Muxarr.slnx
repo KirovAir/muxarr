@@ -5,5 +5,6 @@
     <Project Path="Muxarr.Core/Muxarr.Core.csproj"/>
     <Project Path="Muxarr.Data/Muxarr.Data.csproj"/>
     <Project Path="Muxarr.Tests/Muxarr.Tests.csproj"/>
+    <Project Path="Muxarr.Tools/Muxarr.Tools.csproj"/>
     <Project Path="Muxarr.Web/Muxarr.Web.csproj"/>
 </Solution>
