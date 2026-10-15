@@ -26,6 +26,10 @@ public class ConversionPlan : IMedia<TrackPlan>
     // not in Tracks, so the remux leaves them out of the container.
     public List<TrackPlan> ExtractedSubtitles { get; set; } = [];
 
+    // Whether an extracted subtitle replaces the sidecars already there in its
+    // language, rather than taking the next free name beside them.
+    public bool ReplaceExistingSubtitleFiles { get; set; }
+
     bool IMedia<TrackPlan>.HasChapters => HasChapters ?? false;
     bool IMedia<TrackPlan>.HasAttachments => HasAttachments ?? false;
 }

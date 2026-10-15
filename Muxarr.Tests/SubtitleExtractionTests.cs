@@ -79,6 +79,56 @@ public class SubtitleExtractionTests
         Assert.IsTrue(plan.Tracks.Any(t => t.Index == 2));
     }
 
+    [TestMethod]
+    [DataRow(ExistingSubtitleFiles.Keep, false)]
+    [DataRow(ExistingSubtitleFiles.Replace, true)]
+    public void Plan_ExtractToFiles_CarriesWhatToDoWithExistingFiles(ExistingSubtitleFiles mode, bool replace)
+    {
+        var file = MakeFile("English",
+            Video(0),
+            Audio(1, "English", nameof(AudioCodec.Aac), 6),
+            Sub(2, "English"));
+
+        var plan = BuildPlan(file, new TrackSettings { ExtractToFiles = true, ExistingFiles = mode });
+
+        Assert.AreEqual(replace, plan.ReplaceExistingSubtitleFiles);
+    }
+
+    // --- Existing sidecars ---
+
+    [TestMethod]
+    [DataRow("Movie.pt-BR.srt", "pt-BR", false, false)]
+    [DataRow("Movie.por.srt", "pt", false, false)]
+    [DataRow("Movie.en.forced.srt", "en", true, false)]
+    [DataRow("Movie.en.hi.srt", "en", false, true)]
+    [DataRow("Movie.eng.sdh.forced.ass", "en", true, true)]
+    [DataRow("Movie.en.1.srt", "en", false, false)]
+    [DataRow("Movie.EN.CC.VTT", "en", false, true)]
+    public void ParseSidecar_ReadsLanguageAndFlags(string name, string tag, bool forced, bool hearingImpaired)
+    {
+        var sidecar = SubtitleExtractor.ParseSidecar(Path.Combine("library", "Movie.mkv"), Path.Combine("library", name));
+
+        Assert.IsNotNull(sidecar);
+        Assert.AreEqual(tag, sidecar.LanguageTag);
+        Assert.AreEqual(forced, sidecar.Forced);
+        Assert.AreEqual(hearingImpaired, sidecar.HearingImpaired);
+    }
+
+    [TestMethod]
+    [DataRow("Movie.mkv")]
+    [DataRow("Movie.nfo")]
+    [DataRow("Movie.srt")]
+    [DataRow("Movie.en.sup")]
+    [DataRow("Movie.Part2.en.srt")]
+    [DataRow("Movie.en.extra.srt")]
+    [DataRow("Movie (2).en.srt")]
+    [DataRow("Other.en.srt")]
+    [DataRow("Movie.en.srt.muxtmp")]
+    public void ParseSidecar_IgnoresFilesThatAreNotThisMediasSubtitles(string name)
+    {
+        Assert.IsNull(SubtitleExtractor.ParseSidecar("Movie.mkv", name));
+    }
+
     // --- Naming ---
 
     [TestMethod]

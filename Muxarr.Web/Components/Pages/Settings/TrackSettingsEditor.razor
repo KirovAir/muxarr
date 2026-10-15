@@ -107,6 +107,31 @@
                 file, named by language (Movie.pt-BR.srt, Movie.en.forced.srt), and removes it from the file.
                 Image subtitles like PGS stay embedded. Requires remux.</small>
         </div>
+
+        @if (Settings.ExtractToFiles)
+        {
+            <div class="mb-3">
+                <label class="form-label mb-1" for="existingSubtitleFiles">When a subtitle file already exists</label>
+                <select id="existingSubtitleFiles" class="form-select form-select-sm" style="max-width: 320px;"
+                        value="@Settings.ExistingFiles"
+                        @onchange="e => Settings.ExistingFiles = Enum.Parse<ExistingSubtitleFiles>(e.Value?.ToString() ?? nameof(ExistingSubtitleFiles.Keep))">
+                    <option value="@nameof(ExistingSubtitleFiles.Keep)">Keep both</option>
+                    <option value="@nameof(ExistingSubtitleFiles.Replace)">Replace it</option>
+                </select>
+                <small class="form-text text-muted d-block">
+                    @if (Settings.ExistingFiles == ExistingSubtitleFiles.Replace)
+                    {
+                        <text>Files in the same language with the same forced and SDH flags are deleted once the
+                            extracted subtitle is in place (Movie.en.hi.srt makes way for Movie.en.sdh.srt).</text>
+                    }
+                    else
+                    {
+                        <text>Existing files are left alone and the extracted subtitle takes the next free name
+                            (Movie.en.1.srt beside Movie.en.srt).</text>
+                    }
+                </small>
+            </div>
+        }
     }
 
     @* --- Default Track --- *@

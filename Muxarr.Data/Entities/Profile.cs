@@ -44,6 +44,21 @@ public enum DefaultTrackStrategy
     ForceFirstLanguage
 }
 
+public enum ExistingSubtitleFiles
+{
+    /// <summary>
+    /// Subtitle files already beside the media are left alone. An extracted
+    /// subtitle whose name is taken gets ".1", ".2" before the flags.
+    /// </summary>
+    Keep,
+
+    /// <summary>
+    /// An extracted subtitle replaces the files already beside the media in its
+    /// language with the same forced and SDH flags.
+    /// </summary>
+    Replace
+}
+
 public enum TrackFlag
 {
     [Display(Name = "SDH")]
@@ -126,6 +141,11 @@ public class TrackSettings
     /// "name.lang[.forced].ext" and taken out of the container. Image subtitles stay.
     /// </summary>
     public bool ExtractToFiles { get; set; }
+
+    /// <summary>
+    /// Subtitles only, with ExtractToFiles: what happens to subtitle files already beside the media.
+    /// </summary>
+    public ExistingSubtitleFiles ExistingFiles { get; set; } = ExistingSubtitleFiles.Keep;
 
     /// <summary>
     /// Finds the first flag-specific override that applies to the track.

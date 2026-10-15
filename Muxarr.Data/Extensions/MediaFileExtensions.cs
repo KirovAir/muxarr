@@ -1305,6 +1305,8 @@ public static class MediaFileExtensions
         if (profile.SubtitleSettings.ExtractToFiles)
         {
             MoveTextSubtitlesToSidecars(target, sourceTracks);
+            target.ReplaceExistingSubtitleFiles =
+                profile.SubtitleSettings.ExistingFiles == ExistingSubtitleFiles.Replace;
         }
 
         TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot());

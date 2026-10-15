@@ -489,10 +489,22 @@ public class MediaConverterService(
 
             // Only now that the new file is in place do the subtitles it no longer
             // carries appear beside it. Until then the original still has them.
-            foreach (var sidecar in sidecars.Where(s => File.Exists(s.Temp)))
+            var written = sidecars.Where(s => File.Exists(s.Temp)).ToList();
+            foreach (var sidecar in written)
             {
                 File.Move(sidecar.Temp, sidecar.Final, true);
                 conversion.Log($"Wrote {Path.GetFileName(sidecar.Final)}", logger);
+            }
+
+            // The files they replace go last, so a failure before this point
+            // leaves every existing sidecar where it was.
+            var replaced = written.SelectMany(s => s.Replaces)
+                .Where(path => !written.Any(s => s.Final.Equals(path, StringComparison.OrdinalIgnoreCase)))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in replaced.Where(File.Exists))
+            {
+                File.Delete(path);
+                conversion.Log($"Removed {Path.GetFileName(path)}, replaced by an extracted subtitle", logger);
             }
         }
         catch (OperationCanceledException)
@@ -542,7 +554,7 @@ public class MediaConverterService(
         }
     }
 
-    private record Sidecar(string Temp, string Final);
+    private record Sidecar(string Temp, string Final, IReadOnlyList<string> Replaces);
 
     // Writes the subtitles the plan takes out of the container to temporary files
     // beside the media, and checks each one before the remux removes the track.
@@ -558,7 +570,12 @@ public class MediaConverterService(
 
         var mediaFile = conversion.MediaFile!;
         var sourceByIndex = mediaFile.Snapshot.Tracks.ToDictionary(t => t.Index);
-        var taken = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var replace = conversion.ConversionPlan.ReplaceExistingSubtitleFiles;
+        var existing = SubtitleExtractor.FindSidecars(mediaFile.Path);
+        // Kept files hold on to their names, so an extracted subtitle numbers
+        // around them; replaced ones give theirs up.
+        var taken = new HashSet<string>(replace ? Enumerable.Empty<string>() : existing.Select(e => Path.GetFileName(e.Path)),
+            StringComparer.OrdinalIgnoreCase);
         var requests = new List<SubtitleExtractor.Request>();
         var extensions = new Dictionary<string, string>();
 
@@ -574,11 +591,16 @@ public class MediaConverterService(
                             ?? throw new Exception($"Subtitle track {track.Index} ({codec}) cannot be written as text.");
             var tag = SubtitleExtractor.LanguageTag(source.LanguageName, track.LanguageCode ?? source.LanguageCode)
                       ?? throw new Exception($"Subtitle track {track.Index} has no language to name its file by.");
-            var final = SubtitleExtractor.SidecarPath(mediaFile.Path, tag,
-                track.IsForced ?? source.IsForced, track.IsHearingImpaired ?? source.IsHearingImpaired,
-                extension, taken);
+            var forced = track.IsForced ?? source.IsForced;
+            var hearingImpaired = track.IsHearingImpaired ?? source.IsHearingImpaired;
+            var final = SubtitleExtractor.SidecarPath(mediaFile.Path, tag, forced, hearingImpaired, extension, taken);
+            List<string> replaces = replace
+                ? existing.Where(e => e.LanguageTag.Equals(tag, StringComparison.OrdinalIgnoreCase)
+                                      && e.Forced == forced && e.HearingImpaired == hearingImpaired)
+                    .Select(e => e.Path).ToList()
+                : [];
 
-            var sidecar = new Sidecar(final + ".muxtmp", final);
+            var sidecar = new Sidecar(final + ".muxtmp", final, replaces);
             sidecars.Add(sidecar);
             extensions[sidecar.Temp] = extension;
             requests.Add(new SubtitleExtractor.Request(track.Index, codec, sidecar.Temp));

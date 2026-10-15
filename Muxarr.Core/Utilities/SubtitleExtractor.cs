@@ -12,6 +12,10 @@ public static class SubtitleExtractor
 
     public record Request(int Index, SubtitleCodec Codec, string OutputPath);
 
+    public record ExistingSidecar(string Path, string LanguageTag, bool Forced, bool HearingImpaired);
+
+    private static readonly string[] SidecarExtensions = ["srt", "ass", "ssa", "vtt"];
+
     /// <summary>
     /// The sidecar extension for a text codec, or null when the track cannot be
     /// written as a text file (PGS, VobSub, DVB) and has to stay embedded.
@@ -75,6 +79,52 @@ public static class SubtitleExtractor
         }
 
         return Path.Combine(directory, name);
+    }
+
+    /// <summary>
+    /// Reads "Movie.pt-BR.sdh.srt" beside "Movie.mkv" as a pt-BR SDH subtitle, with
+    /// "hi" and "cc" counted as SDH and a ".1"-style number ignored. Null for any
+    /// file that is not a text subtitle named after this media and a known language.
+    /// </summary>
+    public static ExistingSidecar? ParseSidecar(string mediaPath, string sidecarPath)
+    {
+        var baseName = System.IO.Path.GetFileNameWithoutExtension(mediaPath);
+        var name = System.IO.Path.GetFileName(sidecarPath);
+        var extension = System.IO.Path.GetExtension(name).TrimStart('.').ToLowerInvariant();
+        if (!name.StartsWith(baseName + ".", StringComparison.OrdinalIgnoreCase)
+            || !SidecarExtensions.Contains(extension)
+            || name.Length <= baseName.Length + extension.Length + 2)
+        {
+            return null;
+        }
+
+        var parts = name[(baseName.Length + 1)..^(extension.Length + 1)].Split('.');
+        var tag = LanguageTag(null, parts[0]);
+        var flags = parts[1..].Select(f => f.ToLowerInvariant()).ToList();
+        if (tag == null || !flags.All(f => f is "forced" or "sdh" or "hi" or "cc" || (f.Length > 0 && f.All(char.IsDigit))))
+        {
+            return null;
+        }
+
+        return new ExistingSidecar(sidecarPath, tag, flags.Contains("forced"),
+            flags.Any(f => f is "sdh" or "hi" or "cc"));
+    }
+
+    /// <summary>
+    /// The text subtitle files already beside the media, as <see cref="ParseSidecar"/> reads them.
+    /// </summary>
+    public static List<ExistingSidecar> FindSidecars(string mediaPath)
+    {
+        var directory = System.IO.Path.GetDirectoryName(mediaPath);
+        if (string.IsNullOrEmpty(directory) || !Directory.Exists(directory))
+        {
+            return [];
+        }
+
+        return Directory.EnumerateFiles(directory)
+            .Select(f => ParseSidecar(mediaPath, f))
+            .OfType<ExistingSidecar>()
+            .ToList();
     }
 
     public static async Task<ProcessResult> Extract(string input, bool matroska, IReadOnlyList<Request> requests,

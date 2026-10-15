@@ -68,7 +68,60 @@ public class SubtitleExtractionIntegrationTests : IntegrationTestBase
         FileAssertions.AssertSha256Equals(path, hash, "the second pass must not touch the file");
     }
 
-    private async Task<Profile> SeedExtractingProfile()
+    [TestMethod]
+    public async Task ExtractToFiles_KeepsExistingFilesAndNumbersAroundThem()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var baseName = Path.GetFileNameWithoutExtension(path);
+        await File.WriteAllTextAsync(Sidecar(baseName, "en.srt"), "old");
+        await File.WriteAllTextAsync(Sidecar(baseName, "fr.ass"), "old");
+
+        await RunExtraction(path, ExistingSubtitleFiles.Keep);
+
+        Assert.AreEqual("old", await File.ReadAllTextAsync(Sidecar(baseName, "en.srt")));
+        Assert.AreEqual("old", await File.ReadAllTextAsync(Sidecar(baseName, "fr.ass")));
+        StringAssert.Contains(await File.ReadAllTextAsync(Sidecar(baseName, "en.1.srt")), "-->");
+        StringAssert.Contains(await File.ReadAllTextAsync(Sidecar(baseName, "fr.srt")), "-->",
+            "a different extension is not a name collision");
+    }
+
+    [TestMethod]
+    public async Task ExtractToFiles_ReplacesExistingFilesOfTheSameKind()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var baseName = Path.GetFileNameWithoutExtension(path);
+        foreach (var suffix in new[] { "en.srt", "en.1.srt", "en.hi.srt", "fr.ass", "de.srt" })
+        {
+            await File.WriteAllTextAsync(Sidecar(baseName, suffix), "old");
+        }
+
+        await RunExtraction(path, ExistingSubtitleFiles.Replace);
+
+        StringAssert.Contains(await File.ReadAllTextAsync(Sidecar(baseName, "en.srt")), "-->", "overwritten");
+        StringAssert.Contains(await File.ReadAllTextAsync(Sidecar(baseName, "en.sdh.srt")), "-->");
+        Assert.IsFalse(File.Exists(Sidecar(baseName, "en.1.srt")), "same language and flags: replaced");
+        Assert.IsFalse(File.Exists(Sidecar(baseName, "en.hi.srt")), "hi counts as SDH: replaced by en.sdh.srt");
+        Assert.IsFalse(File.Exists(Sidecar(baseName, "fr.ass")), "replaced by fr.srt");
+        Assert.AreEqual("old", await File.ReadAllTextAsync(Sidecar(baseName, "de.srt")),
+            "nothing was extracted in German");
+        Assert.IsTrue(File.Exists(Sidecar(baseName, "en.forced.srt")));
+    }
+
+    private string Sidecar(string baseName, string suffix)
+    {
+        return Path.Combine(TempDir, $"{baseName}.{suffix}");
+    }
+
+    private async Task RunExtraction(string path, ExistingSubtitleFiles mode)
+    {
+        var profile = await SeedExtractingProfile(mode);
+        var file = await Fixture.ScanAndPersist(path, profile);
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromProfile(profile), false);
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+    }
+
+    private async Task<Profile> SeedExtractingProfile(ExistingSubtitleFiles mode = ExistingSubtitleFiles.Keep)
     {
         return await Fixture.WithDbContext(async ctx =>
         {
@@ -77,7 +130,7 @@ public class SubtitleExtractionIntegrationTests : IntegrationTestBase
                 Name = "extract-profile",
                 Directories = [TempDir],
                 AudioSettings = new TrackSettings(),
-                SubtitleSettings = new TrackSettings { ExtractToFiles = true }
+                SubtitleSettings = new TrackSettings { ExtractToFiles = true, ExistingFiles = mode }
             };
             ctx.Profiles.Add(profile);
             await ctx.SaveChangesAsync();
