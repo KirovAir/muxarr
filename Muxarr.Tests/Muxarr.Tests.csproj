@@ -12,6 +12,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="FsCheck"/>
         <PackageReference Include="MSTest.TestAdapter"/>
         <PackageReference Include="MSTest.TestFramework"/>
     </ItemGroup>
