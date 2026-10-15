@@ -10,3 +10,4 @@ Muxarr.sln.DotSettings.user
 **/wwwroot/lib
 .DS_Store
 publish/
+.claude/worktrees/

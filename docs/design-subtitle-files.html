@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Muxarr design: subtitle files</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f5f5f7; --card: #fff; --ink: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7;
+    --accent: #0071e3; --soft: #e8f0fe; --ok: #34c759; --warn: #ff9f0a; --bad: #ff3b30;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 48px 24px 96px; }
+  h1 { font-size: 34px; letter-spacing: -0.02em; margin: 0 0 4px; }
+  h2 { font-size: 22px; letter-spacing: -0.01em; margin: 56px 0 12px; padding-top: 24px; border-top: 1px solid var(--line); }
+  h3 { font-size: 16px; margin: 28px 0 8px; }
+  p.lead { font-size: 18px; color: var(--muted); margin: 0 0 24px; }
+  p { margin: 0 0 12px; }
+  code { font: 13px var(--mono); background: #ebebf0; padding: 1px 5px; border-radius: 4px; }
+  pre { font: 13px/1.5 var(--mono); background: #1d1d1f; color: #f5f5f7; padding: 14px 16px; border-radius: 10px; overflow-x: auto; }
+  ul, ol { padding-left: 22px; } li { margin: 4px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0 20px; font-size: 14px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .note { background: var(--soft); border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+  .warn { background: #fff4e0; border-radius: 10px; padding: 12px 16px; margin: 16px 0; }
+  .rule { display: grid; grid-template-columns: 36px 1fr; gap: 12px; margin: 10px 0; }
+  .rule > b { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; }
+  .step { display: grid; grid-template-columns: 36px 1fr; gap: 12px; margin: 8px 0; }
+  .step > b { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--soft); color: #0b5cc0; font-size: 13px; }
+  .proof { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .proof.none { color: #9a5b00; }
+  .mock { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; margin: 14px 0 6px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  .mock + .caption { color: var(--muted); font-size: 13px; margin: 0 0 24px 4px; }
+  .mock .title { font-weight: 600; margin-bottom: 4px; }
+  .mock .hint { color: var(--muted); font-size: 13px; margin-top: 6px; }
+  .seg { display: inline-flex; background: #ebebf0; border-radius: 9px; padding: 3px; margin: 8px 0 2px; }
+  .seg span { padding: 6px 14px; border-radius: 7px; font-size: 14px; color: var(--ink); }
+  .seg span.on { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.12); font-weight: 600; }
+  .switch { display: inline-block; width: 38px; height: 22px; border-radius: 11px; background: #d2d2d7; position: relative; vertical-align: middle; margin-right: 10px; }
+  .switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .row { display: flex; align-items: center; gap: 10px; padding: 8px 0; }
+  .sub { margin-left: 18px; padding-left: 16px; border-left: 2px solid var(--line); margin-top: 8px; }
+  .tracks { width: 100%; font-size: 14px; }
+  .tracks td { padding: 7px 8px; border-bottom: 1px solid #efeff4; }
+  .tracks td:first-child { color: var(--muted); width: 36px; font: 12px var(--mono); }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .03em; padding: 2px 7px; border-radius: 6px; background: #ebebf0; color: var(--muted); text-transform: uppercase; vertical-align: middle; margin-left: 6px; }
+  .tag.file { background: #e5f6ea; color: #1b7a36; }
+  .tag.emb { background: #ebebf0; }
+  .tag.move { background: #fff4e0; color: #9a5b00; }
+  .tag.drop { background: #ffe5e3; color: #b3261e; }
+  .tag.new { background: var(--soft); color: #0b5cc0; }
+  .arrow { color: var(--muted); }
+  .badge { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; font-size: 12px; margin-right: 6px; background: #fff; }
+  .log { font: 13px/1.6 var(--mono); }
+  .log .ok { color: #1b7a36; } .log .mu { color: var(--muted); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .two { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+
+<h1>Subtitle files</h1>
+<p class="lead">One model for subtitles inside a video and subtitles beside it. Covers issues #36 and #83, PRs #45 and #84. Version 3: every rule now points at the test, tool or source reading that backs it, and the ones nothing backs yet say so.</p>
+
+<div class="note">
+  <b>The idea in one sentence.</b> A subtitle is a subtitle. Whether it sits inside the container or beside it as a file is a property, and the profile says where text subtitles belong. The profile's language rules keep running untouched; the only new work is deciding, per kept subtitle, whether it has to move.
+</div>
+
+<h2>1. Why</h2>
+<p>Bazarr and most players list a language twice when it is both embedded and present as a sidecar. People resolve that in two opposite directions: mux the file in (#36, PR #45) or move the track out (#83, PR #84). Both need the same naming convention, parser, scanner support and place in the profile. Built separately they give two parsers, two toggles that can contradict each other, and a loop. So they are one feature with a direction.</p>
+
+<h2>2. What the other tools actually do</h2>
+<p>Read from the Sonarr, Radarr and Bazarr sources on 2026-10-15 (Sonarr and Radarr <code>develop</code>, Bazarr <code>master</code>). This section replaced guesswork in version 2 and changed two rules.</p>
+
+<table>
+  <tr><th>Tool</th><th>Writes</th><th>Reads</th><th>Renames or deletes files it did not write</th></tr>
+  <tr><td>Sonarr, Radarr</td>
+      <td><code>Video[.N].&lt;iso2&gt;[.tag...].ext</code>. Language is always the two-letter code; <code>pt-BR</code> comes out as <code>.pt</code>. Tags are <code>forced foreign default cc psdh sdh</code>. The copy number sits <b>before</b> the language: <code>Episode.1.en.srt</code>. <span class="arrow">SubtitleService.cs GetSuffix</span></td>
+      <td>Same tags. <b><code>hi</code> is not a tag</b>; it is the code for Hindi, so <code>Movie.en.hi.srt</code> parses as Hindi with no tags. <code>Movie.pt-BR.srt</code> parses as unknown language. <code>Movie.en.1.srt</code> parses as English copy 1 through the title parser. <span class="arrow">LanguageParser.cs SubtitleLanguageRegex</span></td>
+      <td><b>Yes.</b> Every disk rescan imports any subtitle file beside a tracked video, not gated by "Import Extra Files" <span class="arrow">(ExistingExtraFileService, ExistingSubtitleImporter)</span>. On RenameFiles every tracked file is renamed, and the new name is <b>rebuilt from the parsed fields</b>, not copied from the old name <span class="arrow">(SubtitleService.MoveFilesAfterRename)</span>. So <code>Movie.en.hi.srt</code> becomes <code>NewName.hi.srt</code> (Hindi) and a <code>pt-BR</code> file loses its language segment. Tracked files go to the recycle bin when the video is upgraded.</td></tr>
+  <tr><td>Bazarr</td>
+      <td><code>Video.&lt;ietf&gt;[.forced|.hi].ext</code>. Language is the IETF tag: <code>en</code>, <code>pt-BR</code>, <code>zh-TW</code>. <code>forced</code> wins over the SDH tag, never both. The SDH tag is <code>hi</code> by default, configurable to <code>cc</code> or <code>sdh</code>. With "single language" on it writes a bare <code>Video.srt</code>. <span class="arrow">subliminal_patch/core.py get_subtitle_path, config.py hi_extension</span></td>
+      <td>Strict: exactly one language code and at most one tag after the video name; a numbered file is ignored. Reads <code>hi</code>, <code>cc</code>, <code>sdh</code> as SDH. Content-detects the language of tagless files and SDH in untagged ones. Embedded tracks count as present by default (<code>use_embedded_subs</code>). <span class="arrow">core.py _search_external_subtitles, indexer/movies.py</span></td>
+      <td>Never renames. Deletes only its own history entries on upgrade and on manual request. When a file it tracked disappears and the language is still wanted, it downloads again.</td></tr>
+</table>
+
+<div class="warn">
+  <b>Consequences.</b> (1) Muxarr must never write <code>hi</code>: the arrs read it as Hindi and rename accordingly. <code>sdh</code> is understood by all three tools. (2) Muxarr triggers a rescan and a rename itself after every conversion (#79), so any name Muxarr writes goes through the arr's parser and is rebuilt. Only names in the arr's own grammar survive that unchanged. (3) <code>pt-BR</code> cannot survive it. Bazarr wants it, the arrs cannot carry it. That is decision F below.
+</div>
+
+<h2>3. The model</h2>
+
+<h3>What counts as a sidecar (reading)</h3>
+<pre>Video[.N].&lt;lang&gt;[.sdh|.hi|.cc][.forced][.N].&lt;srt|ass|ssa|vtt|sup&gt;      beside Video.mkv, tags in any order
+
+Video.en.srt              English
+Video.pt-BR.srt           Portuguese (Brazil), as Bazarr writes it
+Video.en.hi.srt           English SDH, as Bazarr writes it by default
+Video.en.sdh.forced.srt   English, SDH, forced
+Video.1.en.srt            English copy 1, as the arrs write it
+Video.en.1.srt            the same, as PR #84 wrote it
+Video.hi.srt              Hindi; "hi" is SDH only after a language</pre>
+<p>The language token has to match a known code, IETF tag or language name exactly; <code>en-US</code> and <code>en-foo</code> are not sidecars, since neither Bazarr nor the arrs write them and the general language lookup's "strip the region" fallback must not turn them into English. Each tag at most once, in any order, because the arrs preserve whatever order they parsed. The number is 1 to 99 and may sit on either side of the language. The file must be in the video's directory. Not a sidecar: <code>Movie (2).en.srt</code>, <code>Movie.Part2.en.srt</code>, <code>Movie.en.2024.srt</code>, a bare <code>Movie.srt</code> (decision A), <code>Movie.und.srt</code>. The scanner's ignore filter applies to sidecars too.</p>
+<p class="proof">Proof: <code>SubtitleSidecarTests</code>, 40 cases, all pass. <code>muxarr-tools sidecars &lt;dir&gt;</code> lists what the parser accepts and rejects in a real library; run on a sample layout, 9 parsed and 3 rejected as intended. Not yet run on your library: the path was not given.</p>
+
+<h3>What Muxarr writes</h3>
+<pre>Video[.N].&lt;iso2&gt;[.sdh][.forced].ext        the arr grammar, so a rename round-trips
+
+Movie.en.srt   Movie.en.sdh.srt   Movie.en.forced.srt   Movie.1.en.srt   Movie.pt.srt (see F)</pre>
+<p>Two-letter code, <code>sdh</code> never <code>hi</code>, the copy number before the language. ASS stays ASS; mov_text becomes SRT because it cannot exist as a file. No other conversion.</p>
+
+<h3>Where sidecars are stored</h3>
+<p><b>On <code>MediaFile</code>, as a JSON list, refreshed on every scan.</b> Not in <code>Snapshot.Tracks</code>, not on the snapshot. Each entry holds the suffix, language, flags, format, size and modified time. The path is built from the video's path, so a rename keeps the list valid. Reasons, each checked in the code: a snapshot is rebuilt only when the video's size or time changes, so a sidecar in it would never be noticed; everything reading <code>Snapshot.Tracks</code> means container tracks (TrackCount, validator, structural check, mkvmerge and ffmpeg track ids, the unique index); Before and After snapshots are history; a JSON column goes through the existing value comparer so the scanner's save fires, as for <code>IsHardlinked</code>. Each sidecar gets a synthetic <code>Index</code> above any container index so it can flow through <code>IMediaTrack</code> code and the preview's dictionary.</p>
+
+<h3>Two kinds of subtitles</h3>
+<table>
+  <tr><th>Kind</th><th>Formats</th><th>Can move</th></tr>
+  <tr><td>Text</td><td>SRT, ASS/SSA, WebVTT, mov_text</td><td>Yes, both directions</td></tr>
+  <tr><td>Image</td><td>PGS, VobSub, DVB, <code>.sup</code></td><td>Never</td></tr>
+</table>
+<p class="proof">Note from the extractor check: ffmpeg 9 reports a WebVTT track inside Matroska as an unknown codec, so the scanner would not classify it and it would never be offered for extraction. mkvextract handles it fine. Environment limitation, not a design rule.</p>
+
+<h3>What the plan says</h3>
+<p><code>ConversionPlan.Tracks</code> keeps its exact meaning: <b>the output container, in order</b>. The planner, <code>Delta</code>, the validator and both writers do not change. A sidecar being muxed in is in <code>Tracks</code> with a <code>SourcePath</code>. An extracted track is <b>not</b> in <code>Tracks</code>; it is in a second list, <code>ExtractedSubtitles</code>. A sidecar that stays as a file is not in the plan. Deletions are explicit actions attached to a move in the same plan. Every move changes the count or order of <code>Tracks</code>, so the structural check already answers Remux and the metadata-edit path can never run with a move pending. <code>Delta</code> must copy <code>SourcePath</code> and the extraction list through, which it does not today.</p>
+
+<h3>The profile setting</h3>
+<p>One choice in the Subtitles tab, with one switch under it, <b>at the top level of the tab</b>, outside the removal fold. A profile that filters nothing can still want every text subtitle as a file, and the fold is hidden when removal is off.</p>
+<table>
+  <tr><th>Text subtitles live</th><th>Meaning</th></tr>
+  <tr><td><b>Where they are</b> (default)</td><td>Current behaviour. Sidecars are shown in the library, nothing moves, and they take no part in the language rules.</td></tr>
+  <tr><td><b>Inside the file</b></td><td>A sidecar the profile keeps, not already embedded, is muxed in. MKV only; on MP4 and WebM this behaves as "Where they are" and flags nothing.</td></tr>
+  <tr><td><b>Next to the file</b></td><td>A kept embedded text subtitle with a known language is extracted and removed from the container. Any container.</td></tr>
+</table>
+<p>Under it: <b>Delete subtitle files Muxarr just moved</b>, off by default.</p>
+
+<h2>4. How a plan is built</h2>
+<p>The insertion points sit before and after the language rules, never inside them. That is what keeps <code>feature/advanced-settings</code> untouched: its rewrite of <code>GetAllowedTracks</code> still receives a list of <code>IMediaTrack</code> and returns the kept ones.</p>
+<div class="step"><b>1</b><div><b>Effective mode.</b> "Inside the file" on a non-Matroska container, and any mode for an image sidecar, becomes "Where they are".</div></div>
+<div class="step"><b>2</b><div><b>Candidates.</b> In "Inside the file" the text sidecars join the embedded subtitles as candidates, except one whose language, forced flag, SDH flag and format already exist embedded (rule 3). In the other two modes the candidates are the embedded tracks only.</div></div>
+<div class="step"><b>3</b><div><b>Language rules</b>, unchanged. The undetermined-language resolution keeps counting embedded tracks only.</div></div>
+<div class="step"><b>4</b><div><b>Split by destination.</b> Kept embedded text subtitles in "Next to the file" go to the extraction list. Kept sidecars in "Inside the file" go to <code>Tracks</code> with a <code>SourcePath</code>. Everything else kept stays in <code>Tracks</code>. Sidecars not kept are not in the plan.</div></div>
+<div class="step"><b>5</b><div><b>Mutations on container tracks only</b>: flag correction, name standardization, default flag assignment and reordering. The split comes first so a sidecar cannot win the default flag. A muxed-in sidecar does get the standardized name, language tag and a position by priority.</div></div>
+<div class="step"><b>6</b><div><b>Container quirks</b> through <code>TargetResolver</code> as today.</div></div>
+<p class="proof">Proof: <code>SubtitleLocationModelProperties</code> is steps 1 to 4 as code, running the real <code>GetAllowedTracks</code> under a simulated directory. 2,000 generated worlds per run, three properties: deterministic; "Where they are" never moves or deletes and keeps exactly the plain profile's tracks; one conversion converges and loses nothing. Steps 5 and 6 (mutations, default flags, order) are not in the model; they are covered on the real planner by <code>PlanConvergenceProperties</code>. The undetermined count in step 3 needs a parameter on <code>GetAllowedTracks</code>, the one place the rules are touched. When the feature is built, the model's planning function is swapped for the real one and the properties stay.</p>
+
+<h2>5. Business rules</h2>
+
+<div class="rule"><b>1</b><div><b>Keep or remove is decided by the profile, not by location.</b> Language rules never delete files.<div class="proof">Proof: model property "Where they are", and the plain planner's own suite (865 tests).</div></div></div>
+<div class="rule"><b>2</b><div><b>Muxarr never deletes a subtitle file it did not just move.</b> With the switch on, the only files that go are the sidecar just muxed in and the like-for-like file an extracted one just replaced.<div class="proof">Proof: model property "loses nothing": with the switch off no file ever vanishes; with it on every deleted file is one a subtitle in the same plan replaced or vacated. The model found "same language and flags" too loose twice: it deleted an ASS beside a freshly extracted SRT, and then every numbered copy of the same subtitle. Rule 4 now names the one file.</div></div></div>
+<div class="rule"><b>3</b><div><b>Mux-in identity.</b> A sidecar is muxed in only when no embedded subtitle has the same language, forced flag, SDH flag and format. Without this, "Inside the file" with the delete switch off adds the same subtitle every conversion, because the language rules keep every track unless a limit is set.<div class="proof">Proof: model property "converges": the second pass has no moves, across all modes and switch states.</div></div></div>
+<div class="rule"><b>4</b><div><b>Extraction always extracts.</b> If the name is taken: switch off, the new file is numbered (<code>Movie.1.en.srt</code>); switch on, <em>the one file whose name the new one takes</em> is replaced once the new one is in place. Numbered copies beside it are left alone, and an ASS beside an SRT is a different subtitle, not a double.<div class="proof">Proof: model property "loses nothing" and "converges". Cue conservation of the extractor itself: section 8.</div></div></div>
+<div class="rule"><b>5</b><div><b>"Where they are" is display only.</b> Anyone upgrading with Bazarr files beside their videos sees the same plans as before.<div class="proof">Proof: model property, plus the plan dump in section 8 which will be the zero-diff check once the planner change exists.</div></div></div>
+<div class="rule"><b>6</b><div><b>Image subtitles never move</b>, and "Inside the file" on MP4 or WebM moves nothing and flags nothing.<div class="proof">Proof: model property (image sidecars and MP4 worlds are generated and never move).</div></div></div>
+<div class="rule"><b>7</b><div><b>No name, no file.</b> An embedded text subtitle with an unknown or undetermined language stays in the container in "Next to the file". A bare <code>Video.srt</code> is not a sidecar.<div class="proof">Proof: model property (undetermined tracks are generated and never extracted); parser tests reject the bare name.</div></div></div>
+<div class="rule"><b>8</b><div><b>Needs work.</b> A fourth flag, <code>HasMisplacedSubtitles</code>, true when the plan contains an extraction or a mux-in. <code>HasRedundantTracks</code> stays about the container and becomes set based, and so does the converter's track-drop check that decides whether to measure track ends.<div class="proof none">Nothing proves this yet: it is a change to code that does not exist. The count-based checks were confirmed by reading MediaScannerService.ApplyProfileFlags and MediaConverterService.HandleConversion.</div></div></div>
+<div class="rule"><b>9</b><div><b>Sidecars are read on every scan</b>, outside the probe gate. A file whose sidecar set changed and now needs work is queued like a newly discovered file when scanned files are queued automatically.<div class="proof none">Nothing proves this yet. Confirmed by reading: today only new files are queued (MediaScannerService.ScanFileCore), and the probe gate is NeedsFileProbe.</div></div></div>
+<div class="rule"><b>10</b><div><b>Order of operations.</b> Extract to temp files and check each for events. Remux. Probe and validate. Swap the video. Place extracted sidecars under the video's name, <em>before</em> the rescan and the arr update, so the arr adopts them. Rescan. Let the arr rescan and rename. Reconcile (rule 11). Then run the deletions attached to the plan and remove the <code>.muxbak</code> backup. A failure before the swap leaves everything untouched. A failure after it keeps the temp sidecars on disk and logs loudly.<div class="proof">Proof for the existing steps: <code>FinalizeFaultInjectionTests</code> throw inside the converter at each of seven points and hash the directory. Every row leaves a playable video under its own name and no temp or backup file (section 8). This exercises the handled-failure paths; a hard kill (power loss) skips the rollback and is only covered by the startup recovery tests that already exist. <span class="none" style="color:#9a5b00">The sidecar steps are not built, so their rows do not exist yet; the seam is in place to add them.</span></div></div></div>
+<div class="rule"><b>11</b><div><b>Renames follow the video.</b> Muxarr writes arr-safe names, so when the arr renames the video it renames the sidecars to exactly the names Muxarr would expect. After the arr update, for every known sidecar: new name exists, adopt it; only the old name exists, move it; both exist, touch neither and log it.<div class="proof">Proof of today's behaviour: the fake-arr harness in <code>/tmp/muxarr-e2e</code>. Scenario 1 (arr renames video and sidecar): both renamed, Muxarr updates its path and never mentions the sidecar. Scenario 2 (video only): sidecar orphaned under the old name. Scenario 3 (arr dies after renaming the video): same as 2, and the conversion log shows no sign the arr died. <span style="color:#9a5b00">Reconciliation itself is not built.</span> The arr behaviour is from source reading, not yet reproduced against a real Sonarr or Radarr.</div></div></div>
+<div class="rule"><b>12</b><div><b>Naming on the way out</b> is section 3's write grammar.<div class="proof">Proof: parser round-trips every written name (tests); the arr grammar is cited from source.</div></div></div>
+<div class="rule"><b>13</b><div><b>Empty tracks.</b> An extracted file with no events is dropped and the track still leaves the container.<div class="proof">Proof: PR #84's HasEvents verified on four constructed empty tracks (BOM-only SRT, header-only ASS, empty mov_text), section 8.</div></div></div>
+<div class="rule"><b>14</b><div><b>Custom and batch conversions are embedded only.</b> "Apply profile" in the custom editor selects the profile's container tracks and its extracted tracks, so a "Next to the file" profile does not make the custom plan delete the subtitle it would have extracted.<div class="proof none">Nothing proves this yet. The defect was confirmed by reading CustomConversionEditor.ApplyProfile, which selects target.Tracks indexes only.</div></div></div>
+
+<h3>Doubles</h3>
+<table>
+  <tr><th>Double</th><th>Where they are</th><th>Inside the file</th><th>Next to the file</th></tr>
+  <tr><td>Same language, flags and format, embedded and as file</td><td>nothing</td><td>file already in, left alone (rule 3)</td><td>extracted; numbered, or replaces the file with delete on (rule 4)</td></tr>
+  <tr><td>Same language and flags, different format</td><td>nothing</td><td>file muxed in; a limit may then pick, and the scorer rates ASS and SRT the same, so the earlier track wins</td><td>extracted beside the other, no collision</td></tr>
+  <tr><td>Two embedded tracks, same language</td><td colspan="2">limit keeps the best scored, or both</td><td>each kept one is extracted; the second is numbered</td></tr>
+  <tr><td>Two files, same language and flags</td><td>nothing</td><td>both candidates; muxed in up to the limit, lowest number first</td><td>nothing</td></tr>
+  <tr><td>Same language, different flags</td><td colspan="3">not a double</td></tr>
+  <tr><td><code>hi</code>, <code>cc</code>, <code>sdh</code> spellings</td><td colspan="2">the same flag</td><td>writes <code>sdh</code>; with delete on, the <code>hi</code> file of the same format is the one replaced</td></tr>
+</table>
+
+<h3>Decision matrix</h3>
+<table>
+  <tr><th>Situation</th><th>Where they are</th><th>Inside the file</th><th>Next to the file</th></tr>
+  <tr><td>Kept language, embedded only</td><td>nothing</td><td>nothing</td><td>extract, remove from container</td></tr>
+  <tr><td>Kept language, file only</td><td>nothing</td><td>mux in; delete the file if the switch is on</td><td>nothing</td></tr>
+  <tr><td>Kept language, both (same identity)</td><td>nothing</td><td>nothing</td><td>extract; number, or replace with delete on</td></tr>
+  <tr><td>Unwanted language, embedded</td><td>remove</td><td>remove</td><td>remove</td></tr>
+  <tr><td>Unwanted language, file</td><td>nothing</td><td>nothing</td><td>nothing</td></tr>
+  <tr><td>Untagged embedded text subtitle</td><td>as today</td><td>as today</td><td>stays embedded</td></tr>
+  <tr><td>Image subtitle, either place</td><td colspan="3">language rules only, never moved</td></tr>
+  <tr><td>MP4 or WebM</td><td>nothing</td><td>nothing, no flag</td><td>extract via ffmpeg</td></tr>
+</table>
+
+<h2>6. UX</h2>
+<div class="mock">
+  <div class="title">Text subtitles live</div>
+  <div class="seg"><span class="on">Where they are</span><span>Inside the file</span><span>Next to the file</span></div>
+  <div class="hint">Image subtitles like PGS and VobSub always stay inside the file. MP4 and WebM files are never muxed into.</div>
+  <div class="sub" style="opacity:.45">
+    <div class="row"><span class="switch"></span> Delete subtitle files Muxarr just moved</div>
+    <div class="hint">Off: a muxed-in file stays beside the video, and an extracted one takes a free name like <code>Movie.1.en.srt</code>.</div>
+  </div>
+</div>
+<p class="caption">Segmented control at the top of the Subtitles tab, beside "Default subtitle". The delete switch is dimmed until a direction is picked. A choice-card or plain-select variant was considered; this one needs no explanation for the default.</p>
+
+<div class="mock">
+  <table class="tracks">
+    <tr><td>S1</td><td>English <span class="tag">SRT</span></td><td></td></tr>
+    <tr><td>S2</td><td>English, forced <span class="tag">PGS</span></td><td></td></tr>
+    <tr><td>S3</td><td>Dutch <span class="tag">SRT</span></td><td><span class="tag file">file</span> <span class="arrow">Movie.nl.srt</span></td></tr>
+    <tr><td>S4</td><td>English, SDH <span class="tag">SRT</span></td><td><span class="tag file">file</span> <span class="arrow">Movie.en.hi.srt</span></td></tr>
+  </table>
+</div>
+<p class="caption">Library track list: sidecars after the embedded tracks, with a "file" tag and the muted file name. The SQL filters and stats keep counting embedded tracks only.</p>
+
+<div class="two">
+  <div class="mock">
+    <div class="title" style="font-size:13px;color:var(--muted)">Profile: Next to the file</div>
+    <table class="tracks">
+      <tr><td>S1</td><td>English SRT</td><td><span class="tag move">→ Movie.en.srt</span></td></tr>
+      <tr><td>S2</td><td>English forced PGS</td><td><span class="tag emb">stays</span></td></tr>
+      <tr><td>S3</td><td>Dutch SRT <span class="tag file">file</span></td><td><span class="tag emb">stays</span></td></tr>
+      <tr><td>S4</td><td>German SRT</td><td><span class="tag drop">removed</span></td></tr>
+    </table>
+  </div>
+  <div class="mock">
+    <div class="title" style="font-size:13px;color:var(--muted)">Profile: Inside the file</div>
+    <table class="tracks">
+      <tr><td>S1</td><td>English SRT</td><td><span class="tag emb">stays</span></td></tr>
+      <tr><td>S2</td><td>English forced PGS</td><td><span class="tag emb">stays</span></td></tr>
+      <tr><td>S3</td><td>Dutch SRT <span class="tag file">file</span></td><td><span class="tag new">muxed in</span></td></tr>
+      <tr><td>S4</td><td>German SRT</td><td><span class="tag drop">removed</span></td></tr>
+    </table>
+  </div>
+</div>
+<p class="caption">Preview: four words, stays, removed, muxed in, and an arrow with the target name. A sidecar left alone by rule 3 says "stays (already in file)" on hover. The conversion detail page also renders the plan's moves, since sidecars are not in snapshots.</p>
+
+<div class="mock log">
+  <div class="mu">Extracting 1 subtitle</div>
+  <div class="ok">  Movie.en.srt  (1,204 cues)</div>
+  <div class="mu">Remuxing with mkvmerge</div>
+  <div class="ok">  Validated, original replaced</div>
+  <div class="mu">Placing subtitle files</div>
+  <div class="ok">  Movie.en.srt</div>
+  <div class="mu">  Movie.en.hi.srt kept (delete is off)</div>
+  <div class="mu">Radarr renamed the file to Movie (2024) Bluray-1080p.mkv</div>
+  <div class="ok">  Movie (2024) Bluray-1080p.en.srt (moved by Radarr)</div>
+</div>
+<p class="caption">Conversion log. The fake-arr run showed the log today says nothing when the arr dies mid-rename; that line is added.</p>
+
+<p><b>Deliberately not built:</b> no per-file override; no "replace" versus "keep both" mode; no manual import button; no moves in custom or batch conversions; no format conversion beyond mov_text to SRT; no image extraction; no subtitle downloading.</p>
+
+<h2>7. Decisions</h2>
+<table>
+  <tr><th></th><th>Question</th><th>Decision</th></tr>
+  <tr><td>A</td><td>Bare <code>Video.srt</code></td><td><b>Not a sidecar.</b> Bazarr writes it only in "single language" mode and guesses the language from the content; Muxarr cannot. Documented limitation.</td></tr>
+  <tr><td>B</td><td>Kept subtitle exists both embedded and as a file, "Next to the file"</td><td><b>Extract and number; replace only with the delete switch on, and only like-for-like.</b> Same language and flags are not proof of the same text.</td></tr>
+  <tr><td>C</td><td>Delete switch default</td><td><b>Off.</b></td></tr>
+  <tr><td>D</td><td>"Inside the file" on MP4</td><td><b>One hint line, no flag.</b></td></tr>
+  <tr><td>E</td><td>Sidecars after an arr rename</td><td><b>Write arr-safe names; place before the arr update; reconcile from disk afterwards.</b> Never rely on the arr, never a blind rename.</td></tr>
+  <tr><td>F</td><td>Regional variants: <code>pt-BR</code> as #83 asked, or <code>pt</code> as the arrs write</td><td><b>Open, for Jesse.</b> Writing <code>pt-BR</code> serves Bazarr but Muxarr's own post-conversion rename (#79) sends it through the arr, which parses it as unknown and rebuilds the name without the language. Writing <code>pt</code> survives the arr but Bazarr reads it as European Portuguese and may download Brazilian again. Recommendation: write the two-letter code by default, and only write the IETF tag when no arr integration is configured. The #83 author should be told either way.</td></tr>
+</table>
+
+<h2>8. Evidence</h2>
+
+<h3>Tools and tests added</h3>
+<table>
+  <tr><th>Artifact</th><th>What it proves</th><th>Result</th></tr>
+  <tr><td><code>Muxarr.Core/Utilities/SubtitleSidecar.cs</code> + <code>SubtitleSidecarTests</code></td><td>The reading grammar</td><td>36 pass</td></tr>
+  <tr><td><code>Muxarr.Tools</code>: <code>sidecars &lt;dir&gt;</code></td><td>Parser against a real library: every accepted, rejected and ambiguous file</td><td>Sample layout: 9 parsed, 3 rejected, 0 ambiguous. Your library: not yet run</td></tr>
+  <tr><td><code>Muxarr.Tools</code>: <code>plan-dump &lt;db&gt; &lt;json&gt;</code></td><td>Every file's plan and strategy under every profile, for diffing across code versions</td><td>Dev database, 10 files × 2 profiles: master twice gives identical output; master versus <code>feature/advanced-settings</code> gives identical output. The zero-diff check for "Where they are" runs when the planner change exists</td></tr>
+  <tr><td><code>PlanConvergenceProperties</code> (FsCheck)</td><td>The real planner on generated files and profiles: deterministic, and applying a plan then re-planning gives Skip</td><td>3 × 2,000 cases on master, 2,000 on <code>feature/advanced-settings</code>, pass. Found two defects on master (below). The branch's own new knobs (tiers, coverage, cases) are not generated yet; only the legacy settings it still reads</td></tr>
+  <tr><td><code>SubtitleLocationModelProperties</code> (FsCheck)</td><td>Section 4 and rules 2 to 7 as an executable model over the real language rules</td><td>2 × 2,000 cases pass; found the like-for-like gap in rule 4</td></tr>
+  <tr><td><code>MediaConverterService.FaultHook</code> + <code>FinalizeFaultInjectionTests</code></td><td>Disk state after a crash at each finalize step, before and after the recovery sweep</td><td>7 rows, all leave a playable video (table below)</td></tr>
+  <tr><td><code>/tmp/muxarr-e2e</code> fake Radarr + <code>run.sh</code></td><td>What happens to a sidecar through a real conversion and arr rename</td><td>3 scenarios recorded (rule 11)</td></tr>
+  <tr><td>PR #84 extractor on fixtures (worktree <code>/tmp/muxarr-pr84</code>)</td><td>Cue conservation</td><td>10 fixture tracks and 11 constructed tracks (overlaps, styling, CJK, Latin-1, empty): cue counts, first and last timestamps and an independent ffprobe count all equal</td></tr>
+</table>
+
+<h3>Failure matrix (today's pipeline, an exception thrown after each step, test_complex.mkv, English-only profile)</h3>
+<table>
+  <tr><th>Crash after</th><th>Directory after crash</th><th>After recovery sweep</th><th>Video under its name</th></tr>
+  <tr><td>validation</td><td>original</td><td>original</td><td>original</td></tr>
+  <tr><td>backup renamed</td><td>original (restored from .muxbak)</td><td>original</td><td>original</td></tr>
+  <tr><td>swap</td><td>converted + .muxbak</td><td>converted, backup swept</td><td>converted</td></tr>
+  <tr><td>backup deleted</td><td>converted</td><td>converted</td><td>converted</td></tr>
+  <tr><td>rescan</td><td>converted</td><td>converted</td><td>converted</td></tr>
+  <tr><td>arr update</td><td>converted</td><td>converted</td><td>converted</td></tr>
+  <tr><td>post-processing</td><td>converted</td><td>converted</td><td>converted</td></tr>
+</table>
+<p>Every row marks the conversion Failed even when the file was converted, which is honest. For the sidecar steps, rule 10 requires the same table to gain rows for "sidecars placed", "arr reconciled" and "deletions run", each leaving every subtitle in at least one place.</p>
+
+<h3>Defects found on master along the way</h3>
+<ol>
+  <li><b>A subtitle the user explicitly kept is removed on the second conversion.</b> With "assume undetermined is original" on and "Undetermined" also in the allowed list, the filter keeps the lone <code>und</code> track as Undetermined, but the mutation step still rewrites its language to the original language. After the write it carries a language the profile does not allow and goes. Found by <code>PlanConvergenceProperties</code>; excluded there as a known issue so the property keeps hunting. Fix belongs in <code>ApplyProfileState</code>: do not resolve when Undetermined is explicitly allowed, mirroring <code>GetAllowedTracks</code>.</li>
+  <li><b>Two conversions instead of one</b> when a removal leaves exactly one undetermined track: the undetermined rule only fires then. The same applies to extraction: an untagged subtitle stays embedded (rule 7) until it is alone, then gets a language and a file on the next pass. By design, documented in both properties as the one allowed two-step case.</li>
+  <li>The conversion log says nothing when the arr dies mid-rename (fake-arr scenario 3). Only the API client logs it.</li>
+  <li>PR #84: mkvextract warnings (exit code 1) are not logged.</li>
+</ol>
+
+<h2>9. Review record</h2>
+<p>Version 2 was traced by the author and reviewed independently by two further readers against master and <code>feature/advanced-settings</code>. Version 3 replaced reading with execution where it could: the arr and Bazarr behaviour comes from their sources with file and line references in the research notes, the rules above run as property tests, the finalize sequence has a failure matrix, and the extractor has cue counts. The tooling itself was then reviewed by Codex, which caught a false defect (the simulation claimed a faststart MP4 loses its layout on remux; the converter restores the source's value before calling ffmpeg, and the simulation now does too), the numbered-copy deletion in rule 4, the model writing numbers in the Bazarr position, and the parser's over-broad language lookup. Things in version 2 that were wrong and are fixed here: the write grammar (hi, number position, regional tags) and rule 4's replace scope.</p>
+
+<h2>10. The open PRs</h2>
+<p><b>PR #84</b> provides the extractor and most of the tests, and its cue conservation is verified. To land it has to adopt: the <code>MediaFile</code> sidecar list refreshed by the scanner; the single location setting plus the delete switch; the control outside the removal fold; the new flag; the arr-safe write grammar; placement before the rescan and arr update; no cleanup of temp sidecars after the swap; and logging of mkvextract warnings.</p>
+<p><b>PR #45</b> is declined. Its mkvmerge multi-input code and <code>SourcePath</code> shape are reused when "Inside the file" is built on the same model.</p>
+
+</main>
+</body>
+</html>
