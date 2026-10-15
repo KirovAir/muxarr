@@ -27,6 +27,9 @@ public class MediaConverterService(
     public override TimeSpan? Interval => TimeSpan.FromMinutes(60);
 
     public bool IsPaused { get; private set; }
+
+    // Test seam: invoked with a step name at each point of the finalize sequence.
+    internal static Func<string, Task>? FaultHook { get; set; }
     public event Action<ConverterProgressEvent>? ConverterStateChanged;
     public event Action? QueueStateChanged;
     public event Action? QueueFinished;
@@ -713,6 +716,7 @@ public class MediaConverterService(
         OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.ConversionPlan, measuredEnds);
 
         conversion.Log("Validation of new file is ok!", logger);
+        await Fault("validated");
         ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
 
         token.ThrowIfCancellationRequested();
@@ -723,6 +727,7 @@ public class MediaConverterService(
         {
             conversion.Log("Renaming old file..", logger);
             File.Move(conversion.MediaFile.Path, backupFile);
+            await Fault("backup-renamed");
 
             conversion.Log("Moving new file..", logger);
             await context.SaveChangesAsync(token);
@@ -737,9 +742,11 @@ public class MediaConverterService(
 
             // The swap is done here; a failed backup delete must not roll it back.
             swapCommitted = true;
+            await Fault("swapped");
 
             conversion.Log("Removing old file..", logger);
             File.Delete(backupFile);
+            await Fault("backup-deleted");
         }
         catch
         {
@@ -752,13 +759,16 @@ public class MediaConverterService(
         }
 
         await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
+        await Fault("rescanned");
         conversion.SizeAfter = conversion.MediaFile.Size;
         conversion.AfterSnapshot = conversion.MediaFile.Snapshot;
         conversion.SizeDifference = Math.Abs(conversion.SizeBefore - conversion.SizeAfter);
 
         await UpdateArr(conversion, context);
+        await Fault("arr-updated");
 
         await RunPostProcessing(conversion);
+        await Fault("post-processed");
 
         // The swap is committed, a cancel landing now must not undo the outcome.
         conversion.State = ConversionState.Completed;
@@ -783,6 +793,11 @@ public class MediaConverterService(
     /// original. Any failure here is logged but swallowed - the outer catch will
     /// mark the conversion Failed and the startup cleanup is the last-resort safety net.
     /// </summary>
+    private static Task Fault(string step)
+    {
+        return FaultHook?.Invoke(step) ?? Task.CompletedTask;
+    }
+
     private void RestoreFromBackup(MediaConversion conversion, string backupFile)
     {
         if (!File.Exists(backupFile))

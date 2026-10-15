@@ -28,4 +28,8 @@
         <Content Update="appsettings.Development.json" DependentUpon="appsettings.json"/>
     </ItemGroup>
 
+    <ItemGroup>
+        <InternalsVisibleTo Include="Muxarr.Tests"/>
+    </ItemGroup>
+
 </Project>
