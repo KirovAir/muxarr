@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Maintainer>
+  <Profile>
+    Muxarr strips the audio and subtitle tracks you'll never play, by remux rather than
+    re-encode, so there's no quality loss. It hooks into Sonarr and Radarr to keep each
+    title's original language. Bug reports and feature requests are welcome on GitHub.
+  </Profile>
+  <Icon>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/unraid/muxarr.png</Icon>
+  <WebPage>https://muxarr.app</WebPage>
+</Maintainer>
