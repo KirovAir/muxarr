@@ -155,4 +155,21 @@ public class SubtitleLocationIntegrationTests : IntegrationTestBase
         Assert.IsTrue(File.Exists(binned));
         Assert.AreEqual(TwoCues, await File.ReadAllTextAsync(binned));
     }
+
+    [TestMethod]
+    public async Task NextToFile_WithReplace_BinsTheOldFile_AndSaysSoOnce()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var existing = Path.Combine(TempDir, "test_complex.en.srt");
+        await File.WriteAllTextAsync(existing, TwoCues);
+        var profile = await SeedProfile(SubtitleLocation.NextToFile, true, "English");
+
+        await Convert(path, profile);
+
+        Assert.AreEqual(TwoCues, await File.ReadAllTextAsync(Path.Combine(TempDir, "trash", "subtitles", "test_complex.en.srt")));
+        Assert.AreNotEqual(TwoCues, await File.ReadAllTextAsync(existing), "the extracted track took the name");
+        var log = await Fixture.WithDbContext(async ctx => (await ctx.MediaConversions.OrderByDescending(c => c.Id).FirstAsync()).Log);
+        Assert.IsFalse(log.Contains("changed since the plan"), log);
+        Assert.AreEqual(1, log.Split("Removed test_complex.en.srt").Length - 1, log);
+    }
 }

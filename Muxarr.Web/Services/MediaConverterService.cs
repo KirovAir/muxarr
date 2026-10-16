@@ -553,6 +553,7 @@ public class MediaConverterService(
     private sealed class SidecarBatch
     {
         public List<ExtractedSidecar> Files { get; } = [];
+        public HashSet<string> Retired { get; } = new(StringComparer.OrdinalIgnoreCase);
         public bool SwapCommitted { get; set; }
 
         // Before the swap a temp file is just a copy. After it, it is the only copy.
@@ -583,9 +584,14 @@ public class MediaConverterService(
             {
                 var retired = conversion.ConversionPlan.SubtitleDeletions
                     .FirstOrDefault(d => string.Equals(d.FileName, Path.GetFileName(sidecar.Final), StringComparison.OrdinalIgnoreCase));
-                if (retired != null && File.Exists(sidecar.Final) && !Retire(conversion, retired, sidecar.Final, trash))
+                if (retired != null && File.Exists(sidecar.Final))
                 {
-                    continue;
+                    if (!Retire(conversion, retired, sidecar.Final, trash))
+                    {
+                        continue;
+                    }
+
+                    sidecars.Retired.Add(retired.FileName);
                 }
 
                 File.Move(sidecar.Temp, sidecar.Final);
@@ -925,7 +931,7 @@ public class MediaConverterService(
         await RunPostProcessing(conversion);
         await Fault("post-processed");
 
-        RetireSubtitleFiles(conversion, oldPath, TrashDirectory(context));
+        RetireSubtitleFiles(conversion, oldPath, sidecars.Retired, TrashDirectory(context));
         await Fault("sources-deleted");
 
         // The swap is committed, a cancel landing now must not undo the outcome.
@@ -1123,12 +1129,12 @@ public class MediaConverterService(
     }
 
     // Under the old name first, then whichever name the arr gave them by now.
-    private void RetireSubtitleFiles(MediaConversion conversion, string oldPath, string trash)
+    private void RetireSubtitleFiles(MediaConversion conversion, string oldPath, HashSet<string> done, string trash)
     {
         var mediaFile = conversion.MediaFile!;
         var directory = Path.GetDirectoryName(mediaFile.Path) ?? string.Empty;
         var retired = false;
-        foreach (var deletion in conversion.ConversionPlan.SubtitleDeletions)
+        foreach (var deletion in conversion.ConversionPlan.SubtitleDeletions.Where(d => !done.Contains(d.FileName)))
         {
             var old = Path.Combine(Path.GetDirectoryName(oldPath) ?? string.Empty, deletion.FileName);
             var current = Path.Combine(directory, Path.GetFileNameWithoutExtension(mediaFile.Path) + deletion.Suffix);
