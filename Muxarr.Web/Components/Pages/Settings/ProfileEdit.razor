@@ -51,6 +51,11 @@
                             @onclick='() => _tab = "subtitles"'>
                         <i class="bi bi-chat-text me-2"></i>Subtitles
                     </button>
+                    <button type="button"
+                            class="nav-link text-start @(_tab == "subtitlefiles" ? "active" : "")"
+                            @onclick='() => _tab = "subtitlefiles"'>
+                        <i class="bi bi-file-earmark-text me-2"></i>Subtitle files
+                    </button>
                 </div>
             </div>
 
@@ -128,6 +133,11 @@
                     {
                         <h5 class="mb-3"><i class="bi bi-chat-text text-primary me-2"></i>Subtitle Settings</h5>
                         <TrackSettingsEditor Settings="_profile.SubtitleSettings" TrackType="MediaTrackType.Subtitles"/>
+                    }
+                    else if (_tab == "subtitlefiles")
+                    {
+                        <h5 class="mb-3"><i class="bi bi-file-earmark-text text-primary me-2"></i>Subtitle files</h5>
+                        <SubtitleFilesEditor Settings="_profile.SubtitleSettings"/>
                     }
                 </div>
             </div>

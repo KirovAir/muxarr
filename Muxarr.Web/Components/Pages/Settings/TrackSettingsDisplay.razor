@@ -106,17 +106,17 @@ else
 
     @if (Settings.Location == SubtitleLocation.InsideFile)
     {
-        <ToolTip Tip="@($"Subtitle files beside the video are muxed into it{(Settings.DeleteMovedSubtitleFiles ? " and deleted" : "")}. MKV only, requires remux.")">
+        <ToolTip Tip="@($"Subtitle files next to the video are merged into it{(Settings.DeleteMovedSubtitleFiles ? " and then deleted" : "")}. MKV only, requires remux.")">
             <span class="badge text-bg-info me-1">
-                <i class="bi bi-box-arrow-in-down me-1"></i>Subtitles: inside
+                <i class="bi bi-box-arrow-in-down me-1"></i>Merge subtitle files
             </span>
         </ToolTip>
     }
     else if (Settings.Location == SubtitleLocation.NextToFile)
     {
-        <ToolTip Tip="@($"Kept text subtitles are written next to the video and removed from it{(Settings.DeleteMovedSubtitleFiles ? ", replacing files with the same name" : "")}. Requires remux.")">
+        <ToolTip Tip="@($"Text subtitles are saved as files next to the video and removed from it{(Settings.DeleteMovedSubtitleFiles ? ", replacing files with the same name" : "")}. Requires remux.")">
             <span class="badge text-bg-info me-1">
-                <i class="bi bi-file-earmark-text me-1"></i>Subtitles: next to file
+                <i class="bi bi-file-earmark-text me-1"></i>Save subtitles as files
             </span>
         </ToolTip>
     }

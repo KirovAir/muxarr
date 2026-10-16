@@ -1,59 +1,4 @@
 <div>
-    @if (!IsAudio)
-    {
-        @* --- Subtitle files --- *@
-        <div class="mb-3">
-            <label class="form-label mb-1">Text subtitles live</label>
-            <div class="btn-group btn-group-sm d-block" role="group">
-                @foreach (var location in Enum.GetValues<SubtitleLocation>())
-                {
-                    var id = $"subtitleLocation{location}";
-                    <input type="radio" class="btn-check" name="subtitleLocation" id="@id" autocomplete="off"
-                           checked="@(Settings.Location == location)"
-                           @onchange="() => Settings.Location = location"/>
-                    <label class="btn btn-outline-secondary" for="@id">@LocationLabel(location)</label>
-                }
-            </div>
-            <small class="form-text text-muted d-block">
-                @switch (Settings.Location)
-                {
-                    case SubtitleLocation.InsideFile:
-                        <text>Subtitle files beside the video (Movie.en.srt) are muxed into the file when the
-                            profile keeps their language. MKV only; MP4 and WebM files are left alone.</text>
-                        break;
-                    case SubtitleLocation.NextToFile:
-                        <text>Kept SRT, ASS and WebVTT subtitles are written next to the file (Movie.en.srt,
-                            Movie.en.sdh.srt) and removed from it. Image subtitles like PGS stay inside.</text>
-                        break;
-                    default:
-                        <text>Subtitle files beside the video are shown but nothing moves.</text>
-                        break;
-                }
-            </small>
-        </div>
-
-        @if (Settings.Location != SubtitleLocation.WhereTheyAre)
-        {
-            <div class="mb-3 ms-3 ps-3 border-start form-check form-switch">
-                <InputCheckbox id="deleteMovedSubtitleFiles" class="form-check-input"
-                               @bind-Value="Settings.DeleteMovedSubtitleFiles"/>
-                <label class="form-check-label" for="deleteMovedSubtitleFiles">Delete subtitle files Muxarr just
-                    moved</label>
-                <small class="form-text text-muted d-block">
-                    @if (Settings.Location == SubtitleLocation.InsideFile)
-                    {
-                        <text>Off: a muxed-in file stays beside the video.</text>
-                    }
-                    else
-                    {
-                        <text>Off: an extracted subtitle takes a free name like Movie.1.en.srt when its name is
-                            taken. On: it replaces the file with that name.</text>
-                    }
-                </small>
-            </div>
-        }
-    }
-
     @* --- Track Removal --- *@
     <div class="mb-3 form-check form-switch">
         <InputCheckbox id="@($"strip{TrackTypeLabel}Tracks")" class="form-check-input" @bind-Value="Settings.Enabled"
@@ -319,16 +264,6 @@
 </div>
 
 @code {
-    private static string LocationLabel(SubtitleLocation location)
-    {
-        return location switch
-        {
-            SubtitleLocation.InsideFile => "Inside the file",
-            SubtitleLocation.NextToFile => "Next to the file",
-            _ => "Where they are"
-        };
-    }
-
     [Parameter] [EditorRequired] public TrackSettings Settings { get; set; } = default!;
 
     [Parameter] [EditorRequired] public MediaTrackType TrackType { get; set; }

@@ -1,0 +1,43 @@
+<p class="text-muted mb-4">Subtitle tools like Bazarr save subtitles as separate .srt files next to the video.
+    Choose what Muxarr does with them.</p>
+
+@foreach (var (location, title, text) in Options)
+{
+    var id = $"subtitleFiles{location}";
+    <div class="form-check mb-3">
+        <input type="radio" class="form-check-input" name="subtitleFiles" id="@id"
+               checked="@(Settings.Location == location)" @onchange="() => Settings.Location = location"/>
+        <label class="form-check-label" for="@id">
+            <span class="fw-semibold d-block">@title</span>
+            <small class="text-muted">@text</small>
+        </label>
+    </div>
+}
+
+@if (Settings.Location != SubtitleLocation.WhereTheyAre)
+{
+    <div class="ms-4 mt-4 form-check form-switch">
+        <InputCheckbox id="deleteMovedSubtitleFiles" class="form-check-input" @bind-Value="Settings.DeleteMovedSubtitleFiles"/>
+        <label class="form-check-label" for="deleteMovedSubtitleFiles">
+            @(Settings.Location == SubtitleLocation.InsideFile ? "Delete the file once it is in the video" : "Replace a file that has the same name")
+        </label>
+        <small class="form-text text-muted d-block">
+            @(Settings.Location == SubtitleLocation.InsideFile
+                ? "Off: the file stays next to the video."
+                : "Off: the new file gets a number instead, like Movie.1.en.srt.")
+        </small>
+    </div>
+}
+
+<p class="text-muted small mt-4 mb-0">Image subtitles such as PGS and VobSub always stay inside the video.</p>
+
+@code {
+    [Parameter] [EditorRequired] public required TrackSettings Settings { get; set; }
+
+    private static readonly (SubtitleLocation, string, string)[] Options =
+    [
+        (SubtitleLocation.WhereTheyAre, "Leave them", "Files stay where they are. Muxarr shows them, nothing moves."),
+        (SubtitleLocation.InsideFile, "Merge into the video", "A file in a language you keep is added to the video as a subtitle track. MKV only."),
+        (SubtitleLocation.NextToFile, "Save as files", "Subtitles inside the video are written to files next to it and removed from the video. Players and Bazarr then see each language once.")
+    ];
+}
