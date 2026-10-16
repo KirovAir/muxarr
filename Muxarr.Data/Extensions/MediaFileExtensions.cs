@@ -28,9 +28,9 @@ public static class MediaFileExtensions
     {
         return filter switch
         {
-            "tracks" => query.Where(x => x.HasRedundantTracks),
+            "tracks" => query.Where(x => x.HasRedundantTracks || x.HasMisplacedSubtitles),
             "metadata" => query.Where(x => x.HasNonStandardMetadata || x.HasRemovableChapters),
-            "any" => query.Where(x => x.HasRedundantTracks || x.HasNonStandardMetadata || x.HasRemovableChapters),
+            "any" => query.Where(x => x.HasRedundantTracks || x.HasNonStandardMetadata || x.HasRemovableChapters || x.HasMisplacedSubtitles),
             "warnings" => query.Where(x => x.HasScanWarning),
             _ => query
         };
@@ -521,12 +521,54 @@ public static class MediaFileExtensions
         var result = new List<TrackSnapshot>();
         result.AddRange(sourceTracks.GetVideoTracks());
         result.AddRange(GetAllowedTracks(sourceTracks.GetAudioTracks(), p.AudioSettings, file.OriginalLanguage));
-        result.AddRange(GetAllowedTracks(sourceTracks.GetSubtitleTracks(), p.SubtitleSettings, file.OriginalLanguage));
+        var subtitles = sourceTracks.GetSubtitleTracks();
+        result.AddRange(GetAllowedTracks(file.SubtitleCandidates(p), p.SubtitleSettings, file.OriginalLanguage,
+            subtitles.Count));
 
         return result;
     }
 
-    public static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage)
+    public static List<SubtitleFile> Sidecars(this MediaFile file)
+    {
+        for (var i = 0; i < file.SubtitleFiles.Count; i++)
+        {
+            file.SubtitleFiles[i].Index = SubtitleFile.FirstIndex + i;
+        }
+
+        return file.SubtitleFiles;
+    }
+
+    // Muxing in needs Matroska.
+    public static SubtitleLocation SubtitleLocationFor(this MediaFile file, Profile profile)
+    {
+        var location = profile.SubtitleSettings.Location;
+        return location == SubtitleLocation.InsideFile
+               && file.Snapshot.ContainerType.ToContainerFamily() != ContainerFamily.Matroska
+            ? SubtitleLocation.WhereTheyAre
+            : location;
+    }
+
+    // A file already in the container is left alone, or it would be muxed in every time.
+    private static List<TrackSnapshot> SubtitleCandidates(this MediaFile file, Profile profile)
+    {
+        var embedded = file.Snapshot.Tracks.GetSubtitleTracks();
+        if (file.SubtitleLocationFor(profile) != SubtitleLocation.InsideFile)
+        {
+            return embedded;
+        }
+
+        var candidates = embedded.ToList();
+        foreach (var sidecar in file.Sidecars().Where(f => f.CanMuxIn && !embedded.Any(f.Matches)))
+        {
+            candidates.Add(sidecar.ToSnapshot());
+        }
+
+        return candidates;
+    }
+
+    // undeterminedCount: the file's own track count, when the list also holds sidecars.
+    public static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage,
+        int? undeterminedCount = null)
         where T : IMediaTrack
     {
         if (tracks.Count == 0)
@@ -542,7 +584,7 @@ public static class MediaFileExtensions
 
         if (s.Enabled)
         {
-            var assumeUndetermined = tracks.Count == 1
+            var assumeUndetermined = (undeterminedCount ?? tracks.Count) == 1
                                      && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
             // 1. Which entries keep each track, most specific first. A track no
@@ -892,7 +934,7 @@ public static class MediaFileExtensions
             return true;
         }
 
-        if (IsReordered(target.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList()))
+        if (IsReordered(target.Tracks.Where(t => t.Type == MediaTrackType.Subtitles && t.SourcePath == null).ToList()))
         {
             return true;
         }
@@ -1271,9 +1313,16 @@ public static class MediaFileExtensions
 
         var sourceTracks = file.Snapshot.Tracks;
         var allowed = GetAllowedTracks(file, profile).ToSnapshots();
+        var subtitleCount = sourceTracks.Count(t => t.Type == MediaTrackType.Subtitles);
+        var extracted = file.SubtitleLocationFor(profile) == SubtitleLocation.NextToFile
+            ? file.ExtractSubtitles(profile.SubtitleSettings, allowed, subtitleCount)
+            : [];
+        allowed.RemoveAll(t => extracted.Any(e => e.Index == t.Index));
+        var sidecarByIndex = file.Sidecars().ToDictionary(f => f.Index);
+
         ApplyProfileMutations(allowed, profile,
             sourceTracks.Count(t => t.Type == MediaTrackType.Audio),
-            sourceTracks.Count(t => t.Type == MediaTrackType.Subtitles),
+            subtitleCount,
             file.OriginalLanguage);
 
         var target = new ConversionPlan
@@ -1281,12 +1330,19 @@ public static class MediaFileExtensions
             TrimToVideoLength = profile.TrimToVideoLength,
             Title = profile.ClearFileTitle ? "" : null,
             HasChapters = profile.RemoveChapters ? false : (bool?)null,
+            ExtractedSubtitles = extracted,
             Tracks = allowed.Select(t =>
             {
                 var settings = SettingsFor(t.Type, profile);
                 var nameLocked = settings is { StandardizeTrackNames: true }
                                  && settings.TryGetMatchingOverride(t, out _);
                 var tt = t.ToTargetTrack(nameLocked);
+                if (sidecarByIndex.TryGetValue(t.Index, out var sidecar))
+                {
+                    tt.SourcePath = sidecar.FullPath(file.Path);
+                    tt.DeleteSource = profile.SubtitleSettings.DeleteMovedSubtitleFiles;
+                }
+
                 // ClearVideoTrackNames means "strip the title". ApplyProfileMutations
                 // sets Name=null on the snapshot which would map to plan Name=null
                 // ("no opinion"). Switch to "" so the diff carries an explicit clear.
@@ -1313,11 +1369,20 @@ public static class MediaFileExtensions
     // ToggleDub syncs titles eagerly; the resolver pass here is a safety net
     // (NameLocked=true keeps it hands-off titles but still nulls IsDub on
     // Matroska so converters never see a flag they cannot express).
-    public static ConversionPlan BuildTargetFromCustom(this MediaFile file, IEnumerable<TrackSnapshot> userEditedTracks)
+    public static ConversionPlan BuildTargetFromCustom(this MediaFile file, IEnumerable<TrackSnapshot> userEditedTracks,
+        IReadOnlySet<int>? extract = null, bool deleteMovedFiles = false)
     {
+        var tracks = userEditedTracks.ToList();
+        var sidecarByIndex = file.Sidecars().ToDictionary(f => f.Index);
+        var extracted = extract == null
+            ? []
+            : file.ExtractSubtitles(null, tracks.Where(t => extract.Contains(t.Index)).ToList(), 0);
+        tracks.RemoveAll(t => extracted.Any(e => e.Index == t.Index));
+
         var target = new ConversionPlan
         {
-            Tracks = userEditedTracks.Select(t =>
+            ExtractedSubtitles = extracted,
+            Tracks = tracks.Select(t =>
             {
                 var plan = t.ToTargetTrack(true);
                 // UI may have edited LanguageName without syncing LanguageCode; re-resolve,
@@ -1333,12 +1398,62 @@ public static class MediaFileExtensions
                     plan.LanguageCode = code;
                 }
 
+                if (sidecarByIndex.TryGetValue(t.Index, out var sidecar))
+                {
+                    plan.SourcePath = sidecar.FullPath(file.Path);
+                    plan.DeleteSource = deleteMovedFiles;
+                }
+
                 return plan;
             }).ToList()
         };
 
         TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot());
         return target;
+    }
+
+    // Names a file for each text subtitle with a known language; image and
+    // untagged tracks get none and stay. A taken name is replaced when the
+    // settings delete moved files, numbered the way the arrs do otherwise.
+    private static List<SubtitleExtraction> ExtractSubtitles(this MediaFile file, TrackSettings? settings,
+        List<TrackSnapshot> tracks, int subtitleCount)
+    {
+        var existing = file.Sidecars().ToList();
+        var taken = existing.Select(f => f.FileName(file.Path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var result = new List<SubtitleExtraction>();
+        foreach (var track in tracks.Where(t => t.Type == MediaTrackType.Subtitles && t.Index < SubtitleFile.FirstIndex))
+        {
+            var extension = SubtitleSidecars.ExtensionFor(track.GetSubtitleCodec());
+            var language = track.ShouldResolveUndetermined(settings, subtitleCount, file.OriginalLanguage)
+                ? IsoLanguage.Find(file.OriginalLanguage)
+                : IsoLanguage.Find(track.LanguageName);
+            if (extension == null || language == IsoLanguage.Unknown || language.Name == IsoLanguage.UndeterminedName)
+            {
+                continue;
+            }
+
+            var name = SubtitleSidecars.FileNameFor(file.Path, language, track.IsHearingImpaired, track.IsForced, 0, extension);
+            string? replaces = null;
+            var replaced = settings is { DeleteMovedSubtitleFiles: true }
+                ? existing.FirstOrDefault(f => f.Matches(language.Name, track.IsForced, track.IsHearingImpaired, extension))
+                : null;
+            if (replaced != null)
+            {
+                replaces = replaced.FileName(file.Path);
+                existing.Remove(replaced);
+                taken.Remove(replaces);
+            }
+
+            for (var n = 1; taken.Contains(name); n++)
+            {
+                name = SubtitleSidecars.FileNameFor(file.Path, language, track.IsHearingImpaired, track.IsForced, n, extension);
+            }
+
+            taken.Add(name);
+            result.Add(new SubtitleExtraction { Index = track.Index, FileName = name, Replaces = replaces });
+        }
+
+        return result;
     }
 
     // Pass-through target when no profile applies: every track's current

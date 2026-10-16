@@ -22,6 +22,7 @@ public static class ConversionPlanExtensions
             Faststart = DiffBool(source.HasFaststart, desired.Faststart),
             TrimToVideoLength = desired.TrimToVideoLength,
             Title = DiffString(source.Title, desired.Title),
+            ExtractedSubtitles = desired.ExtractedSubtitles,
             Tracks = new List<TrackPlan>(desired.Tracks.Count)
         };
 
@@ -41,6 +42,8 @@ public static class ConversionPlanExtensions
             Index = desired.Index,
             Type = desired.Type,
             NameLocked = desired.NameLocked,
+            SourcePath = desired.SourcePath,
+            DeleteSource = desired.DeleteSource,
 
             Name = DiffString(source?.Name, desired.Name),
             LanguageCode = DiffString(source?.LanguageCode, desired.LanguageCode),

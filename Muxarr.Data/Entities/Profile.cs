@@ -44,6 +44,14 @@ public enum DefaultTrackStrategy
     ForceFirstLanguage
 }
 
+/// <summary>Where a profile wants its kept text subtitles. Image subtitles never move.</summary>
+public enum SubtitleLocation
+{
+    WhereTheyAre,
+    InsideFile,
+    NextToFile
+}
+
 public enum TrackFlag
 {
     [Display(Name = "SDH")]
@@ -120,6 +128,10 @@ public class TrackSettings
     public bool ExcludeCodecs { get; set; }
     public List<SubtitleCodec> ExcludedCodecs { get; set; } = [];
     public List<AudioCodec> ExcludedAudioCodecs { get; set; } = [];
+
+    // Subtitles only. See docs/design-subtitle-files.html.
+    public SubtitleLocation Location { get; set; }
+    public bool DeleteMovedSubtitleFiles { get; set; }
 
     /// <summary>
     /// Finds the first flag-specific override that applies to the track.

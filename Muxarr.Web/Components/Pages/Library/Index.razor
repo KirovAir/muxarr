@@ -228,7 +228,7 @@
                         </td>
                         <td>
                             <MediaTrackLabels
-                                Tracks="file.Snapshot.Tracks.Where(x => x.Type != MediaTrackType.Video).ToList()"/>
+                                Tracks="file.Snapshot.Tracks.Where(x => x.Type != MediaTrackType.Video).Concat<IMediaTrack>(file.SubtitleFiles)"/>
                         </td>
                     </tr>
                 }

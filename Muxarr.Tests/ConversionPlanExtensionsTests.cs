@@ -68,8 +68,8 @@ public class ConversionPlanExtensionsTests
 
     private static IEnumerable<PropertyInfo> DiffableFields => typeof(TrackPlan)
         .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-        .Where(p => p.CanWrite && (Nullable.GetUnderlyingType(p.PropertyType) is not null
-                                   || p.PropertyType == typeof(string)));
+        .Where(p => p.CanWrite && p.Name != nameof(TrackPlan.SourcePath)
+                    && (Nullable.GetUnderlyingType(p.PropertyType) is not null || p.PropertyType == typeof(string)));
 
     private static object Distinct(Type type, object? current)
     {

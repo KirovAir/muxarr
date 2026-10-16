@@ -219,6 +219,9 @@ namespace Muxarr.Data.Migrations
                     b.Property<DateTime>("FileLastWriteTime")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("HasMisplacedSubtitles")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("HasNonStandardMetadata")
                         .HasColumnType("INTEGER");
 
@@ -258,6 +261,11 @@ namespace Muxarr.Data.Migrations
 
                     b.Property<int?>("SnapshotId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("SubtitleFiles")
+                        .IsRequired()
+                        .IsUnicode(true)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Title")
                         .HasMaxLength(4096)

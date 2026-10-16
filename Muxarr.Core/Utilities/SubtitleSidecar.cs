@@ -1,3 +1,4 @@
+using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 
 namespace Muxarr.Core.Utilities;
@@ -106,8 +107,7 @@ public static class SubtitleSidecars
             .ToList();
     }
 
-    // A code, IETF tag or language name that matches a known language exactly.
-    // Find's "strip the region" fallback is not wanted here: "en-foo" is not a sidecar tag.
+    // Exact matches only; Find's region fallback would make "en-foo" English.
     private static IsoLanguage? LanguageToken(string token)
     {
         if (!token.All(c => char.IsAsciiLetter(c) || c == '-') || token.Count(c => c == '-') > 1)
@@ -133,6 +133,44 @@ public static class SubtitleSidecars
         var a = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(mediaPath));
         var b = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(candidatePath));
         return string.Equals(a, b, StringComparison.Ordinal);
+    }
+
+    // The arr grammar, so a rename by Sonarr or Radarr gives the name back unchanged.
+    public static string FileNameFor(string mediaPath, IsoLanguage language, bool hearingImpaired, bool forced,
+        int number, string extension)
+    {
+        var baseName = System.IO.Path.GetFileNameWithoutExtension(mediaPath);
+        return $"{baseName}{(number > 0 ? $".{number}" : "")}.{WriteTag(language)}" +
+               $"{(hearingImpaired ? ".sdh" : "")}{(forced ? ".forced" : "")}.{extension}";
+    }
+
+    public static string WriteTag(IsoLanguage language)
+    {
+        var baseLanguage = language.Base;
+        return !string.IsNullOrEmpty(baseLanguage.TwoLetterCode) ? baseLanguage.TwoLetterCode : baseLanguage.ThreeLetterCode ?? "und";
+    }
+
+    // Null for image codecs, which have to stay embedded.
+    public static string? ExtensionFor(SubtitleCodec codec)
+    {
+        return codec switch
+        {
+            SubtitleCodec.Srt or SubtitleCodec.MovText => "srt",
+            SubtitleCodec.Ass => "ass",
+            SubtitleCodec.WebVtt => "vtt",
+            _ => null
+        };
+    }
+
+    public static SubtitleCodec CodecFor(string extension)
+    {
+        return extension switch
+        {
+            "ass" or "ssa" => SubtitleCodec.Ass,
+            "vtt" => SubtitleCodec.WebVtt,
+            "sup" => SubtitleCodec.Pgs,
+            _ => SubtitleCodec.Srt
+        };
     }
 
     private static bool TryNumber(string token, out int number)

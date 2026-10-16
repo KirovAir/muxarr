@@ -241,6 +241,11 @@ public static class FFmpeg
         string muxerFormat = "mp4", long? trimToMs = null)
     {
         var tracks = delta.Tracks;
+        if (tracks.Any(t => t.SourcePath != null))
+        {
+            throw new ArgumentException("Subtitle files can only be muxed into Matroska.", nameof(delta));
+        }
+
         var faststart = delta.Faststart ?? false;
 
         var sb = new StringBuilder();

@@ -44,20 +44,61 @@ public static class MkvMerge
     public static async Task<ProcessResult> Remux(string input, string output, ConversionPlan delta,
         Action<string, int>? onProgress = null, TimeSpan? timeout = null)
     {
+        var command = BuildRemuxCommand(input, output, delta);
+
+        var lastProgress = 0;
+        return await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, command, timeout,
+            OnOutputLine);
+
+        void OnOutputLine(string line, bool error)
+        {
+            if (line.StartsWith("Progress: ", StringComparison.OrdinalIgnoreCase))
+            {
+                var percentString = line.Substring("Progress: ".Length).TrimEnd('%');
+                if (int.TryParse(percentString, out var progressValue))
+                {
+                    lastProgress = progressValue;
+                }
+            }
+
+            onProgress?.Invoke(line, lastProgress);
+        }
+    }
+
+    // Each SourcePath is an extra input with one track, id 0. Only --track-order is global.
+    public static string BuildRemuxCommand(string input, string output, ConversionPlan delta)
+    {
         var tracks = delta.Tracks;
         if (tracks.Count == 0)
         {
             throw new ArgumentException("At least one track is required.", nameof(delta));
         }
 
-        var audioTracks = tracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
-        var subtitleTracks = tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
+        var external = tracks.Where(t => t.SourcePath != null).ToList();
+        var fileIdByPath = new Dictionary<string, int>();
+        foreach (var track in external)
+        {
+            if (!fileIdByPath.TryAdd(track.SourcePath!, fileIdByPath.Count + 1))
+            {
+                throw new ArgumentException($"Subtitle file '{track.SourcePath}' is used by more than one track.",
+                    nameof(delta));
+            }
+        }
+
+        var containerTracks = tracks.Where(t => t.SourcePath == null).ToList();
+        var audioTracks = containerTracks.Where(t => t.Type == MediaTrackType.Audio).ToList();
+        var subtitleTracks = containerTracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList();
 
         var command = $"-o \"{output}\"";
 
         if (delta.Title != null)
         {
             command += $" --title {MkvToolNixHelper.EscapeValue(delta.Title)}";
+        }
+
+        if (delta.TrimToVideoLength)
+        {
+            command += " --stop-after-video-ends";
         }
 
         command += audioTracks.Count > 0
@@ -78,75 +119,69 @@ public static class MkvMerge
             command += " --no-attachments";
         }
 
-        if (delta.TrimToVideoLength)
+        command += TrackOptions(containerTracks, t => t.Index);
+        command += $" \"{input}\"";
+
+        foreach (var track in external)
         {
-            command += " --stop-after-video-ends";
+            command += TrackOptions([track], _ => 0);
+            command += $" \"{track.SourcePath}\"";
         }
 
+        command += $" --track-order {string.Join(",", tracks.Select(t =>
+            t.SourcePath == null ? $"0:{t.Index}" : $"{fileIdByPath[t.SourcePath]}:0"))}";
+
+        return command;
+    }
+
+    private static string TrackOptions(IEnumerable<TrackPlan> tracks, Func<TrackPlan, int> localId)
+    {
+        var command = string.Empty;
         foreach (var track in tracks)
         {
+            var id = localId(track);
             if (track.Name != null)
             {
-                command += $" --track-name {track.Index}:{MkvToolNixHelper.EscapeValue(track.Name)}";
+                command += $" --track-name {id}:{MkvToolNixHelper.EscapeValue(track.Name)}";
             }
 
             if (track.LanguageCode != null)
             {
-                command += $" --language {track.Index}:{track.LanguageCode}";
+                command += $" --language {id}:{track.LanguageCode}";
             }
 
             if (track.IsDefault != null)
             {
-                command += $" --default-track-flag {track.Index}:{(track.IsDefault.Value ? "1" : "0")}";
+                command += $" --default-track-flag {id}:{(track.IsDefault.Value ? "1" : "0")}";
             }
 
             if (track.IsForced != null)
             {
-                command += $" --forced-display-flag {track.Index}:{(track.IsForced.Value ? "1" : "0")}";
+                command += $" --forced-display-flag {id}:{(track.IsForced.Value ? "1" : "0")}";
             }
 
             if (track.IsHearingImpaired != null)
             {
-                command +=
-                    $" --hearing-impaired-flag {track.Index}:{(track.IsHearingImpaired.Value ? "1" : "0")}";
+                command += $" --hearing-impaired-flag {id}:{(track.IsHearingImpaired.Value ? "1" : "0")}";
             }
 
             if (track.IsVisualImpaired != null)
             {
-                command += $" --visual-impaired-flag {track.Index}:{(track.IsVisualImpaired.Value ? "1" : "0")}";
+                command += $" --visual-impaired-flag {id}:{(track.IsVisualImpaired.Value ? "1" : "0")}";
             }
 
             if (track.IsCommentary != null)
             {
-                command += $" --commentary-flag {track.Index}:{(track.IsCommentary.Value ? "1" : "0")}";
+                command += $" --commentary-flag {id}:{(track.IsCommentary.Value ? "1" : "0")}";
             }
 
             if (track.IsOriginal != null)
             {
-                command += $" --original-flag {track.Index}:{(track.IsOriginal.Value ? "1" : "0")}";
+                command += $" --original-flag {id}:{(track.IsOriginal.Value ? "1" : "0")}";
             }
         }
 
-        command += $" \"{input}\"";
-        command += $" --track-order {string.Join(",", tracks.Select(t => $"0:{t.Index}"))}";
-
-        var lastProgress = 0;
-        return await ProcessExecutor.ExecuteProcessAsync(MkvMergeExecutable, command, timeout,
-            OnOutputLine);
-
-        void OnOutputLine(string line, bool error)
-        {
-            if (line.StartsWith("Progress: ", StringComparison.OrdinalIgnoreCase))
-            {
-                var percentString = line.Substring("Progress: ".Length).TrimEnd('%');
-                if (int.TryParse(percentString, out var progressValue))
-                {
-                    lastProgress = progressValue;
-                }
-            }
-
-            onProgress?.Invoke(line, lastProgress);
-        }
+        return command;
     }
 
     public static void KillExistingProcesses()

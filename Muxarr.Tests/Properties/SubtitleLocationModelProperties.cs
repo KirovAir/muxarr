@@ -3,50 +3,33 @@ using FsCheck.Fluent;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
 using Muxarr.Core.Models;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
+using Muxarr.Web.Services;
 
 namespace Muxarr.Tests.Properties;
 
 /// <summary>
-/// Executable model of docs/design-subtitle-files.html, section 3 and rules 2 to
-/// 5. The location rules run on top of the real GetAllowedTracks; the directory
-/// is a list. When the feature is built, PlanWithLocation is replaced by the
-/// real planner and these properties stay.
+/// docs/design-subtitle-files.html rules 2 to 7 against the real planner, with
+/// the directory simulated. A conversion applies the plan to the container the
+/// way the writers would and moves the files the way the converter does.
 /// </summary>
 [TestClass]
 public class SubtitleLocationModelProperties
 {
-    internal enum Location
-    {
-        WhereTheyAre,
-        InsideFile,
-        NextToFile
-    }
+    private const string MediaPath = "/lib/Movie/Movie.mkv";
 
-    internal sealed record Sidecar(string Language, bool Forced, bool Sdh, string Ext, int Number)
-    {
-        // The write grammar: number before the language, as the arrs do.
-        public string Name => $"Movie{(Number > 0 ? $".{Number}" : "")}.{IsoLanguage.Find(Language).TwoLetterCode}{(Sdh ? ".sdh" : "")}{(Forced ? ".forced" : "")}.{Ext}";
-        public bool IsText => Ext != "sup";
-        // A file never carries commentary; an embedded commentary track is a different subtitle.
-        public string Identity => $"{Language}|{Forced}|{Sdh}|False|{Format}";
-        public string Format => Ext == "sup" ? "image" : Ext;
-    }
+    internal sealed record World(MediaFile File, Profile Profile, List<SubtitleFile> Files);
 
-    // Kept holds the embedded tracks that stay in the container, Resolved their
-    // state after the profile's language resolution, which the writer persists.
-    internal sealed record Moves(List<int> Kept, List<Sidecar> MuxIn, List<(TrackSnapshot Track, Sidecar Target)> Extract,
-        List<Sidecar> Delete, Dictionary<int, TrackSnapshot> Resolved);
-
-    internal sealed record World(MediaFile File, Profile Profile, List<Sidecar> Files, Location Mode, bool DeleteMoved);
+    internal sealed record Moves(ConversionPlan Plan, List<SubtitleFile> MuxIn, List<SubtitleFile> Extracted, List<string> Deleted);
 
     [TestMethod]
-    public void Model_Is_Deterministic()
+    public void Plan_Is_Deterministic()
     {
         Check.One(PlanConvergenceProperties.Config, Prop.ForAll(Arb.From(WorldGen()), w =>
         {
-            Assert.AreEqual(Describe(PlanWithLocation(w)), Describe(PlanWithLocation(w)), DescribeWorld(w));
+            Assert.AreEqual(Describe(Plan(w)), Describe(Plan(w)), DescribeWorld(w));
         }));
     }
 
@@ -55,13 +38,13 @@ public class SubtitleLocationModelProperties
     {
         Check.One(PlanConvergenceProperties.Config, Prop.ForAll(Arb.From(WorldGen()), w =>
         {
-            var moves = PlanWithLocation(w with { Mode = Location.WhereTheyAre });
-            Assert.AreEqual(0, moves.MuxIn.Count + moves.Extract.Count + moves.Delete.Count, DescribeWorld(w));
+            w.Profile.SubtitleSettings.Location = SubtitleLocation.WhereTheyAre;
+            var moves = Plan(w);
+            Assert.AreEqual(0, moves.MuxIn.Count + moves.Extracted.Count + moves.Deleted.Count, DescribeWorld(w));
 
-            // And the container plan is the one the plain profile gives.
-            var plain = w.File.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList()
+            var plain = w.File.Snapshot.Tracks.GetSubtitleTracks()
                 .GetAllowedTracks(w.Profile.SubtitleSettings, w.File.OriginalLanguage).Select(t => t.Index).ToList();
-            CollectionAssert.AreEqual(plain, moves.Kept, DescribeWorld(w));
+            CollectionAssert.AreEqual(plain, moves.Plan.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).Select(t => t.Index).ToList(), DescribeWorld(w));
         }));
     }
 
@@ -70,191 +53,112 @@ public class SubtitleLocationModelProperties
     {
         Check.One(PlanConvergenceProperties.Config, Prop.ForAll(Arb.From(WorldGen()), w =>
         {
-            var moves = PlanWithLocation(w);
+            var moves = Plan(w);
             var after = Apply(w, moves);
-            var again = PlanWithLocation(after);
+            var again = Plan(after);
             var detail = $"{DescribeWorld(w)}\n\nmoves:\n{Describe(moves)}\n\nafter:\n{DescribeWorld(after)}\n\nsecond moves:\n{Describe(again)}";
+            var deleteOn = w.Profile.SubtitleSettings.DeleteMovedSubtitleFiles;
 
-            // Rule 2: nothing deleted unless the switch is on, and then only a moved or replaced file.
-            if (!w.DeleteMoved)
+            if (!deleteOn)
             {
-                Assert.AreEqual(0, moves.Delete.Count, "deleted with the switch off\n" + detail);
-                Assert.IsTrue(w.Files.All(f => after.Files.Contains(f)), "a file vanished with the switch off\n" + detail);
+                Assert.AreEqual(0, moves.Deleted.Count, "deleted with the switch off\n" + detail);
+                Assert.IsTrue(w.Files.All(f => after.Files.Any(a => a.Suffix == f.Suffix)), "a file vanished with the switch off\n" + detail);
             }
             else
             {
-                var moved = moves.MuxIn.Select(m => m.Identity).Concat(moves.Extract.Select(e => e.Target.Identity)).ToHashSet();
-                Assert.IsTrue(moves.Delete.All(d => moved.Contains(d.Identity)), "deleted a file that was not just moved or replaced\n" + detail);
+                var moved = moves.MuxIn.Select(m => m.FileName(MediaPath))
+                    .Concat(moves.Plan.ExtractedSubtitles.Select(e => e.FileName)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                Assert.IsTrue(moves.Deleted.All(moved.Contains), "deleted a file that was not just moved or replaced\n" + detail);
             }
 
-            // Every kept subtitle is somewhere afterwards.
-            foreach (var index in moves.Kept)
+            foreach (var kept in moves.Plan.Tracks.Where(t => t.Type == MediaTrackType.Subtitles))
             {
-                var track = moves.Resolved[index];
-                var inContainer = after.File.Snapshot.Tracks.Any(t => Identity(t) == Identity(track));
-                var inFiles = after.Files.Any(f => f.Identity == Identity(track));
-                Assert.IsTrue(inContainer || inFiles, $"kept subtitle #{index} is gone\n{detail}");
+                Assert.IsTrue(after.File.Snapshot.Tracks.Any(t => Identity(t) == Identity(kept, w)),
+                    $"kept subtitle #{kept.Index} is gone: wanted {Identity(kept, w)}, have [{string.Join(", ", after.File.Snapshot.Tracks.Select(Identity))}]\n{detail}");
             }
 
-            foreach (var muxed in moves.MuxIn)
+            foreach (var extracted in moves.Extracted)
             {
-                Assert.IsTrue(after.File.Snapshot.Tracks.Any(t => Identity(t) == muxed.Identity), $"muxed-in {muxed.Name} not in container\n{detail}");
+                Assert.IsTrue(after.Files.Any(f => f.Suffix == extracted.Suffix), $"extracted {extracted.Suffix} is gone\n{detail}");
             }
 
-            // Converges: the second pass has no moves and no deletions. The one
-            // exception is the undetermined rule firing once a removal leaves a
-            // single untagged subtitle, which then gets a name and a file; the
-            // third pass must be quiet.
-            if (again.MuxIn.Count + again.Extract.Count + again.Delete.Count > 0)
+            if (again.MuxIn.Count + again.Extracted.Count + again.Deleted.Count > 0)
             {
                 Assert.IsTrue(PlanConvergenceProperties.UndeterminedRuleJustBecameApplicable(w.File, after.File, w.Profile),
                     "second conversion still moves\n" + detail);
-                var third = PlanWithLocation(Apply(after, again));
-                Assert.AreEqual(0, third.MuxIn.Count + third.Extract.Count + third.Delete.Count, "third conversion still moves\n" + detail);
+                var third = Plan(Apply(after, again));
+                Assert.AreEqual(0, third.MuxIn.Count + third.Extracted.Count + third.Deleted.Count, "third conversion still moves\n" + detail);
             }
         }));
     }
 
-    // --- the model (design section 3) ---
-
-    internal static Moves PlanWithLocation(World w)
+    internal static Moves Plan(World w)
     {
-        var family = w.File.Snapshot.ContainerType.ToContainerFamily();
-        var mode = w.Mode == Location.InsideFile && family != ContainerFamily.Matroska ? Location.WhereTheyAre : w.Mode;
-        var embedded = w.File.Snapshot.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).Select(t => t.ToSnapshot()).ToList();
-
-        // Step 3's undetermined rule counts embedded tracks only, so resolve it here
-        // before sidecars join the list and change the count.
-        if (embedded.Count == 1 && embedded[0].ShouldResolveUndetermined(w.Profile.SubtitleSettings, 1, w.File.OriginalLanguage))
-        {
-            var iso = IsoLanguage.Find(w.File.OriginalLanguage!);
-            embedded[0].LanguageName = iso.Name;
-            embedded[0].LanguageCode = iso.WriteCode ?? embedded[0].LanguageCode;
-        }
-
-        var embeddedIdentities = embedded.Select(Identity).ToHashSet();
-
-        // Step 2: candidates. Sidecars only in "Inside the file", and only those not already embedded (rule 3).
-        var candidates = embedded.ToList();
-        var sidecarByIndex = new Dictionary<int, Sidecar>();
-        if (mode == Location.InsideFile)
-        {
-            var i = 0;
-            foreach (var f in w.Files.Where(f => f.IsText && !embeddedIdentities.Contains(f.Identity)))
-            {
-                var track = TestData.Sub(1000 + i++, f.Language, CodecFor(f.Ext), f.Forced, f.Sdh);
-                sidecarByIndex[track.Index] = f;
-                candidates.Add(track);
-            }
-        }
-
-        // Step 3: the language rules, untouched.
-        var kept = candidates.GetAllowedTracks(w.Profile.SubtitleSettings, w.File.OriginalLanguage);
-
-        // Step 4: split by destination.
-        var keptEmbedded = new List<int>();
-        var muxIn = new List<Sidecar>();
-        var extract = new List<(TrackSnapshot, Sidecar)>();
-        var delete = new List<Sidecar>();
-        var taken = w.Files.Select(f => f.Name).ToHashSet();
-        foreach (var track in kept)
-        {
-            if (sidecarByIndex.TryGetValue(track.Index, out var sidecar))
-            {
-                muxIn.Add(sidecar);
-                if (w.DeleteMoved)
-                {
-                    delete.Add(sidecar);
-                }
-
-                continue;
-            }
-
-            var ext = TextExtension(track);
-            var known = IsoLanguage.Find(track.LanguageName) is var iso && iso != IsoLanguage.Unknown && iso.Name != IsoLanguage.UndeterminedName;
-            if (mode != Location.NextToFile || ext == null || !known)
-            {
-                keptEmbedded.Add(track.Index);
-                continue;
-            }
-
-            // Rule 4: always extract; replace the like-for-like file (same language,
-            // flags and format) with the switch on, number with it off.
-            var target = new Sidecar(track.LanguageName, track.IsForced, track.IsHearingImpaired, ext, 0);
-            if (w.DeleteMoved && w.Files.FirstOrDefault(f => f.Name == target.Name) is { } replaced && !delete.Contains(replaced))
-            {
-                delete.Add(replaced);
-                taken.Remove(replaced.Name);
-            }
-
-            for (var n = 1; taken.Contains(target.Name); n++)
-            {
-                target = target with { Number = n };
-            }
-
-            taken.Add(target.Name);
-            extract.Add((track, target));
-        }
-
-        return new Moves(keptEmbedded, muxIn, extract, delete, embedded.ToDictionary(t => t.Index));
+        w.File.SubtitleFiles = w.Files;
+        var plan = w.File.BuildTargetFromProfile(w.Profile);
+        var byPath = w.File.Sidecars().ToDictionary(f => f.FullPath(MediaPath));
+        var muxIn = plan.Tracks.Where(t => t.SourcePath != null).Select(t => byPath[t.SourcePath!]).ToList();
+        var extracted = plan.ExtractedSubtitles.Select(e => FromName(e.FileName)).ToList();
+        var deleted = plan.Tracks.Where(t => t.DeleteSource && t.SourcePath != null).Select(t => Path.GetFileName(t.SourcePath!))
+            .Concat(plan.ExtractedSubtitles.Where(e => e.Replaces != null).Select(e => e.Replaces!)).ToList();
+        return new Moves(plan, muxIn, extracted, deleted);
     }
 
-    // The directory and the container after the conversion and a rescan.
     internal static World Apply(World w, Moves moves)
     {
-        var files = w.Files.Where(f => !moves.Delete.Contains(f)).ToList();
-        files.AddRange(moves.Extract.Select(e => e.Target));
+        var deleted = moves.Deleted.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var files = w.Files.Where(f => !deleted.Contains(f.FileName(MediaPath))).ToList();
+        files.AddRange(moves.Extracted.Where(e => files.All(f => f.Suffix != e.Suffix)));
 
-        var tracks = w.File.Snapshot.Tracks.Where(t => t.Type != MediaTrackType.Subtitles).Select(t => t.ToSnapshot()).ToList();
-        tracks.AddRange(moves.Kept.Select(i => moves.Resolved[i].ToSnapshot()));
-        tracks.AddRange(moves.MuxIn.Select(m => TestData.Sub(0, m.Language, CodecFor(m.Ext), m.Forced, m.Sdh)));
-        for (var i = 0; i < tracks.Count; i++)
-        {
-            tracks[i].Index = i;
-        }
-
-        var file = TestData.MakeFile(w.File.OriginalLanguage, tracks.ToArray());
-        file.Snapshot.ContainerType = w.File.Snapshot.ContainerType;
-        return w with { File = file, Files = files };
+        var result = ConversionPlanner.Plan(w.File.Snapshot, moves.Plan);
+        var after = result.Strategy == ConversionPlanner.ConversionStrategy.Skip
+            ? w.File
+            : PlanConvergenceProperties.Simulate(w.File, moves.Plan, result, w.File.Sidecars());
+        after.Path = MediaPath;
+        return w with { File = after, Files = files };
     }
 
-    internal static string Identity(IMediaTrack t)
+    private static string Identity(IMediaTrack t)
     {
-        var ext = TextExtension(t);
-        return $"{t.LanguageName}|{t.IsForced}|{t.IsHearingImpaired}|{t.IsCommentary}|{ext ?? "image"}";
+        return $"{IsoLanguage.Find(t.LanguageName).Base.Name}|{t.IsForced}|{t.IsHearingImpaired}|{t.IsCommentary}|{SubtitleSidecars.ExtensionFor(t.GetSubtitleCodec()) ?? "image"}";
     }
 
-    private static string? TextExtension(IMediaTrack t)
+    // A plan track as it lands: the plan's language and flags where it has an opinion.
+    private static string Identity(TrackPlan plan, World w)
     {
-        return t.GetSubtitleCodec() switch
-        {
-            SubtitleCodec.Srt or SubtitleCodec.MovText => "srt",
-            SubtitleCodec.Ass => "ass",
-            SubtitleCodec.WebVtt => "vtt",
-            _ => null
-        };
+        var source = w.File.Snapshot.Tracks.FirstOrDefault(t => t.Index == plan.Index) as IMediaTrack
+                     ?? w.File.Sidecars().First(f => f.Index == plan.Index);
+        var language = plan.LanguageCode != null && plan.LanguageCode != source.LanguageCode
+            ? IsoLanguage.Find(plan.LanguageCode).Name
+            : source.LanguageName;
+        return $"{IsoLanguage.Find(language).Base.Name}|{plan.IsForced ?? source.IsForced}|{plan.IsHearingImpaired ?? source.IsHearingImpaired}|{plan.IsCommentary ?? source.IsCommentary}|{SubtitleSidecars.ExtensionFor(source.GetSubtitleCodec()) ?? "image"}";
     }
 
-    private static string CodecFor(string ext)
+    internal static SubtitleFile FromName(string fileName)
     {
-        return ext switch
+        var parsed = SubtitleSidecars.Parse(MediaPath, "/lib/Movie/" + fileName)
+                     ?? throw new AssertFailedException($"planner wrote a name the parser rejects: {fileName}");
+        return new SubtitleFile
         {
-            "ass" => nameof(SubtitleCodec.Ass),
-            "vtt" => nameof(SubtitleCodec.WebVtt),
-            "sup" => nameof(SubtitleCodec.Pgs),
-            _ => nameof(SubtitleCodec.Srt)
+            Suffix = fileName[Path.GetFileNameWithoutExtension(MediaPath).Length..],
+            LanguageCode = parsed.Language.WriteCode ?? parsed.Language.TwoLetterCode,
+            LanguageName = parsed.Language.Name,
+            IsForced = parsed.Forced,
+            IsHearingImpaired = parsed.HearingImpaired,
+            Number = parsed.Number,
+            Codec = SubtitleSidecars.CodecFor(parsed.Extension).ToString()
         };
     }
 
     // --- generators ---
 
-    private static Gen<Sidecar> SidecarGen()
+    private static Gen<SubtitleFile> SidecarGen()
     {
         return from lang in Gen.Elements("English", "Dutch", "French", "Japanese")
             from forced in Gen.Elements(true, false)
             from sdh in Gen.Elements(true, false)
             from ext in Gen.Elements("srt", "srt", "ass", "sup")
-            select new Sidecar(lang, forced, sdh, ext, 0);
+            select FromName(SubtitleSidecars.FileNameFor(MediaPath, IsoLanguage.Find(lang), sdh, forced, 0, ext));
     }
 
     private static Gen<World> WorldGen()
@@ -262,40 +166,43 @@ public class SubtitleLocationModelProperties
         return from c in PlanConvergenceProperties.CaseGen()
             from count in Gen.Choose(0, 4)
             from files in Gen.ArrayOf(SidecarGen(), count)
-            from mode in Gen.Elements(Location.WhereTheyAre, Location.InsideFile, Location.NextToFile)
+            from location in Gen.Elements(SubtitleLocation.WhereTheyAre, SubtitleLocation.InsideFile, SubtitleLocation.NextToFile)
             from delete in Gen.Elements(true, false)
             let materialized = c.Materialize()
-            select new World(materialized.Item1, materialized.Item2, Dedupe(files), mode, delete);
+            select Build(materialized.Item1, materialized.Item2, files, location, delete);
     }
 
-    // Two files cannot share a name; number the later one the way the arrs do.
-    private static List<Sidecar> Dedupe(IEnumerable<Sidecar> files)
+    private static World Build(MediaFile file, Profile profile, SubtitleFile[] files, SubtitleLocation location, bool delete)
     {
-        var result = new List<Sidecar>();
+        file.Path = MediaPath;
+        profile.SubtitleSettings.Location = location;
+        profile.SubtitleSettings.DeleteMovedSubtitleFiles = delete;
+        var unique = new List<SubtitleFile>();
         foreach (var f in files)
         {
-            var s = f;
-            for (var n = 1; result.Any(r => r.Name == s.Name); n++)
+            var candidate = f;
+            for (var n = 1; unique.Any(u => u.Suffix == candidate.Suffix); n++)
             {
-                s = f with { Number = n };
+                candidate = FromName(SubtitleSidecars.FileNameFor(MediaPath, IsoLanguage.Find(f.LanguageName), f.IsHearingImpaired, f.IsForced, n,
+                    SubtitleSidecars.ExtensionFor(f.GetSubtitleCodec()) ?? "sup"));
             }
 
-            result.Add(s);
+            unique.Add(candidate);
         }
 
-        return result;
+        return new World(file, profile, unique);
     }
 
     private static string Describe(Moves m)
     {
-        return $"kept=[{string.Join(",", m.Kept)}] muxIn=[{string.Join(",", m.MuxIn.Select(x => x.Name))}] " +
-               $"extract=[{string.Join(",", m.Extract.Select(e => $"#{e.Track.Index}->{e.Target.Name}"))}] delete=[{string.Join(",", m.Delete.Select(x => x.Name))}]";
+        return $"container=[{string.Join(",", m.Plan.Tracks.Select(t => t.SourcePath == null ? t.Index.ToString() : Path.GetFileName(t.SourcePath)))}] " +
+               $"extract=[{string.Join(",", m.Plan.ExtractedSubtitles.Select(e => $"#{e.Index}->{e.FileName}"))}] delete=[{string.Join(",", m.Deleted)}]";
     }
 
     private static string DescribeWorld(World w)
     {
-        return $"mode={w.Mode} delete={w.DeleteMoved} container={w.File.Snapshot.ContainerType} original={w.File.OriginalLanguage}\n" +
+        return $"location={w.Profile.SubtitleSettings.Location} delete={w.Profile.SubtitleSettings.DeleteMovedSubtitleFiles} container={w.File.Snapshot.ContainerType} original={w.File.OriginalLanguage}\n" +
                $"subs={System.Text.Json.JsonSerializer.Serialize(w.Profile.SubtitleSettings)}\n" +
-               $"files=[{string.Join(", ", w.Files.Select(f => f.Name))}]\n{PlanConvergenceProperties.Describe(w.File.Snapshot)}";
+               $"files=[{string.Join(", ", w.Files.Select(f => f.FileName(MediaPath)))}]\n{PlanConvergenceProperties.Describe(w.File.Snapshot)}";
     }
 }

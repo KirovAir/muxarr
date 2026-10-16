@@ -29,7 +29,9 @@ public class FinalizeFaultInjectionTests : IntegrationTestBase
     [DataRow("swapped")]
     [DataRow("backup-deleted")]
     [DataRow("rescanned")]
+    [DataRow("sidecars-placed")]
     [DataRow("arr-updated")]
+    [DataRow("sources-deleted")]
     [DataRow("post-processed")]
     public async Task Crash_At_Step_Leaves_A_Playable_Video(string step)
     {
@@ -87,6 +89,19 @@ public class FinalizeFaultInjectionTests : IntegrationTestBase
 
         Assert.AreEqual(ConversionState.Failed, state, $"{step}: an injected failure must fail the conversion");
         Assert.IsTrue(videoExists, $"{step}: no video left under the original name\n{afterRecovery}");
+        if (isConverted)
+        {
+            // The profile extracts the English subtitles; each must be in place or still in its temp copy.
+            foreach (var name in new[] { "test_complex.en.srt", "test_complex.en.sdh.srt", "test_complex.en.forced.srt" })
+            {
+                Assert.IsTrue(File.Exists(Path.Combine(TempDir, name)) || File.Exists(Path.Combine(TempDir, name + ".muxsub")),
+                    $"{step}: {name} is in neither place\n{afterRecovery}");
+            }
+        }
+        else
+        {
+            Assert.IsFalse(afterRecovery.Contains(".muxsub"), $"{step}: temp subtitle left behind without a swap\n{afterRecovery}");
+        }
         Assert.IsFalse(afterRecovery.Contains(".muxbak"), $"{step}: backup left behind after recovery\n{afterRecovery}");
         Assert.IsTrue(isSource || isConverted, $"{step}: video under the name is neither the source nor the converted file\n{afterRecovery}");
         Assert.IsFalse(afterRecovery.Contains(".muxtmp"), $"{step}: temp output left behind\n{afterRecovery}");
@@ -101,7 +116,8 @@ public class FinalizeFaultInjectionTests : IntegrationTestBase
             p.SubtitleSettings = new TrackSettings
             {
                 Enabled = true,
-                AllowedLanguages = [new LanguagePreference { Language = IsoLanguage.Find("English") }]
+                AllowedLanguages = [new LanguagePreference { Language = IsoLanguage.Find("English") }],
+                Location = SubtitleLocation.NextToFile
             };
             await ctx.SaveChangesAsync();
             return p;
@@ -113,13 +129,13 @@ public class FinalizeFaultInjectionTests : IntegrationTestBase
         var probed = new MediaFile { Path = path };
         await probed.SetFileDataFromFFprobe();
         var subs = probed.Snapshot.Tracks.Where(t => t.Type == Core.Models.MediaTrackType.Subtitles).ToList();
-        return subs.Count > 0 && subs.All(t => t.LanguageCode == "eng");
+        return subs.All(t => t.LanguageCode == "eng" && t.Codec == nameof(Core.Extensions.SubtitleCodec.Pgs));
     }
 
     private string Listing()
     {
         return string.Join(", ", Directory.EnumerateFiles(TempDir)
-            .Where(f => !f.EndsWith(".db") && !f.Contains("muxarr-it.db"))
+            .Where(f => !f.EndsWith(".db") && !f.Contains("muxarr-it.db") && !f.EndsWith(".db-wal") && !f.EndsWith(".db-shm"))
             .OrderBy(f => f)
             .Select(f => $"{Path.GetFileName(f)}[{Hash(f)[..8]}]"));
     }

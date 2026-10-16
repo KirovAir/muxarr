@@ -105,7 +105,8 @@ public class PlanConvergenceProperties
     // --- simulated conversion ---
 
     // What the file looks like after the writer ran and the scanner read it back.
-    internal static MediaFile Simulate(MediaFile file, ConversionPlan plan, ConversionPlanner.PlanResult result)
+    internal static MediaFile Simulate(MediaFile file, ConversionPlan plan, ConversionPlanner.PlanResult result,
+        IEnumerable<SubtitleFile>? sidecars = null)
     {
         var source = file.Snapshot;
         var family = source.ContainerType.ToContainerFamily();
@@ -113,6 +114,10 @@ public class PlanConvergenceProperties
         var remux = result.Strategy == ConversionPlanner.ConversionStrategy.Remux;
         var deltaByIndex = delta.Tracks.ToDictionary(t => t.Index);
         var sourceByIndex = source.Tracks.ToDictionary(t => t.Index);
+        foreach (var sidecar in sidecars ?? [])
+        {
+            sourceByIndex[sidecar.Index] = sidecar.ToSnapshot();
+        }
 
         var tracks = new List<TrackSnapshot>();
         var position = 0;

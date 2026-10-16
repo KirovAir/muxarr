@@ -104,6 +104,23 @@ else
         }
     }
 
+    @if (Settings.Location == SubtitleLocation.InsideFile)
+    {
+        <ToolTip Tip="@($"Subtitle files beside the video are muxed into it{(Settings.DeleteMovedSubtitleFiles ? " and deleted" : "")}. MKV only, requires remux.")">
+            <span class="badge text-bg-info me-1">
+                <i class="bi bi-box-arrow-in-down me-1"></i>Subtitles: inside
+            </span>
+        </ToolTip>
+    }
+    else if (Settings.Location == SubtitleLocation.NextToFile)
+    {
+        <ToolTip Tip="@($"Kept text subtitles are written next to the video and removed from it{(Settings.DeleteMovedSubtitleFiles ? ", replacing files with the same name" : "")}. Requires remux.")">
+            <span class="badge text-bg-info me-1">
+                <i class="bi bi-file-earmark-text me-1"></i>Subtitles: next to file
+            </span>
+        </ToolTip>
+    }
+
     @if (Settings.DefaultStrategy == DefaultTrackStrategy.SpecCompliant)
     {
         <ToolTip
@@ -157,6 +174,7 @@ else
     private bool IsUnmodified =>
         !Settings.Enabled
         && Settings.DefaultStrategy == DefaultTrackStrategy.DontChange
-        && Settings.ReorderStrategy == TrackReorderStrategy.DontReorder;
+        && Settings.ReorderStrategy == TrackReorderStrategy.DontReorder
+        && Settings.Location == SubtitleLocation.WhereTheyAre;
 
 }

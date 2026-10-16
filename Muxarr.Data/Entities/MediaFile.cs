@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Muxarr.Data.Extensions;
 
 namespace Muxarr.Data.Entities;
 
@@ -16,11 +17,13 @@ public class MediaFile : AuditableEntity, IHasId
     public bool HasRedundantTracks { get; set; }
     public bool HasNonStandardMetadata { get; set; }
     public bool HasRemovableChapters { get; set; }
+    public bool HasMisplacedSubtitles { get; set; }
     public bool IsHardlinked { get; set; }
+    public List<SubtitleFile> SubtitleFiles { get; set; } = [];
     public DateTime FileLastWriteTime { get; set; }
     public DateTime FileCreationTime { get; set; }
 
-    public bool NeedsWork => HasRedundantTracks || HasNonStandardMetadata || HasRemovableChapters;
+    public bool NeedsWork => HasRedundantTracks || HasNonStandardMetadata || HasRemovableChapters || HasMisplacedSubtitles;
 
     public int? SnapshotId { get; set; }
     public MediaSnapshot Snapshot { get; set; } = null!;
@@ -65,6 +68,12 @@ public class MediaFileConfiguration : AuditEntityConfiguration<MediaFile>
 
         builder.Property(e => e.HasNonStandardMetadata)
             .IsRequired();
+
+        builder.Property(e => e.HasMisplacedSubtitles)
+            .IsRequired();
+
+        builder.Property(e => e.SubtitleFiles)
+            .HasJsonConversion();
 
         builder.Property(e => e.HasRemovableChapters)
             .IsRequired()

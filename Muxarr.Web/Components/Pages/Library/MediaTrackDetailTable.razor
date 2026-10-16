@@ -14,10 +14,36 @@
     }
     @foreach (var item in KeptTracks)
     {
+        @if (item.MuxedIn != null)
+        {
+            <tr>
+                <td><i class="bi bi-file-earmark-text text-success"></i></td>
+                <td><MediaTrackLabel Track="item.MuxedIn" ShowAllFlags="true"/></td>
+                <td><code>@item.MuxedIn.Codec.FormatCodec()</code></td>
+                <td>
+                    <span class="badge bg-info text-white me-1">muxed in</span>
+                    <span class="text-muted small">@item.MuxedIn.FileName(MediaPath ?? "")</span>
+                </td>
+            </tr>
+            continue;
+        }
+
         <MediaTrackDetail Track="item.Original"
                           Preview="item.Preview"
                           OriginalLanguage="@OriginalLanguage"
                           MovedFromPosition="item.MovedFromPosition"/>
+    }
+    @foreach (var (track, fileName) in ExtractedTracks)
+    {
+        <tr>
+            <td>@track.Index</td>
+            <td><MediaTrackLabel Track="track" ShowAllFlags="true"/></td>
+            <td><code>@track.Codec.FormatCodec()</code></td>
+            <td>
+                <i class="bi bi-arrow-right text-warning me-1"></i>
+                <span class="small text-warning-emphasis">@fileName</span>
+            </td>
+        </tr>
     }
     @foreach (var track in RemovedTracks)
     {
@@ -28,6 +54,18 @@
             </td>
             <td><code>@track.Codec.FormatCodec()</code></td>
             <td><RemovedMark/></td>
+        </tr>
+    }
+    @foreach (var sidecar in StayingSidecars)
+    {
+        <tr>
+            <td><i class="bi bi-file-earmark-text text-success"></i></td>
+            <td><MediaTrackLabel Track="sidecar" ShowAllFlags="true"/></td>
+            <td><code>@sidecar.Codec.FormatCodec()</code></td>
+            <td>
+                <span class="badge bg-success-subtle text-success-emphasis me-1">file</span>
+                <span class="text-muted small">@sidecar.FileName(MediaPath ?? "")</span>
+            </td>
         </tr>
     }
     </tbody>
@@ -43,19 +81,33 @@
     [Parameter] public ConversionPlan? Plan { get; set; }
     [Parameter] public MediaSnapshot? Previous { get; set; }
 
-    private record TrackWithPreview(IMediaTrack Original, TrackPlan? Preview, int? MovedFromPosition);
+    /// <summary>Subtitle files beside the video, shown after the embedded tracks.</summary>
+    [Parameter] public IEnumerable<SubtitleFile>? Sidecars { get; set; }
+    [Parameter] public string? MediaPath { get; set; }
+
+    private record TrackWithPreview(IMediaTrack Original, TrackPlan? Preview, int? MovedFromPosition, SubtitleFile? MuxedIn = null);
 
     private List<TrackWithPreview> KeptTracks { get; set; } = [];
     private List<IMediaTrack> RemovedTracks { get; set; } = [];
+    private List<(IMediaTrack Track, string FileName)> ExtractedTracks { get; set; } = [];
+    private List<SubtitleFile> StayingSidecars { get; set; } = [];
 
     protected override void OnParametersSet()
     {
+        var sidecars = Sidecars?.ToList() ?? [];
+        var sidecarByIndex = sidecars.ToDictionary(s => s.Index);
+        ExtractedTracks = [];
         if (PreviewTracks == null || PreviewTracks.Count == 0)
         {
             KeptTracks = Tracks.Select(t => new TrackWithPreview(t, null, null)).ToList();
             RemovedTracks = [];
+            StayingSidecars = sidecars;
             return;
         }
+
+        var extracted = (Plan?.ExtractedSubtitles ?? []).ToDictionary(e => e.Index, e => e.FileName);
+        ExtractedTracks = Tracks.Where(t => extracted.ContainsKey(t.Index)).Select(t => (t, extracted[t.Index])).ToList();
+        StayingSidecars = sidecars.Where(s => PreviewTracks.All(p => p.Index != s.Index)).ToList();
 
         var previewByNumber = PreviewTracks.ToDictionary(p => p.Index);
         var originalPositions = Tracks.Select((t, i) => (TrackNumber: t.Index, Index: i))
@@ -68,6 +120,11 @@
             var original = Tracks.FirstOrDefault(t => t.Index == preview.Index);
             if (original == null)
             {
+                if (sidecarByIndex.TryGetValue(preview.Index, out var muxedIn))
+                {
+                    KeptTracks.Add(new TrackWithPreview(muxedIn, preview, null, muxedIn));
+                }
+
                 continue;
             }
 
@@ -80,7 +137,7 @@
             KeptTracks.Add(new TrackWithPreview(original, preview, movedFrom));
         }
 
-        RemovedTracks = Tracks.Where(t => !previewByNumber.ContainsKey(t.Index)).ToList();
+        RemovedTracks = Tracks.Where(t => !previewByNumber.ContainsKey(t.Index) && !extracted.ContainsKey(t.Index)).ToList();
     }
 
 }

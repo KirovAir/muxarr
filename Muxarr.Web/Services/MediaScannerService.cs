@@ -313,7 +313,9 @@ public class MediaScannerService(
         // while the queue plans with another.
         dbFile.ProfileId = profile.Id;
         dbFile.IsHardlinked = isHardlinked;
+        var sidecarsBefore = dbFile.SubtitleFiles;
         await ScanMediaFile(dbFile, forceRescan, context, profile, webhookTitle, webhookOriginalLanguage);
+        var sidecarsChanged = !ReferenceEquals(sidecarsBefore, dbFile.SubtitleFiles);
 
         // The file can still vanish between the check above and the probe. Drop the
         // new row rather than let a later save insert it with no snapshot.
@@ -338,7 +340,7 @@ public class MediaScannerService(
             await context.SaveChangesAsync();
         }
 
-        if (isNew && dbFile.NeedsWork)
+        if ((isNew && dbFile.NeedsWork) || (sidecarsChanged && dbFile.HasMisplacedSubtitles))
         {
             discovered?.Add(dbFile.Id);
         }
@@ -347,9 +349,11 @@ public class MediaScannerService(
     private static void ApplyProfileFlags(MediaFile file, Profile? profile)
     {
         var target = file.BuildTargetFromProfile(profile);
-        file.HasRedundantTracks = profile != null && target.Tracks.Count < file.Snapshot.TrackCount;
+        var embeddedKept = target.Tracks.Count(t => t.SourcePath == null) + target.ExtractedSubtitles.Count;
+        file.HasRedundantTracks = profile != null && embeddedKept < file.Snapshot.TrackCount;
         file.HasNonStandardMetadata = file.CheckHasNonStandardMetadata(profile, target);
         file.HasRemovableChapters = profile is { RemoveChapters: true } && file.Snapshot.HasChapters;
+        file.HasMisplacedSubtitles = target.ExtractedSubtitles.Count > 0 || target.Tracks.Any(t => t.SourcePath != null);
     }
 
     // A file edited or restored outside muxarr would plan against the wrong snapshot.
@@ -375,6 +379,13 @@ public class MediaScannerService(
         {
             logger.LogWarning("Skipping scan; file not found on disk: {Path}", dbFile.Path);
             return;
+        }
+
+        // Sidecars change without the video changing, so they are read every scan.
+        var sidecars = SubtitleFile.Find(dbFile.Path);
+        if (!SameSidecars(dbFile.SubtitleFiles, sidecars))
+        {
+            dbFile.SubtitleFiles = sidecars;
         }
 
         // ReSharper disable once EntityFramework.NPlusOne.IncompleteDataUsage
@@ -426,6 +437,13 @@ public class MediaScannerService(
 
             await context.SaveChangesAsync();
         }
+    }
+
+    private static bool SameSidecars(List<SubtitleFile> a, List<SubtitleFile> b)
+    {
+        return a.Count == b.Count && a.Zip(b).All(p =>
+            p.First.Suffix == p.Second.Suffix && p.First.Size == p.Second.Size
+            && p.First.LastWriteTime == p.Second.LastWriteTime);
     }
 
     private async Task PurgeDeleted(CancellationToken token)

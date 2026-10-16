@@ -145,6 +145,8 @@
                                                PreviewTracks="_showPreview ? Preview?.Tracks : null"
                                                Current="File.Snapshot"
                                                Plan="_showPreview ? Preview : null"
+                                               Sidecars="File.Sidecars()"
+                                               MediaPath="@File.Path"
                                                OriginalLanguage="@File.OriginalLanguage"/>
                     }
                     else
