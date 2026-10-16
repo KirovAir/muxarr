@@ -70,16 +70,6 @@ public class SubtitleLocationModelProperties
     {
         Check.One(PlanConvergenceProperties.Config, Prop.ForAll(Arb.From(WorldGen()), w =>
         {
-            // Known planner defect, not a location issue: FilterLanguage lets a track
-            // vouch for removing an SDH or commentary one before codec exclusion
-            // removes the voucher itself. A sidecar dropped that way is muxed on the
-            // next pass instead; embedded tracks are simply lost.
-            var s = w.Profile.SubtitleSettings;
-            if (s.Enabled && s.ExcludeCodecs && (s.RemoveImpaired || s.RemoveCommentary))
-            {
-                return;
-            }
-
             var moves = PlanWithLocation(w);
             var after = Apply(w, moves);
             var again = PlanWithLocation(after);
