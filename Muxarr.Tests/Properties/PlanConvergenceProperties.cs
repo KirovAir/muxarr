@@ -20,14 +20,28 @@ namespace Muxarr.Tests.Properties;
 [TestClass]
 public class PlanConvergenceProperties
 {
-    // Override with MUXARR_PROP_CASES for a longer run.
-    private static readonly int Cases =
-        int.TryParse(Environment.GetEnvironmentVariable("MUXARR_PROP_CASES"), out var n) ? n : 400;
+    // MUXARR_PROP_CASES for a longer run, MUXARR_PROP_REPLAY="seed,gamma" to
+    // replay the run FsCheck printed after a failure.
+    internal static FsCheck.Config Config
+    {
+        get
+        {
+            var cases = int.TryParse(Environment.GetEnvironmentVariable("MUXARR_PROP_CASES"), out var n) ? n : 400;
+            var config = FsCheck.Config.QuickThrowOnFailure.WithMaxTest(cases);
+            var replay = Environment.GetEnvironmentVariable("MUXARR_PROP_REPLAY")?.Split(',');
+            if (replay is { Length: 2 } && ulong.TryParse(replay[0], out var seed) && ulong.TryParse(replay[1], out var gamma))
+            {
+                config = config.WithReplay(new Replay(new Rnd(seed, gamma), Microsoft.FSharp.Core.FSharpOption<int>.None));
+            }
+
+            return config;
+        }
+    }
 
     [TestMethod]
     public void Plan_Is_Deterministic()
     {
-        Check.One(FsCheck.Config.QuickThrowOnFailure.WithMaxTest(Cases), Prop.ForAll(Arb.From(CaseGen()), c =>
+        Check.One(Config, Prop.ForAll(Arb.From(CaseGen()), c =>
         {
             var (file, profile) = c.Materialize();
             var a = Json(file.BuildTargetFromProfile(profile));
@@ -39,14 +53,9 @@ public class PlanConvergenceProperties
     [TestMethod]
     public void Applying_The_Plan_Converges_To_Skip()
     {
-        Check.One(FsCheck.Config.QuickThrowOnFailure.WithMaxTest(Cases), Prop.ForAll(Arb.From(CaseGen()), c =>
+        Check.One(Config, Prop.ForAll(Arb.From(CaseGen()), c =>
         {
             var (file, profile) = c.Materialize();
-            if (KnownIssue(file, profile) != null)
-            {
-                return;
-            }
-
             var plan = file.BuildTargetFromProfile(profile);
             var first = ConversionPlanner.Plan(file.Snapshot, plan);
             if (first.Strategy == ConversionPlanner.ConversionStrategy.Skip)
@@ -73,31 +82,6 @@ public class PlanConvergenceProperties
             Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, thirdResult.Strategy,
                 $"did not converge in two conversions\n{detail}\n\nthird:\n{Describe(third.Snapshot)}\n{Json(thirdResult.Delta)}");
         }));
-    }
-
-    // Non-convergence the harness has already found on master. Each entry is a
-    // real defect, listed here so the property keeps looking for new ones.
-    internal static string? KnownIssue(MediaFile file, Profile profile)
-    {
-        foreach (var type in new[] { MediaTrackType.Audio, MediaTrackType.Subtitles })
-        {
-            var settings = type == MediaTrackType.Audio ? profile.AudioSettings : profile.SubtitleSettings;
-            var ofType = file.Snapshot.Tracks.Where(t => t.Type == type).ToList();
-            // ApplyProfileState rewrites a lone "und" track to the original language
-            // whenever AssumeUndeterminedIsOriginal is on, but GetAllowedTracks keeps
-            // it as Undetermined when that is explicitly allowed. After the write the
-            // track carries a language the profile does not allow and is removed.
-            // Reached directly with one such track, or through a removal that leaves one.
-            if (settings is { Enabled: true, AssumeUndeterminedIsOriginal: true }
-                && settings.AllowedLanguages.Any(l => l.Name == IsoLanguage.UndeterminedName)
-                && ofType.Any(t => t.LanguageCode == "und" && t.LanguageName == IsoLanguage.UndeterminedName)
-                && IsoLanguage.Find(file.OriginalLanguage) != IsoLanguage.Unknown)
-            {
-                return "und rewritten to original while Undetermined is explicitly allowed";
-            }
-        }
-
-        return null;
     }
 
     internal static bool UndeterminedRuleJustBecameApplicable(MediaFile before, MediaFile after, Profile profile)
