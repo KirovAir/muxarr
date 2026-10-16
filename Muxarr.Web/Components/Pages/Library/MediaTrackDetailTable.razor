@@ -65,6 +65,10 @@
             <td>
                 <span class="badge bg-success-subtle text-success-emphasis me-1">file</span>
                 <span class="text-muted small">@sidecar.FileName(MediaPath ?? "")</span>
+                @if (Plan?.SubtitleDeletions.Any(d => d.Suffix == sidecar.Suffix) == true)
+                {
+                    <span class="badge bg-danger-subtle text-danger-emphasis ms-1">removed</span>
+                }
             </td>
         </tr>
     }

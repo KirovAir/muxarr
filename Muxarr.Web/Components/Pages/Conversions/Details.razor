@@ -193,7 +193,7 @@
                 {
                     <p class="text-muted mb-0">No track data available.</p>
                 }
-                @if (Conversion.ConversionPlan.ExtractedSubtitles.Count > 0 || Conversion.ConversionPlan.Tracks.Any(t => t.SourcePath != null))
+                @if (Conversion.ConversionPlan.ExtractedSubtitles.Count > 0 || Conversion.ConversionPlan.SubtitleDeletions.Count > 0 || Conversion.ConversionPlan.Tracks.Any(t => t.SourcePath != null))
                 {
                     <ul class="list-unstyled small text-muted mt-2 mb-0">
                         @foreach (var extracted in Conversion.ConversionPlan.ExtractedSubtitles)
@@ -202,7 +202,11 @@
                         }
                         @foreach (var track in Conversion.ConversionPlan.Tracks.Where(t => t.SourcePath != null))
                         {
-                            <li><i class="bi bi-box-arrow-in-down text-info me-1"></i>@System.IO.Path.GetFileName(track.SourcePath) muxed in@(track.DeleteSource ? " and deleted" : "")</li>
+                            <li><i class="bi bi-box-arrow-in-down text-info me-1"></i>@System.IO.Path.GetFileName(track.SourcePath) merged in</li>
+                        }
+                        @foreach (var deletion in Conversion.ConversionPlan.SubtitleDeletions)
+                        {
+                            <li><i class="bi bi-trash text-danger me-1"></i>@deletion.FileName removed</li>
                         }
                     </ul>
                 }

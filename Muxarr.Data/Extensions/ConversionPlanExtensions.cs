@@ -23,6 +23,7 @@ public static class ConversionPlanExtensions
             TrimToVideoLength = desired.TrimToVideoLength,
             Title = DiffString(source.Title, desired.Title),
             ExtractedSubtitles = desired.ExtractedSubtitles,
+            SubtitleDeletions = desired.SubtitleDeletions,
             Tracks = new List<TrackPlan>(desired.Tracks.Count)
         };
 
@@ -43,7 +44,6 @@ public static class ConversionPlanExtensions
             Type = desired.Type,
             NameLocked = desired.NameLocked,
             SourcePath = desired.SourcePath,
-            DeleteSource = desired.DeleteSource,
 
             Name = DiffString(source?.Name, desired.Name),
             LanguageCode = DiffString(source?.LanguageCode, desired.LanguageCode),

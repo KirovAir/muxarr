@@ -108,6 +108,11 @@ public class MediaConverterService(
 
             await CleanupLeftoverConversions(context, stoppingToken);
             await CleanupMuxbakFiles(context);
+            var pruned = RecycleBin.Prune(TrashDirectory(context));
+            if (pruned > 0)
+            {
+                logger.LogInformation("Removed {Count} subtitle file(s) older than {Days} days from the bin", pruned, RecycleBin.Retention.Days);
+            }
         }
 
         if (IsPaused)
@@ -538,11 +543,10 @@ public class MediaConverterService(
         }
     }
 
-    private sealed class ExtractedSidecar(string temp, string final, string? replaces)
+    private sealed class ExtractedSidecar(string temp, string final)
     {
         public string Temp { get; } = temp;
         public string Final { get; } = final;
-        public string? Replaces { get; } = replaces;
         public bool Placed { get; set; }
     }
 
@@ -568,27 +572,52 @@ public class MediaConverterService(
         }
     }
 
-    // The swap is done, so a file that cannot be placed is logged and left as its temp copy.
-    private void PlaceSidecars(MediaConversion conversion, SidecarBatch sidecars)
+    // The swap is done, so a file that cannot be placed is logged and left as its
+    // temp copy. A file the plan retires under the same name goes to the bin first.
+    private void PlaceSidecars(MediaConversion conversion, SidecarBatch sidecars, string trash)
     {
+        var mediaFile = conversion.MediaFile!;
         foreach (var sidecar in sidecars.Files.Where(s => !s.Placed))
         {
             try
             {
-                File.Move(sidecar.Temp, sidecar.Final, sidecar.Replaces != null);
+                var retired = conversion.ConversionPlan.SubtitleDeletions
+                    .FirstOrDefault(d => string.Equals(d.FileName, Path.GetFileName(sidecar.Final), StringComparison.OrdinalIgnoreCase));
+                if (retired != null && File.Exists(sidecar.Final) && !Retire(conversion, retired, sidecar.Final, trash))
+                {
+                    continue;
+                }
+
+                File.Move(sidecar.Temp, sidecar.Final);
                 sidecar.Placed = true;
                 conversion.Log($"Wrote {Path.GetFileName(sidecar.Final)}", logger);
-                if (sidecar.Replaces != null && !string.Equals(sidecar.Replaces, sidecar.Final, StringComparison.Ordinal) && File.Exists(sidecar.Replaces))
-                {
-                    File.Delete(sidecar.Replaces);
-                    conversion.Log($"Removed {Path.GetFileName(sidecar.Replaces)}, replaced by {Path.GetFileName(sidecar.Final)}", logger);
-                }
             }
             catch (Exception e)
             {
                 conversion.LogError($"Could not place {Path.GetFileName(sidecar.Final)}: {e.Message}", logger);
             }
         }
+    }
+
+    // Moves a retired file to the bin when it is still the file the plan saw.
+    private bool Retire(MediaConversion conversion, SubtitleFileDeletion deletion, string path, string trash)
+    {
+        var info = new FileInfo(path);
+        if (info.Length != deletion.Size || info.LastWriteTimeUtc != deletion.LastWriteTime)
+        {
+            conversion.Log($"{info.Name} changed since the plan, leaving it alone.", logger);
+            return false;
+        }
+
+        var moved = RecycleBin.Move(path, trash);
+        conversion.Log($"Removed {info.Name} (kept in {moved} for {RecycleBin.Retention.Days} days)", logger);
+        return true;
+    }
+
+    private static string TrashDirectory(AppDbContext context)
+    {
+        var database = Path.GetFullPath(context.Database.GetDbConnection().DataSource);
+        return Path.Combine(Path.GetDirectoryName(database) ?? ".", "trash", "subtitles");
     }
 
     // Temp files beside the video, checked before the remux drops the tracks.
@@ -613,8 +642,7 @@ public class MediaConverterService(
             }
 
             var sidecar = new ExtractedSidecar(Path.Combine(directory, subtitle.FileName + ".muxsub"),
-                Path.Combine(directory, subtitle.FileName),
-                subtitle.Replaces == null ? null : Path.Combine(directory, subtitle.Replaces));
+                Path.Combine(directory, subtitle.FileName));
             sidecars.Files.Add(sidecar);
             requests.Add(new SubtitleExtractor.Request(subtitle.Index, source.GetSubtitleCodec(), sidecar.Temp));
         }
@@ -867,7 +895,7 @@ public class MediaConverterService(
             sidecars.SwapCommitted = true;
             await Fault("swapped");
 
-            PlaceSidecars(conversion, sidecars);
+            PlaceSidecars(conversion, sidecars, TrashDirectory(context));
             await Fault("sidecars-placed");
 
             conversion.Log("Removing old file..", logger);
@@ -897,7 +925,7 @@ public class MediaConverterService(
         await RunPostProcessing(conversion);
         await Fault("post-processed");
 
-        DeleteMuxedSources(conversion, oldPath);
+        RetireSubtitleFiles(conversion, oldPath, TrashDirectory(context));
         await Fault("sources-deleted");
 
         // The swap is committed, a cancel landing now must not undo the outcome.
@@ -1094,24 +1122,28 @@ public class MediaConverterService(
         }
     }
 
-    // Under whichever name the arr gave them by now.
-    private void DeleteMuxedSources(MediaConversion conversion, string oldPath)
+    // Under the old name first, then whichever name the arr gave them by now.
+    private void RetireSubtitleFiles(MediaConversion conversion, string oldPath, string trash)
     {
         var mediaFile = conversion.MediaFile!;
-        foreach (var track in conversion.ConversionPlan.Tracks.Where(t => t is { DeleteSource: true, SourcePath: not null }))
+        var directory = Path.GetDirectoryName(mediaFile.Path) ?? string.Empty;
+        var retired = false;
+        foreach (var deletion in conversion.ConversionPlan.SubtitleDeletions)
         {
-            var suffix = Path.GetFileName(track.SourcePath!)[Path.GetFileNameWithoutExtension(oldPath).Length..];
-            var current = Path.Combine(Path.GetDirectoryName(mediaFile.Path) ?? string.Empty,
-                Path.GetFileNameWithoutExtension(mediaFile.Path) + suffix);
-            var path = File.Exists(track.SourcePath!) ? track.SourcePath! : File.Exists(current) ? current : null;
+            var old = Path.Combine(Path.GetDirectoryName(oldPath) ?? string.Empty, deletion.FileName);
+            var current = Path.Combine(directory, Path.GetFileNameWithoutExtension(mediaFile.Path) + deletion.Suffix);
+            var path = File.Exists(old) ? old : File.Exists(current) ? current : null;
             if (path == null)
             {
                 continue;
             }
 
-            File.Delete(path);
-            conversion.Log($"Removed {Path.GetFileName(path)}, now inside the file", logger);
-            mediaFile.SubtitleFiles = SubtitleFile.Find(mediaFile.Path);
+            retired |= Retire(conversion, deletion, path, trash);
+        }
+
+        if (retired)
+        {
+            mediaFile.SubtitleFiles = SubtitleFile.Find(mediaFile.Path, mediaFile.SubtitleFiles);
         }
     }
 

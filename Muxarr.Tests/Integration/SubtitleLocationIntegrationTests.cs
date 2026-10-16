@@ -113,4 +113,46 @@ public class SubtitleLocationIntegrationTests : IntegrationTestBase
         Assert.IsTrue(after.HasMisplacedSubtitles);
         Assert.AreEqual(before.SnapshotId, after.SnapshotId, "no new probe for a subtitle file");
     }
+
+    [TestCleanup]
+    public void ClearHook()
+    {
+        MediaConverterService.FaultHook = null;
+    }
+
+    [TestMethod]
+    public async Task AFileChangedDuringTheConversion_IsNotRemoved()
+    {
+        var path = CopyFixture("test.mkv");
+        var sidecar = Path.Combine(TempDir, "test.nl.srt");
+        await File.WriteAllTextAsync(sidecar, TwoCues);
+        var profile = await SeedProfile(SubtitleLocation.InsideFile, true, "English", "Dutch");
+        MediaConverterService.FaultHook = async step =>
+        {
+            if (step == "validated")
+            {
+                await File.WriteAllTextAsync(sidecar, TwoCues + "\n3\n00:00:05,000 --> 00:00:06,000\nUpgraded\n");
+            }
+        };
+
+        var after = await Convert(path, profile);
+
+        Assert.IsTrue(File.Exists(sidecar), "a file Bazarr rewrote mid-conversion must survive");
+        Assert.AreEqual(1, after.SubtitleFiles.Count);
+        Assert.IsFalse(Directory.Exists(Path.Combine(TempDir, "trash")), "nothing was moved to the bin");
+    }
+
+    [TestMethod]
+    public async Task ARemovedFile_LandsInTheBin()
+    {
+        var path = CopyFixture("test.mkv");
+        await File.WriteAllTextAsync(Path.Combine(TempDir, "test.nl.srt"), TwoCues);
+        var profile = await SeedProfile(SubtitleLocation.InsideFile, true, "English", "Dutch");
+
+        await Convert(path, profile);
+
+        var binned = Path.Combine(TempDir, "trash", "subtitles", "test.nl.srt");
+        Assert.IsTrue(File.Exists(binned));
+        Assert.AreEqual(TwoCues, await File.ReadAllTextAsync(binned));
+    }
 }

@@ -58,7 +58,7 @@ public class SubtitleLocationTests
         CollectionAssert.AreEqual(new[] { 0, 1, 3 }, plan.Tracks.Select(t => t.Index).ToArray());
         CollectionAssert.AreEqual(new[] { "Movie.en.srt", "Movie.nl.sdh.ass", "Movie.en.forced.srt" },
             plan.ExtractedSubtitles.Select(e => e.FileName).ToArray());
-        Assert.IsTrue(plan.ExtractedSubtitles.All(e => e.Replaces == null));
+        Assert.AreEqual(0, plan.SubtitleDeletions.Count);
     }
 
     [TestMethod]
@@ -74,8 +74,7 @@ public class SubtitleLocationTests
         var replacing = file.BuildTargetFromProfile(EnglishDutch(SubtitleLocation.NextToFile, delete: true));
         CollectionAssert.AreEqual(new[] { "Movie.en.srt", "Movie.1.en.srt" },
             replacing.ExtractedSubtitles.Select(e => e.FileName).ToArray());
-        Assert.AreEqual("Movie.en.srt", replacing.ExtractedSubtitles[0].Replaces);
-        Assert.IsNull(replacing.ExtractedSubtitles[1].Replaces);
+        Assert.AreEqual("Movie.en.srt", replacing.SubtitleDeletions.Single().FileName);
     }
 
     [TestMethod]
@@ -89,7 +88,7 @@ public class SubtitleLocationTests
         var muxed = plan.Tracks.Where(t => t.SourcePath != null).ToList();
         CollectionAssert.AreEqual(new[] { "/lib/Movie/Movie.nl.srt", "/lib/Movie/Movie.en.forced.srt" },
             muxed.Select(t => t.SourcePath).ToArray());
-        Assert.IsTrue(muxed.All(t => t.DeleteSource));
+        CollectionAssert.AreEqual(new[] { "Movie.nl.srt", "Movie.en.forced.srt" }, plan.SubtitleDeletions.Select(d => d.FileName).ToArray());
         Assert.AreEqual(0, plan.ExtractedSubtitles.Count);
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Remux, ConversionPlanner.Plan(file.Snapshot, plan).Strategy);
     }
@@ -142,5 +141,30 @@ public class SubtitleLocationTests
         StringAssert.Contains(command, "--audio-tracks 1 --subtitle-tracks 2");
         StringAssert.Contains(command, "\"/lib/Movie.mkv\" --language 0:dut --default-track-flag 0:1 \"/lib/Movie.nl.srt\"");
         StringAssert.EndsWith(command, "--track-order 0:0,0:1,1:0,0:2");
+    }
+
+    [TestMethod]
+    public void Find_FlagsFilesThatCannotGoIntoAVideo()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "muxarr-sub-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            File.WriteAllText(Path.Combine(dir, "Movie.mkv"), "");
+            File.WriteAllBytes(Path.Combine(dir, "Movie.en.srt"), [0x31, 0x0A, 0x30, 0x30, 0x3A, 0x30, 0x30, 0x3A, 0x30, 0x31, 0x2C, 0x30, 0x30, 0x30, 0x20, 0x2D, 0x2D, 0x3E, 0x20, 0x30, 0x30, 0x3A, 0x30, 0x30, 0x3A, 0x30, 0x32, 0x2C, 0x30, 0x30, 0x30, 0x0A, 0xE9, 0x0A]);
+            File.WriteAllText(Path.Combine(dir, "Movie.nl.srt"), "");
+            File.WriteAllText(Path.Combine(dir, "Movie.fr.srt"), "1\n00:00:01,000 --> 00:00:02,000\nOui\n");
+
+            var files = SubtitleFile.Find(Path.Combine(dir, "Movie.mkv"));
+
+            Assert.AreEqual("not UTF-8", files.Single(f => f.Suffix == ".en.srt").Problem);
+            Assert.AreEqual("no cues", files.Single(f => f.Suffix == ".nl.srt").Problem);
+            Assert.IsNull(files.Single(f => f.Suffix == ".fr.srt").Problem);
+            Assert.AreEqual(1, files.Count(f => f.CanMuxIn));
+        }
+        finally
+        {
+            Directory.Delete(dir, true);
+        }
     }
 }

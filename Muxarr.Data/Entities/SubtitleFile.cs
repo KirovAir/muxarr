@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json.Serialization;
 using Muxarr.Core.Extensions;
 using Muxarr.Core.Language;
@@ -23,6 +24,10 @@ public class SubtitleFile : IMediaTrack
     public string Codec { get; set; } = string.Empty;
     public long Size { get; set; }
     public DateTime LastWriteTime { get; set; }
+
+    // Why the file cannot go into a video, read once per file version: not UTF-8, or no cues.
+    public bool Inspected { get; set; }
+    public string? Problem { get; set; }
 
     [JsonIgnore]
     public int Index { get; set; }
@@ -53,7 +58,10 @@ public class SubtitleFile : IMediaTrack
 
     // Image files cannot go in; ffprobe reports a muxed WebVTT as unknown, which would mux it in again every time.
     [JsonIgnore]
-    public bool CanMuxIn => Codec is nameof(SubtitleCodec.Srt) or nameof(SubtitleCodec.Ass);
+    public bool CanMuxIn => (Codec is nameof(SubtitleCodec.Srt) or nameof(SubtitleCodec.Ass)) && Problem == null;
+
+    [JsonIgnore]
+    public string Identity => $"{IsoLanguage.Find(LanguageName).Base.Name}|{IsForced}|{IsHearingImpaired}|{SubtitleSidecars.ExtensionFor(GetCodec())}";
 
     string? IMediaTrack.Name => null;
 
@@ -67,6 +75,11 @@ public class SubtitleFile : IMediaTrack
     public string FullPath(string mediaPath)
     {
         return Path.Combine(Path.GetDirectoryName(mediaPath) ?? string.Empty, FileName(mediaPath));
+    }
+
+    public SubtitleFileDeletion ToDeletion(string mediaPath)
+    {
+        return new SubtitleFileDeletion { FileName = FileName(mediaPath), Suffix = Suffix, Size = Size, LastWriteTime = LastWriteTime };
     }
 
     public static SubtitleFile From(SubtitleSidecar sidecar, string mediaPath)
@@ -87,15 +100,50 @@ public class SubtitleFile : IMediaTrack
         };
     }
 
-    public static List<SubtitleFile> Find(string mediaPath)
+    // Entries already known with the same size and time keep their verdict; the rest are read.
+    public static List<SubtitleFile> Find(string mediaPath, IReadOnlyList<SubtitleFile>? known = null)
     {
         var files = SubtitleSidecars.Find(mediaPath).Select(s => From(s, mediaPath)).ToList();
         for (var i = 0; i < files.Count; i++)
         {
-            files[i].Index = FirstIndex + i;
+            var file = files[i];
+            file.Index = FirstIndex + i;
+            var previous = known?.FirstOrDefault(k => k.Inspected && k.Suffix == file.Suffix && k.Size == file.Size && k.LastWriteTime == file.LastWriteTime);
+            file.Problem = previous != null ? previous.Problem : Inspect(file.FullPath(mediaPath), file.Codec);
+            file.Inspected = true;
         }
 
         return files;
+    }
+
+    private static string? Inspect(string path, string codec)
+    {
+        if (codec == nameof(SubtitleCodec.Pgs))
+        {
+            return null;
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = File.ReadAllBytes(path);
+        }
+        catch (IOException)
+        {
+            return "unreadable";
+        }
+
+        string text;
+        try
+        {
+            text = new UTF8Encoding(false, true).GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            return "not UTF-8";
+        }
+
+        return SubtitleExtractor.HasCues(text, codec == nameof(SubtitleCodec.Ass) ? "ass" : "srt") ? null : "no cues";
     }
 
     public bool Matches(IMediaTrack track)

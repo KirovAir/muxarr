@@ -382,7 +382,7 @@ public class MediaScannerService(
         }
 
         // Sidecars change without the video changing, so they are read every scan.
-        var sidecars = SubtitleFile.Find(dbFile.Path);
+        var sidecars = SubtitleFile.Find(dbFile.Path, dbFile.SubtitleFiles);
         if (!SameSidecars(dbFile.SubtitleFiles, sidecars))
         {
             dbFile.SubtitleFiles = sidecars;

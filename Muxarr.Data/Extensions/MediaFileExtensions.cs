@@ -557,10 +557,16 @@ public static class MediaFileExtensions
             return embedded;
         }
 
+        // Two files that are the same subtitle would both go in; the lowest copy number wins.
         var candidates = embedded.ToList();
-        foreach (var sidecar in file.Sidecars().Where(f => f.CanMuxIn && !embedded.Any(f.Matches)))
+        var seen = new HashSet<string>();
+        foreach (var sidecar in file.Sidecars().Where(f => f.CanMuxIn && !embedded.Any(f.Matches))
+                     .OrderBy(f => f.Number).ThenBy(f => f.DiskName, StringComparer.Ordinal))
         {
-            candidates.Add(sidecar.ToSnapshot());
+            if (seen.Add(sidecar.Identity))
+            {
+                candidates.Add(sidecar.ToSnapshot());
+            }
         }
 
         return candidates;
@@ -1314,8 +1320,9 @@ public static class MediaFileExtensions
         var sourceTracks = file.Snapshot.Tracks;
         var allowed = GetAllowedTracks(file, profile).ToSnapshots();
         var subtitleCount = sourceTracks.Count(t => t.Type == MediaTrackType.Subtitles);
+        var deletions = new List<SubtitleFileDeletion>();
         var extracted = file.SubtitleLocationFor(profile) == SubtitleLocation.NextToFile
-            ? file.ExtractSubtitles(profile.SubtitleSettings, allowed, subtitleCount)
+            ? file.ExtractSubtitles(profile.SubtitleSettings, allowed, subtitleCount, deletions)
             : [];
         allowed.RemoveAll(t => extracted.Any(e => e.Index == t.Index));
         var sidecarByIndex = file.Sidecars().ToDictionary(f => f.Index);
@@ -1331,6 +1338,7 @@ public static class MediaFileExtensions
             Title = profile.ClearFileTitle ? "" : null,
             HasChapters = profile.RemoveChapters ? false : (bool?)null,
             ExtractedSubtitles = extracted,
+            SubtitleDeletions = deletions,
             Tracks = allowed.Select(t =>
             {
                 var settings = SettingsFor(t.Type, profile);
@@ -1340,7 +1348,10 @@ public static class MediaFileExtensions
                 if (sidecarByIndex.TryGetValue(t.Index, out var sidecar))
                 {
                     tt.SourcePath = sidecar.FullPath(file.Path);
-                    tt.DeleteSource = profile.SubtitleSettings.DeleteMovedSubtitleFiles;
+                    if (profile.SubtitleSettings.DeleteMovedSubtitleFiles)
+                    {
+                        deletions.Add(sidecar.ToDeletion(file.Path));
+                    }
                 }
 
                 // ClearVideoTrackNames means "strip the title". ApplyProfileMutations
@@ -1374,14 +1385,17 @@ public static class MediaFileExtensions
     {
         var tracks = userEditedTracks.ToList();
         var sidecarByIndex = file.Sidecars().ToDictionary(f => f.Index);
+        var deletions = new List<SubtitleFileDeletion>();
         var extracted = extract == null
             ? []
-            : file.ExtractSubtitles(null, tracks.Where(t => extract.Contains(t.Index)).ToList(), 0);
+            : file.ExtractSubtitles(deleteMovedFiles ? new TrackSettings { DeleteMovedSubtitleFiles = true } : null,
+                tracks.Where(t => extract.Contains(t.Index)).ToList(), 0, deletions);
         tracks.RemoveAll(t => extracted.Any(e => e.Index == t.Index));
 
         var target = new ConversionPlan
         {
             ExtractedSubtitles = extracted,
+            SubtitleDeletions = deletions,
             Tracks = tracks.Select(t =>
             {
                 var plan = t.ToTargetTrack(true);
@@ -1401,7 +1415,10 @@ public static class MediaFileExtensions
                 if (sidecarByIndex.TryGetValue(t.Index, out var sidecar))
                 {
                     plan.SourcePath = sidecar.FullPath(file.Path);
-                    plan.DeleteSource = deleteMovedFiles;
+                    if (deleteMovedFiles)
+                    {
+                        deletions.Add(sidecar.ToDeletion(file.Path));
+                    }
                 }
 
                 return plan;
@@ -1416,7 +1433,7 @@ public static class MediaFileExtensions
     // untagged tracks get none and stay. A taken name is replaced when the
     // settings delete moved files, numbered the way the arrs do otherwise.
     private static List<SubtitleExtraction> ExtractSubtitles(this MediaFile file, TrackSettings? settings,
-        List<TrackSnapshot> tracks, int subtitleCount)
+        List<TrackSnapshot> tracks, int subtitleCount, List<SubtitleFileDeletion> deletions)
     {
         var existing = file.Sidecars().ToList();
         var taken = existing.Select(f => f.FileName(file.Path)).ToHashSet(StringComparer.OrdinalIgnoreCase);
@@ -1433,15 +1450,14 @@ public static class MediaFileExtensions
             }
 
             var name = SubtitleSidecars.FileNameFor(file.Path, language, track.IsHearingImpaired, track.IsForced, 0, extension);
-            string? replaces = null;
             var replaced = settings is { DeleteMovedSubtitleFiles: true }
                 ? existing.FirstOrDefault(f => f.Matches(language.Name, track.IsForced, track.IsHearingImpaired, extension))
                 : null;
             if (replaced != null)
             {
-                replaces = replaced.FileName(file.Path);
+                deletions.Add(replaced.ToDeletion(file.Path));
                 existing.Remove(replaced);
-                taken.Remove(replaces);
+                taken.Remove(replaced.FileName(file.Path));
             }
 
             for (var n = 1; taken.Contains(name); n++)
@@ -1450,7 +1466,7 @@ public static class MediaFileExtensions
             }
 
             taken.Add(name);
-            result.Add(new SubtitleExtraction { Index = track.Index, FileName = name, Replaces = replaces });
+            result.Add(new SubtitleExtraction { Index = track.Index, FileName = name });
         }
 
         return result;

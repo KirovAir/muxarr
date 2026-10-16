@@ -26,17 +26,28 @@ public class ConversionPlan : IMedia<TrackPlan>
     // remux drops them; the file is written before and placed after the swap.
     public List<SubtitleExtraction> ExtractedSubtitles { get; set; } = [];
 
+    // Files this plan retires once its moves are done: merged sources and files an
+    // extracted one takes over. Size and time are checked first; a file changed
+    // since the plan is left alone.
+    public List<SubtitleFileDeletion> SubtitleDeletions { get; set; } = [];
+
     bool IMedia<TrackPlan>.HasChapters => HasChapters ?? false;
     bool IMedia<TrackPlan>.HasAttachments => HasAttachments ?? false;
 }
 
-// An embedded subtitle written out beside the video. FileName is the name it
-// gets; Replaces the file already there that it takes over, if any.
+// An embedded subtitle written out beside the video under FileName.
 public class SubtitleExtraction
 {
     public int Index { get; set; }
     public string FileName { get; set; } = string.Empty;
-    public string? Replaces { get; set; }
+}
+
+public class SubtitleFileDeletion
+{
+    public string FileName { get; set; } = string.Empty;
+    public string Suffix { get; set; } = string.Empty;
+    public long Size { get; set; }
+    public DateTime LastWriteTime { get; set; }
 }
 
 // Desired state for a single track, or a delta of changes from source.
@@ -61,10 +72,8 @@ public class TrackPlan : IMediaTrack
 
     public bool NameLocked { get; set; }
 
-    // Set when the track comes from a file beside the video instead of the
-    // container. DeleteSource removes that file once the new container is in place.
+    // Set when the track comes from a file beside the video instead of the container.
     public string? SourcePath { get; set; }
-    public bool DeleteSource { get; set; }
 
     // Explicit IMediaTrack impls — coerce nullable plan values to the non-null
     // observed-track shape. Plans carry no codec/channel/duration info.

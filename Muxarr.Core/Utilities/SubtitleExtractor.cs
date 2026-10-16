@@ -38,14 +38,13 @@ public static class SubtitleExtractor
 
     public static bool HasEvents(string path, string extension)
     {
-        if (!File.Exists(path))
-        {
-            return false;
-        }
+        return File.Exists(path) && HasCues(File.ReadAllText(path), extension);
+    }
 
-        var text = File.ReadAllText(path);
+    public static bool HasCues(string text, string extension)
+    {
         return extension == "ass"
-            ? text.Split('\n').Any(l => l.TrimStart().StartsWith("Dialogue:"))
+            ? text.Split('\n').Any(l => l.TrimStart().StartsWith("Dialogue:", StringComparison.OrdinalIgnoreCase))
             : text.Contains("-->");
     }
 

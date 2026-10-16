@@ -99,8 +99,7 @@ public class SubtitleLocationModelProperties
         var byPath = w.File.Sidecars().ToDictionary(f => f.FullPath(MediaPath));
         var muxIn = plan.Tracks.Where(t => t.SourcePath != null).Select(t => byPath[t.SourcePath!]).ToList();
         var extracted = plan.ExtractedSubtitles.Select(e => FromName(e.FileName)).ToList();
-        var deleted = plan.Tracks.Where(t => t.DeleteSource && t.SourcePath != null).Select(t => Path.GetFileName(t.SourcePath!))
-            .Concat(plan.ExtractedSubtitles.Where(e => e.Replaces != null).Select(e => e.Replaces!)).ToList();
+        var deleted = plan.SubtitleDeletions.Select(d => d.FileName).ToList();
         return new Moves(plan, muxIn, extracted, deleted);
     }
 
