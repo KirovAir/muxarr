@@ -629,19 +629,29 @@ public static class MediaFileExtensions
             : track.LanguageName;
     }
 
-    // The rules that run within one language, in order. Commentary and SDH/AD
-    // removal each keep the track when it is the only option for the language.
+    // The rules that run within one language, in order. Codec exclusion goes
+    // first because it is unconditional: a track it removes must not vouch as
+    // the alternative that lets commentary or SDH/AD removal drop a track, or
+    // the language ends up with nothing. Those two each keep the track when
+    // it is the only option left.
     private static IEnumerable<T> FilterLanguage<T>(List<T> tracksInLanguage, LanguagePreference pref,
         TrackSettings s) where T : IMediaTrack
     {
         var filteredTracks = tracksInLanguage.AsEnumerable();
 
+        if (s.ExcludeCodecs)
+        {
+            filteredTracks = tracksInLanguage[0].Type == MediaTrackType.Audio
+                ? filteredTracks.Where(t => !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
+                : filteredTracks.Where(t => !s.ExcludedCodecs.Contains(t.GetSubtitleCodec()));
+        }
+
         if (s.RemoveCommentary)
         {
-            var nonCommentaryTracks = tracksInLanguage.Where(t => !t.IsCommentary).ToList();
-            if (nonCommentaryTracks.Any())
+            var remaining = filteredTracks.ToList();
+            if (remaining.Any(t => !t.IsCommentary))
             {
-                filteredTracks = filteredTracks.Where(t => !t.IsCommentary);
+                filteredTracks = remaining.Where(t => !t.IsCommentary);
             }
         }
 
@@ -658,13 +668,6 @@ public static class MediaFileExtensions
             {
                 filteredTracks = remaining.Where(t => !IsImpaired(t));
             }
-        }
-
-        if (s.ExcludeCodecs)
-        {
-            filteredTracks = tracksInLanguage[0].Type == MediaTrackType.Audio
-                ? filteredTracks.Where(t => !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
-                : filteredTracks.Where(t => !s.ExcludedCodecs.Contains(t.GetSubtitleCodec()));
         }
 
         // Apply per-language track limits (MaxTracks).
