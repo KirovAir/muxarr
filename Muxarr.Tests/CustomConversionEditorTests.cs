@@ -116,4 +116,56 @@ public class CustomConversionEditorTests
             TrackNameTemplate = "{language}"
         };
     }
+
+    [TestMethod]
+    public void Sidecars_AreListedUnticked_AndTickingOneMuxesItIn()
+    {
+        var file = MakeFile("English", Video(0), Audio(1, "English"), Sub(2, "English"));
+        file.Path = "/lib/Movie/Movie.mkv";
+        file.Snapshot.ContainerType = "Matroska";
+        file.SubtitleFiles = [new SubtitleFile { Suffix = ".nl.srt", DiskName = "Movie.nl.srt", LanguageCode = "dut", LanguageName = "Dutch", Codec = "Srt" }];
+        var editor = new CustomConversionEditor(file);
+        var sidecar = editor.Tracks.Single(t => editor.SidecarName(t) != null);
+
+        Assert.IsFalse(editor.IsSelected(sidecar));
+        Assert.AreEqual("Movie.nl.srt", editor.SidecarName(sidecar));
+        Assert.IsFalse(editor.Build().Tracks.Any(t => t.SourcePath != null));
+
+        editor.ToggleTrack(sidecar);
+
+        var muxed = editor.Build().Tracks.Single(t => t.SourcePath != null);
+        Assert.AreEqual("/lib/Movie/Movie.nl.srt", muxed.SourcePath);
+        Assert.AreEqual("dut", muxed.LanguageCode);
+        Assert.IsTrue(string.IsNullOrEmpty(sidecar.Name), "a file has no track name until the user types one");
+    }
+
+    [TestMethod]
+    public void ToFile_TakesTheTrackOutOfThePlan_AndApplyProfileSetsIt()
+    {
+        var profile = MakeProfile(subtitle: new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            Location = SubtitleLocation.NextToFile
+        });
+        var file = MakeFile("English", Video(0), Audio(1, "English"), Sub(2, "English"), Sub(3, "English", "Pgs"));
+        file.Path = "/lib/Movie/Movie.mkv";
+        file.Snapshot.ContainerType = "Matroska";
+        var editor = new CustomConversionEditor(file);
+        var srt = editor.Tracks.First(t => t.Index == 2);
+
+        Assert.IsTrue(editor.CanExtract(srt));
+        Assert.IsFalse(editor.CanExtract(editor.Tracks.First(t => t.Index == 3)), "image subtitles stay");
+        editor.ToggleExtract(srt);
+
+        var plan = editor.Build();
+        CollectionAssert.AreEqual(new[] { 0, 1, 3 }, plan.Tracks.Select(t => t.Index).ToArray());
+        Assert.AreEqual("Movie.en.srt", plan.ExtractedSubtitles.Single().FileName);
+
+        editor.ToggleExtract(srt);
+        Assert.AreEqual(0, editor.Build().ExtractedSubtitles.Count);
+
+        editor.ApplyProfile(profile);
+        Assert.IsTrue(editor.IsExtracted(srt), "the profile writes English next to the file");
+    }
 }

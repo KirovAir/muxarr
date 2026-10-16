@@ -2,7 +2,8 @@
 <div class="modal-body">
     <p class="mb-3 text-body-secondary">Select which tracks to keep, reorder them, and edit their metadata. Use
         <strong>Apply Profile</strong> below to start from a profile's track rules. At least one audio track is
-        required.
+        required. Subtitle files beside the video are listed as <span class="badge bg-success-subtle text-success-emphasis">file</span>;
+        tick one to mux it in, or mark an embedded subtitle to write it out as a file.
         Whole-file options like clearing the title or removing chapters are applied only by the profile itself, not
         here.
     </p>
@@ -85,6 +86,12 @@
                 </td>
                 <td>
                     <code>@track.Codec.FormatCodec()</code>
+                    @if (_editor.SidecarName(track) is { } fileName)
+                    {
+                        <ToolTip Tip="@($"{fileName} beside the video. Tick it to mux it in.")">
+                            <span class="badge bg-success-subtle text-success-emphasis ms-1">file</span>
+                        </ToolTip>
+                    }
                 </td>
                 <td>
                     <input type="text"
@@ -104,6 +111,16 @@
                                     <i class="bi bi-play-circle"></i>
                                 </button>
                             </ToolTip>
+                            @if (_editor.CanExtract(track))
+                            {
+                                <ToolTip Tip="To file - Write this subtitle next to the video and take it out of the file">
+                                    <button type="button"
+                                            class="btn btn-sm @(_editor.IsExtracted(track) ? "btn-warning" : "btn-outline-secondary")"
+                                            @onclick="() => _editor.ToggleExtract(track)">
+                                        <i class="bi bi-file-earmark-arrow-down"></i>
+                                    </button>
+                                </ToolTip>
+                            }
                             @if (track.Type == MediaTrackType.Subtitles)
                             {
                                 <ToolTip

@@ -1,6 +1,7 @@
 using Muxarr.Core.Language;
 using Muxarr.Core.Models;
 using Muxarr.Core.MkvToolNix;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
 
@@ -17,6 +18,8 @@ public class CustomConversionEditor
     private readonly MediaFile _file;
     private readonly List<TrackSnapshot> _tracks;
     private readonly HashSet<int> _selected = [];
+    private readonly HashSet<int> _extract = [];
+    private readonly Dictionary<int, SubtitleFile> _sidecars;
 
     // Names follow whichever profile last wrote them: the one applied here, or
     // the file's own. Deliberately not the profile the page has selected, which
@@ -34,6 +37,10 @@ public class CustomConversionEditor
         {
             _selected.Add(track.Index);
         }
+
+        // Files beside the video come last, unticked: ticking one muxes it in.
+        _sidecars = file.Sidecars().Where(s => s.CanMuxIn).ToDictionary(s => s.Index);
+        _tracks.AddRange(_sidecars.Values.Select(s => s.ToSnapshot()));
 
         var present = _tracks
             .Where(t => t.Type != MediaTrackType.Video)
@@ -53,6 +60,33 @@ public class CustomConversionEditor
     public bool IsSelected(TrackSnapshot track)
     {
         return _selected.Contains(track.Index);
+    }
+
+    public string? SidecarName(TrackSnapshot track)
+    {
+        return _sidecars.TryGetValue(track.Index, out var sidecar) ? sidecar.FileName(_file.Path) : null;
+    }
+
+    public bool CanExtract(TrackSnapshot track)
+    {
+        return track.Type == MediaTrackType.Subtitles && !_sidecars.ContainsKey(track.Index)
+               && SubtitleSidecars.ExtensionFor(track.GetSubtitleCodec()) != null
+               && IsoLanguage.Find(track.LanguageName) is var iso && iso != IsoLanguage.Unknown
+               && iso.Name != IsoLanguage.UndeterminedName;
+    }
+
+    public bool IsExtracted(TrackSnapshot track)
+    {
+        return _extract.Contains(track.Index);
+    }
+
+    public void ToggleExtract(TrackSnapshot track)
+    {
+        if (!_extract.Remove(track.Index))
+        {
+            _extract.Add(track.Index);
+            _selected.Add(track.Index);
+        }
     }
 
     /// <summary>A conversion with no audio would produce an unplayable file.</summary>
@@ -81,12 +115,15 @@ public class CustomConversionEditor
         var target = _file.BuildTargetFromProfile(profile);
         _appliedProfile = profile;
 
-        var allowed = target.Tracks.Select(t => t.Index).ToHashSet();
+        var allowed = target.Tracks.Select(t => t.Index).Concat(target.ExtractedSubtitles.Select(e => e.Index)).ToHashSet();
         _selected.Clear();
         foreach (var track in _tracks.Where(t => allowed.Contains(t.Index)))
         {
             _selected.Add(track.Index);
         }
+
+        _extract.Clear();
+        _extract.UnionWith(target.ExtractedSubtitles.Select(e => e.Index));
 
         foreach (var resolved in target.Tracks)
         {
@@ -203,6 +240,7 @@ public class CustomConversionEditor
     {
         var video = _tracks.Where(t => t.Type == MediaTrackType.Video);
         var kept = _tracks.Where(t => t.Type != MediaTrackType.Video && _selected.Contains(t.Index));
-        return _file.BuildTargetFromCustom(video.Concat(kept).ToList());
+        var settings = (_appliedProfile ?? _file.Profile)?.SubtitleSettings;
+        return _file.BuildTargetFromCustom(video.Concat(kept).ToList(), _extract, settings?.DeleteMovedSubtitleFiles ?? false);
     }
 }
