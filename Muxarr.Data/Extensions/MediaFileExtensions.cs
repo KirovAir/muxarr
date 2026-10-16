@@ -542,11 +542,7 @@ public static class MediaFileExtensions
 
         if (s.Enabled)
         {
-            // Don't remap undetermined tracks when the user explicitly allows "Undetermined" as a language.
-            // Their explicit allow should take precedence over the original-language assumption.
-            var undeterminedExplicitlyAllowed = s.AllowedLanguages.Any(x => x.Name == IsoLanguage.UndeterminedName);
-            var assumeUndetermined = !undeterminedExplicitlyAllowed
-                                     && tracks.Count == 1
+            var assumeUndetermined = tracks.Count == 1
                                      && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
             // 1. Which entries keep each track, most specific first. A track no
@@ -800,12 +796,16 @@ public static class MediaFileExtensions
     /// Checks: setting enabled, language code is "und", single track of type, original
     /// language resolvable. A track whose name already resolved a language at scan
     /// time ("VFQ" → French (Canada)) keeps its und code but is not undetermined.
+    /// An explicit "Undetermined" in the allowed list wins over the assumption: the
+    /// filter keeps the track as undetermined, so the write must leave it that way
+    /// or the next conversion removes it under a language the profile never allowed.
     /// </summary>
     public static bool ShouldResolveUndetermined(this IMediaTrack track, TrackSettings? settings,
         int totalTracksOfType, string? originalLanguage)
     {
         var named = IsoLanguage.Find(track.LanguageName);
         return settings is { AssumeUndeterminedIsOriginal: true }
+               && !settings.AllowedLanguages.Any(x => x.Name == IsoLanguage.UndeterminedName)
                && track.LanguageCode == "und"
                && (named == IsoLanguage.Unknown || named.Name == IsoLanguage.UndeterminedName)
                && totalTracksOfType == 1
