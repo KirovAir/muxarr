@@ -466,6 +466,10 @@ public class MediaConverterService(
         var tmp = conversion.MediaFile.Path + ".muxtmp";
         try
         {
+            // The copy is written next to the original, so that disk needs room for about
+            // one more of it. Checking first beats filling the disk and failing near the end.
+            FileHelper.EnsureFreeSpace(Path.GetDirectoryName(tmp)!, new FileInfo(conversion.MediaFile.Path).Length);
+
             conversion.TempFilePath = tmp;
             conversion.State = ConversionState.Processing;
             conversion.StartedDate ??= DateTime.UtcNow;

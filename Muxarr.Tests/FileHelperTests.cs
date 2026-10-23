@@ -6,6 +6,32 @@ namespace Muxarr.Tests;
 public class FileHelperTests : FixtureTestBase
 {
     [TestMethod]
+    public void EnsureFreeSpace_EnoughRoom_DoesNotThrow()
+    {
+        FileHelper.EnsureFreeSpace(TempDir, 1);
+    }
+
+    [TestMethod]
+    public void EnsureFreeSpace_NotEnoughRoom_SaysHowMuchIsNeeded()
+    {
+        var ex = Assert.ThrowsExactly<IOException>(() => FileHelper.EnsureFreeSpace(TempDir, long.MaxValue));
+
+        StringAssert.Contains(ex.Message, "Not enough free space");
+        StringAssert.Contains(ex.Message, TempDir);
+    }
+
+    [TestMethod]
+    public void EnsureFreeSpace_UnknownLocation_DoesNotBlock()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Windows reports the drive root's free space for any path.");
+        }
+
+        FileHelper.EnsureFreeSpace(Path.Combine(TempDir, "missing", "dir"), long.MaxValue);
+    }
+
+    [TestMethod]
     public async Task MoveFileAsync_SameDirectory_MovesFile()
     {
         var source = Path.Combine(TempDir, "source.bin");
