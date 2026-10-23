@@ -1,4 +1,6 @@
+using Muxarr.Core.FFmpeg;
 using Muxarr.Core.Models;
+using Muxarr.Core.Utilities;
 using Muxarr.Data.Entities;
 using Muxarr.Web.Services;
 
@@ -443,5 +445,66 @@ public class OutputValidatorTests
             OutputValidator.ValidateOrThrow(actual, source, target));
 
         StringAssert.Contains(ex.Message, "chapters");
+    }
+
+    private static FFprobeResult Probe(int? dvProfile, int compatibilityId = 0)
+    {
+        var stream = new FFprobeStream { Index = 0, CodecType = "video" };
+        if (dvProfile != null)
+        {
+            stream.SideDataList =
+            [
+                new FFprobeSideData
+                {
+                    SideDataType = FFprobeSideData.DolbyVisionConfigType,
+                    DvProfile = dvProfile,
+                    DvBlSignalCompatibilityId = compatibilityId
+                }
+            ];
+        }
+
+        return new FFprobeResult { Streams = [stream] };
+    }
+
+    private static ConversionPlan KeepVideo(int index)
+    {
+        return new ConversionPlan { Tracks = [new TrackPlan { Index = index, Type = MediaTrackType.Video }] };
+    }
+
+    [TestMethod]
+    public void DolbyVisionConfig_IsReadFromFFprobeJson()
+    {
+        const string json = """
+            {"streams":[{"index":0,"codec_type":"video","side_data_list":[
+              {"side_data_type":"DOVI configuration record","dv_profile":8,"dv_bl_signal_compatibility_id":1}]}]}
+            """;
+
+        var config = JsonHelper.Deserialize<FFprobeResult>(json)!.Streams[0].DolbyVisionConfig;
+
+        Assert.IsNotNull(config);
+        Assert.AreEqual("8.1", config.DolbyVisionProfileName);
+    }
+
+    [TestMethod]
+    public void DolbyVision_LostInOutput_Throws()
+    {
+        var ex = Assert.ThrowsExactly<Exception>(() =>
+            OutputValidator.ValidateDolbyVisionOrThrow(Probe(5), Probe(null), KeepVideo(0)));
+
+        StringAssert.Contains(ex.Message, "profile 5");
+    }
+
+    [TestMethod]
+    public void DolbyVision_KeptInOutput_Passes()
+    {
+        OutputValidator.ValidateDolbyVisionOrThrow(Probe(8, 1), Probe(8, 1), KeepVideo(0));
+    }
+
+    [TestMethod]
+    public void DolbyVision_NotInSourceOrNotKept_Passes()
+    {
+        OutputValidator.ValidateDolbyVisionOrThrow(Probe(null), Probe(null), KeepVideo(0));
+        OutputValidator.ValidateDolbyVisionOrThrow(Probe(5), Probe(null), KeepVideo(7));
+        OutputValidator.ValidateDolbyVisionOrThrow(null, Probe(null), KeepVideo(0));
     }
 }

@@ -712,6 +712,10 @@ public class MediaConverterService(
 
         OutputValidator.ValidateOrThrow(probed, conversion.MediaFile!, conversion.ConversionPlan, measuredEnds);
 
+        // The original is still in place, so it can be probed for what the output must keep.
+        var sourceProbe = await FFmpeg.GetStreamInfo(conversion.MediaFile!.Path);
+        OutputValidator.ValidateDolbyVisionOrThrow(sourceProbe.Result, probe.Result, conversion.ConversionPlan);
+
         conversion.Log("Validation of new file is ok!", logger);
         ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
 

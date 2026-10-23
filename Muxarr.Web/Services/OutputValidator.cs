@@ -1,4 +1,5 @@
 using Muxarr.Core.Extensions;
+using Muxarr.Core.FFmpeg;
 using Muxarr.Core.Models;
 using Muxarr.Data.Entities;
 using Muxarr.Data.Extensions;
@@ -69,6 +70,34 @@ public static class OutputValidator
         {
             throw new Exception("Output still has chapters; removal did not apply.");
         }
+    }
+
+    // Every other check passes when a writer drops the Dolby Vision box, so compare it
+    // directly. A null probe means there is nothing to compare.
+    public static void ValidateDolbyVisionOrThrow(FFprobeResult? source, FFprobeResult? output,
+        ConversionPlan target)
+    {
+        if (source == null || output == null)
+        {
+            return;
+        }
+
+        var keptVideo = target.Tracks.Where(t => t.Type == MediaTrackType.Video).Select(t => t.Index).ToHashSet();
+        var sourceDv = DolbyVisionVideo(source).Where(s => keptVideo.Contains(s.Index)).ToList();
+        if (sourceDv.Count == 0 || DolbyVisionVideo(output).Count() >= sourceDv.Count)
+        {
+            return;
+        }
+
+        throw new Exception(
+            $"Output lost the Dolby Vision configuration (profile {sourceDv[0].DolbyVisionConfig!.DolbyVisionProfileName}) " +
+            "the source has. Refusing to replace the original.");
+    }
+
+    private static IEnumerable<FFprobeStream> DolbyVisionVideo(FFprobeResult probe)
+    {
+        return probe.Streams.Where(s =>
+            s.CodecType == "video" && s.Disposition?.AttachedPic != 1 && s.DolbyVisionConfig != null);
     }
 
     // The ffmpeg writer's trim cut: the first kept video track's end, from the

@@ -56,6 +56,30 @@ public class FFprobeStream
     /// </summary>
     [JsonPropertyName("tags")]
     public Dictionary<string, string>? Tags { get; set; }
+
+    [JsonPropertyName("side_data_list")]
+    public List<FFprobeSideData>? SideDataList { get; set; }
+
+    public FFprobeSideData? DolbyVisionConfig =>
+        SideDataList?.FirstOrDefault(d => d.SideDataType == FFprobeSideData.DolbyVisionConfigType);
+}
+
+public class FFprobeSideData
+{
+    public const string DolbyVisionConfigType = "DOVI configuration record";
+
+    [JsonPropertyName("side_data_type")]
+    public string? SideDataType { get; set; }
+
+    [JsonPropertyName("dv_profile")]
+    public int? DvProfile { get; set; }
+
+    [JsonPropertyName("dv_bl_signal_compatibility_id")]
+    public int? DvBlSignalCompatibilityId { get; set; }
+
+    public string DolbyVisionProfileName => DvBlSignalCompatibilityId is > 0
+        ? $"{DvProfile}.{DvBlSignalCompatibilityId}"
+        : $"{DvProfile}";
 }
 
 public class FFprobeDisposition
