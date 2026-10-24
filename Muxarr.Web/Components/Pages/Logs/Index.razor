@@ -37,7 +37,7 @@
 
     <Loader IsLoading="IsLoading">
         <div class="table-responsive">
-            <table class="table table-striped table-sm">
+            <table class="table table-striped table-sm mux-card-table">
                 <thead>
                 <tr>
                     <th style="width: 170px">
@@ -58,11 +58,11 @@
                 @foreach (var entry in Items)
                 {
                     <tr class="@GetRowClass(entry.Level)">
-                        <td class="text-nowrap small">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                        <td>
+                        <td class="text-nowrap small mux-cell-inline">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td class="mux-cell-inline">
                             <LogLevelBadge Level="@entry.Level"/>
                         </td>
-                        <td class="small text-truncate" style="max-width: 200px"
+                        <td class="small text-truncate mux-cell-inline" style="max-width: 200px"
                             title="@entry.Source">@entry.Source</td>
                         <td>
                             <span class="small">@entry.Message</span>

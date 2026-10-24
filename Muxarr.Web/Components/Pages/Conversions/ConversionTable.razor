@@ -1,5 +1,5 @@
 <div class="table-responsive">
-    <table class="table table-striped">
+    <table class="table table-striped mux-card-table">
         <thead>
         <tr>
             <th>State</th>
@@ -15,13 +15,13 @@
             @foreach (var conversion in Items)
             {
                 <tr>
-                    <td>
+                    <td class="mux-cell-inline">
                         <ConversionStateBadge Conversion="conversion"/>
                     </td>
-                    <td>
+                    <td class="mux-cell-inline">
                         <ConversionProgressBar Conversion="conversion"/>
                     </td>
-                    <td>
+                    <td class="mux-cell-inline">
                         @if (conversion.State == ConversionState.Completed)
                         {
                             <span>@conversion.GetSizeChangePercentage()</span>
@@ -31,10 +31,10 @@
                             }
                         }
                     </td>
-                    <td>
+                    <td class="mux-cell-inline">
                         <TimeAgo DateTime="conversion.CreatedDate"/>
                     </td>
-                    <td class="text-end text-nowrap">
+                    <td class="text-end text-nowrap mux-cell-end">
                         @if (conversion.State is ConversionState.Processing or ConversionState.New)
                         {
                             <button class="btn btn-outline-danger btn-sm me-1" title="Cancel"

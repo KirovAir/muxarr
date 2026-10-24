@@ -237,6 +237,237 @@
     }
 }
 
+/* ---- Phones: tighter spacing, card tables ---- */
+
+@media (max-width: 767.98px) {
+    /* Page, container and card padding stacked up to ~150px of a 390px screen. */
+    .mux-main-content {
+        padding: 0.75rem 0.75rem 1rem;
+    }
+
+    .mux-main-content .container-fluid {
+        padding-left: 0;
+        padding-right: 0;
+    }
+
+    .mux-main-content .card-body {
+        padding: 0.75rem;
+    }
+
+    .mux-main-content .p-4 {
+        padding: 1rem !important;
+    }
+
+    .mux-main-content h2 {
+        font-size: 1.5rem;
+    }
+
+    /* Logs and probe output wrap instead of scrolling sideways. */
+    .mux-main-content pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+    }
+
+    /* Tab strips scroll sideways instead of wrapping onto several lines. */
+    .mux-main-content .nav-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+
+    .mux-main-content .nav-tabs .nav-link {
+        white-space: nowrap;
+    }
+
+    .mux-tab-row {
+        flex-direction: row !important;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        scrollbar-width: none;
+    }
+
+    .mux-tab-row .nav-link {
+        flex: 1 1 auto;
+        padding: 0.5rem;
+        text-align: center !important;
+        white-space: nowrap;
+    }
+
+    .mux-tab-row .nav-link > i {
+        display: none;
+    }
+
+    .mux-sticky-bar .btn {
+        padding: 0.375rem 0.625rem;
+        font-size: 0.875rem;
+        white-space: nowrap;
+    }
+
+    /* Button-group filters share the full width instead of running off the edge. */
+    .mux-filter-row .btn-group {
+        width: 100%;
+    }
+
+    .mux-filter-row .btn-group > .btn {
+        flex: 1 1 auto;
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+
+    /*
+     * .mux-card-table: each row becomes a card. Cells are full width unless marked
+     * .mux-cell-inline, .mux-cell-select pins the checkbox, data-label prefixes a cell,
+     * and the header row turns into a bar of its sortable columns.
+     */
+    .mux-card-table,
+    .mux-card-table > tbody {
+        display: block;
+        width: 100%;
+    }
+
+    .mux-card-table > thead {
+        display: block;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .mux-card-table > thead:not(:has(button, input)) {
+        display: none;
+    }
+
+    .mux-card-table > thead > tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem 1rem;
+        padding: 0.25rem 0.75rem;
+    }
+
+    .mux-card-table > thead > tr > th {
+        display: block;
+        width: auto !important;
+        padding: 0.25rem 0;
+        border: 0;
+    }
+
+    .mux-card-table > thead > tr > th:not(:has(button, input)) {
+        display: none;
+    }
+
+    .mux-card-table > tbody > tr {
+        position: relative;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.25rem 0.75rem;
+        padding: 0.625rem 0.75rem;
+        border-bottom: 1px solid var(--bs-border-color);
+        background-color: var(--bs-table-bg);
+        box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg)));
+    }
+
+    .table-striped.mux-card-table > tbody > tr:nth-of-type(odd) {
+        --bs-table-bg-type: var(--bs-table-striped-bg);
+    }
+
+    .mux-card-table > tbody > tr > td {
+        flex: 1 0 100%;
+        min-width: 0;
+        max-width: 100% !important;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .mux-card-table > tbody > tr > td.mux-cell-inline {
+        flex: 0 0 auto;
+        font-size: 0.875rem;
+    }
+
+    .mux-card-table > tbody > tr > td.mux-cell-end {
+        flex: 0 0 auto;
+        margin-left: auto;
+    }
+
+    .mux-card-table > tbody > tr:has(> td.mux-cell-select) {
+        padding-left: 2.5rem;
+    }
+
+    .mux-card-table > tbody > tr > td.mux-cell-select {
+        position: absolute;
+        top: 0.625rem;
+        left: 0.75rem;
+        width: auto;
+    }
+
+    .mux-card-table > tbody > tr > td[data-label]::before {
+        content: attr(data-label);
+        margin-right: 0.375rem;
+        font-size: 0.75rem;
+        color: var(--bs-secondary-color);
+    }
+
+    /* Full-width labelled cells keep the label in a left column so wrapped content lines up. */
+    .mux-card-table > tbody > tr > td[data-label]:not(.mux-cell-inline) {
+        position: relative;
+        padding-left: 4.5rem;
+    }
+
+    .mux-card-table > tbody > tr > td[data-label]:not(.mux-cell-inline)::before {
+        position: absolute;
+        top: 0.125rem;
+        left: 0;
+    }
+
+    .mux-card-table .progress {
+        min-width: 6rem;
+    }
+
+    .mux-card-table > tbody > tr > td:empty {
+        display: none;
+    }
+
+    /* Track tables: number, language and format on one line, details below. */
+    .mux-track-table > thead {
+        display: none;
+    }
+
+    .mux-track-table,
+    .mux-track-table > tbody {
+        display: block;
+    }
+
+    .mux-track-table > tbody > tr {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.125rem 0.5rem;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid var(--bs-border-color);
+    }
+
+    .mux-track-table > tbody > tr > td {
+        padding: 0;
+        border: 0;
+    }
+
+    .mux-track-table > tbody > tr > td:nth-child(n+4) {
+        flex: 1 0 100%;
+        min-width: 0;
+        padding-left: 1.5rem;
+        overflow-wrap: anywhere;
+    }
+
+    .mux-track-table > tbody > tr > td:first-child {
+        min-width: 1rem;
+    }
+
+    .mux-track-table > tbody > tr > td:empty {
+        display: none;
+    }
+}
+
 .mux-sidebar-backdrop {
     position: fixed;
     inset: 0;

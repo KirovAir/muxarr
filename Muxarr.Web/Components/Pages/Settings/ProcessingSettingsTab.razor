@@ -30,7 +30,7 @@
         <h5 class="mb-3"><i class="bi bi-gear me-2"></i>Service Settings</h5>
 
         <div class="mb-3">
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
                 <label for="scan-interval" class="form-label mb-0 text-nowrap">Scan interval</label>
                 <InputNumber id="scan-interval" class="form-control form-control-sm" style="width: 80px;"
                              @bind-Value="ProcessingConfig.ScanIntervalMinutes"/>
@@ -51,7 +51,7 @@
         </div>
 
         <div class="mb-3">
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex flex-wrap align-items-center gap-2">
                 <label for="conversion-timeout" class="form-label mb-0 text-nowrap">Conversion timeout</label>
                 <InputNumber id="conversion-timeout" class="form-control form-control-sm" style="width: 80px;"
                              @bind-Value="ProcessingConfig.ConversionTimeoutMinutes"/>
