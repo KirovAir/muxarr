@@ -752,15 +752,21 @@ public class MediaConverterService(
                                 "from Sonarr or Radarr. The new file was left as it is; queue it again to convert it.");
         }
 
+        KeepPermissions(conversion.MediaFile.Path, tmp);
+
+        // On the disk before the original's backup can be deleted.
+        FileHelper.FlushToDisk(tmp);
+
         var backupFile = conversion.MediaFile!.Path + ".muxbak";
         var swapCommitted = false;
         try
         {
             conversion.Log("Renaming old file..", logger);
+            // Saved first: nothing between the two renames should be able to fail.
+            await context.SaveChangesAsync(token);
             File.Move(conversion.MediaFile.Path, backupFile);
 
             conversion.Log("Moving new file..", logger);
-            await context.SaveChangesAsync(token);
             await FileHelper.MoveFileAsync(tmp, conversion.MediaFile.Path,
                 i =>
                 {
@@ -809,6 +815,25 @@ public class MediaConverterService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to update conversion stats");
+        }
+    }
+
+    // The tools write the copy with the container's umask (0644); Unraid shares are usually 0666,
+    // and other users and containers would lose write access to the converted file.
+    private void KeepPermissions(string original, string copy)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            File.SetUnixFileMode(copy, File.GetUnixFileMode(original));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not give {Copy} the permissions of {Original}", copy, original);
         }
     }
 
