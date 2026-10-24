@@ -78,4 +78,24 @@ public class UnsureAudioTests
 
         CollectionAssert.AreEqual(new[] { 1, 3 }, result.Select(t => t.Index).ToArray());
     }
+
+    [TestMethod]
+    public void NoWantedLanguage_KeepsTheDefaultTrack()
+    {
+        var tracks = new List<TrackSnapshot> { Audio(1, "Italian"), Audio(2, "German", isDefault: true), Audio(3, "Spanish") };
+
+        var result = tracks.GetAllowedTracks(OriginalThenEnglish(), "English");
+
+        Assert.AreEqual(2, result.Single().Index);
+    }
+
+    [TestMethod]
+    public void NoWantedLanguage_NoDefault_KeepsTheFirstTrack()
+    {
+        var tracks = new List<TrackSnapshot> { Audio(1, "German"), Audio(2, "Italian") };
+
+        var result = tracks.GetAllowedTracks(OriginalThenEnglish(), "English");
+
+        Assert.AreEqual(1, result.Single().Index);
+    }
 }

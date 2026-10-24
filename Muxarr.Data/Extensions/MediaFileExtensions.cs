@@ -588,7 +588,9 @@ public static class MediaFileExtensions
                     .ThenByDescending(t => !s.ExcludeCodecs || !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
                     .ThenByDescending(t => !t.IsCommentary)
                     .ThenByDescending(t => !IsImpaired(t))
-                    .ThenByDescending(x => x.Index);
+                    // The file's own main track: the default one, else the first.
+                    .ThenByDescending(t => t.IsDefault)
+                    .ThenBy(t => t.Index);
 
                 allowedTracks.Add(bestTracks.First());
             }
