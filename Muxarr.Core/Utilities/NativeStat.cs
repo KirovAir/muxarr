@@ -19,23 +19,29 @@ public static class NativeStat
         public ushort st_nlink;
     }
 
-    // Linux x64: st_dev (8 bytes at 0), st_nlink (8 bytes at 16)
+    // Linux x64: st_dev (8 bytes at 0), st_ino (8 bytes at 8), st_nlink (8 bytes at 16)
     [StructLayout(LayoutKind.Explicit, Size = 144)]
     private struct LinuxX64StatBuf
     {
         [FieldOffset(0)]
         public ulong st_dev;
 
+        [FieldOffset(8)]
+        public ulong st_ino;
+
         [FieldOffset(16)]
         public ulong st_nlink;
     }
 
-    // Linux arm64 (generic stat): st_dev (8 bytes at 0), st_nlink (4 bytes at 20)
+    // Linux arm64 (generic stat): st_dev (8 bytes at 0), st_ino (8 bytes at 8), st_nlink (4 bytes at 20)
     [StructLayout(LayoutKind.Explicit, Size = 144)]
     private struct LinuxArm64StatBuf
     {
         [FieldOffset(0)]
         public ulong st_dev;
+
+        [FieldOffset(8)]
+        public ulong st_ino;
 
         [FieldOffset(20)]
         public uint st_nlink;
@@ -79,6 +85,36 @@ public static class NativeStat
                     {
                         return buf.st_dev;
                     }
+                }
+            }
+        }
+        catch
+        {
+            // P/Invoke failed
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the inode number (st_ino) for the given path on Linux, or null elsewhere or on failure.
+    /// </summary>
+    public static ulong? GetInode(string path)
+    {
+        try
+        {
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+            {
+                if (RuntimeInformation.ProcessArchitecture == Architecture.Arm64)
+                {
+                    if (StatLinuxArm64(path, out var buf) == 0)
+                    {
+                        return buf.st_ino;
+                    }
+                }
+                else if (StatLinuxX64(path, out var buf) == 0)
+                {
+                    return buf.st_ino;
                 }
             }
         }

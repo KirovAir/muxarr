@@ -373,6 +373,8 @@ public class MediaConverterService(
         // Re-scan file to get fresh track data before converting.
         // Prevents stale snapshots from a previous conversion or outdated scan.
         await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
+        // The version the copy is made from. Checked again right before the swap.
+        var source = FileStamp.Of(conversion.MediaFile.Path);
 
         if (conversion.MediaFile.HasScanWarning)
         {
@@ -506,7 +508,7 @@ public class MediaConverterService(
                 await RunMkvMergeRemuxAsync(conversion, delta, tmp, context, conversionTimeout, token);
             }
 
-            await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, measuredEnds, token);
+            await FinalizeTemporaryOutputAsync(conversion, tmp, source, context, scope, measuredEnds, token);
         }
         catch (OperationCanceledException)
         {
@@ -715,8 +717,9 @@ public class MediaConverterService(
     /// rescans, runs post-processing and updates stats. Shared by both
     /// tempfile writers.
     /// </summary>
-    private async Task FinalizeTemporaryOutputAsync(MediaConversion conversion, string tmp, AppDbContext context,
-        IServiceScope scope, IReadOnlyDictionary<int, long>? measuredEnds, CancellationToken token)
+    private async Task FinalizeTemporaryOutputAsync(MediaConversion conversion, string tmp, FileStamp source,
+        AppDbContext context, IServiceScope scope, IReadOnlyDictionary<int, long>? measuredEnds,
+        CancellationToken token)
     {
         var fileInfo = new FileInfo(tmp);
         if (!fileInfo.Exists || fileInfo.Length == 0)
@@ -740,6 +743,14 @@ public class MediaConverterService(
         ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
 
         token.ThrowIfCancellationRequested();
+
+        // Sonarr or Radarr may have imported a new file to this path while the copy was made
+        // from the old one. Swapping the copy in would throw the new file away.
+        if (!FileStamp.Of(conversion.MediaFile!.Path).IsSameFileAs(source))
+        {
+            throw new Exception("The file was replaced while it was being converted, most likely by an upgrade " +
+                                "from Sonarr or Radarr. The new file was left as it is; queue it again to convert it.");
+        }
 
         var backupFile = conversion.MediaFile!.Path + ".muxbak";
         var swapCommitted = false;
