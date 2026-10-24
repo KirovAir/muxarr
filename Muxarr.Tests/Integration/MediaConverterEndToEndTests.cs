@@ -126,6 +126,48 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // Progress is saved only when a run ends, so a page that loads the conversion mid-run
+    // reads 0% from the database. LiveProgress gives it the value the converter holds.
+    [TestMethod]
+    public async Task LiveProgress_FollowsTheRunningConversion()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+        var droppedSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.Where(t => t.Index != droppedSub.Index).ToSnapshots());
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        var samples = new List<(int Reported, int? Live)>();
+        void OnChanged(ConverterProgressEvent e)
+        {
+            if (e.Conversion.Id == conversion.Id && e.Conversion.State == ConversionState.Processing)
+            {
+                samples.Add((e.Conversion.Progress, Fixture.Converter.LiveProgress(conversion.Id)));
+            }
+        }
+
+        Fixture.Converter.ConverterStateChanged += OnChanged;
+        try
+        {
+            await Fixture.Converter.RunAsync(CancellationToken.None);
+        }
+        finally
+        {
+            Fixture.Converter.ConverterStateChanged -= OnChanged;
+        }
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+        Assert.IsTrue(samples.Any(s => s.Reported > 0), "expected progress past 0% during the run");
+        foreach (var (reported, live) in samples)
+        {
+            Assert.AreEqual(reported, live);
+        }
+
+        Assert.IsNull(Fixture.Converter.LiveProgress(conversion.Id), "nothing is running once the queue is empty");
+        Assert.IsNull(Fixture.Converter.LiveProgress(conversion.Id + 1000));
+    }
+
     [TestMethod]
     public async Task Remux_Matroska_DropsSubtitleTrack()
     {

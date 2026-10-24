@@ -1,12 +1,16 @@
 ﻿<div class="progress mt-1 position-relative d-flex align-items-center justify-content-center" style="height: 1.2rem;">
     <div class="progress-bar start-0 position-absolute h-100" role="progressbar"
-         style="width: @(Conversion.Progress)%">
+         style="width: @(Progress)%">
     </div>
-    <div class="px-2 z-3 @TextColor">@(Conversion.Progress)%</div>
+    <div class="px-2 z-3 @TextColor">@(Progress)%</div>
 </div>
 
 @code {
     [Parameter] [EditorRequired] public required MediaConversion Conversion { get; set; }
+    [Inject] public required MediaConverterService MediaConverter { get; set; }
 
-    private string TextColor => Conversion.Progress > 50 ? "text-white" : "text-body";
+    // A loaded entity holds the progress saved at the start of the run; the converter has the live value.
+    private int Progress => MediaConverter.LiveProgress(Conversion.Id) ?? Conversion.Progress;
+
+    private string TextColor => Progress > 50 ? "text-white" : "text-body";
 }
