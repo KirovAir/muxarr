@@ -120,7 +120,7 @@ public class TrackFilterTests
     // --- Null original language: should not assume English ---
 
     [TestMethod]
-    public void Audio_NullOriginalLanguage_UnknownTrackNotTreatedAsEnglish()
+    public void Audio_NullOriginalLanguage_OriginalEntryKeepsTheUntaggedTrack()
     {
         var tracks = new List<TrackSnapshot>
         {
@@ -135,13 +135,12 @@ public class TrackFilterTests
 
         var result = tracks.GetAllowedTracks(settings, null);
 
-        // Only Dutch should be kept. Unknown should NOT be silently treated as English.
-        Assert.AreEqual(1, result.Count);
-        Assert.AreEqual("Dutch", result[0].LanguageName);
+        // The untagged track may be the original, so the Original Language entry keeps it.
+        Assert.AreEqual(2, result.Count);
     }
 
     [TestMethod]
-    public void Subtitles_NullOriginalLanguage_UnknownSubsDropped()
+    public void Subtitles_NullOriginalLanguage_OriginalEntryKeepsUnknownSubs()
     {
         var tracks = new List<TrackSnapshot>
         {
@@ -156,8 +155,7 @@ public class TrackFilterTests
 
         var result = tracks.GetAllowedTracks(settings, null);
 
-        Assert.AreEqual(1, result.Count);
-        Assert.AreEqual("English", result[0].LanguageName);
+        Assert.AreEqual(2, result.Count);
     }
 
     [TestMethod]

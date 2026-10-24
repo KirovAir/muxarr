@@ -553,10 +553,18 @@ public static class MediaFileExtensions
                 t => MatchingPreferences(ResolveLanguage(t, originalLanguage, assumeUndetermined), originalLanguage, s));
 
             // 2. The per-language rules: commentary, SDH/AD, codecs, track limits.
+            //    Without a known original language the Original Language entry keeps
+            //    every language (see MatchingPreferences), and each of those is still
+            //    filtered as its own language, not lumped into one.
             var kept = new HashSet<T>();
-            foreach (var group in tracks.Where(t => keptBy[t].Count > 0).GroupBy(t => keptBy[t][0]))
+            var originalUnknown = !IsKnownLanguage(originalLanguage);
+            foreach (var group in tracks.Where(t => keptBy[t].Count > 0).GroupBy(t =>
+                         (Pref: keptBy[t][0],
+                          Language: originalUnknown && keptBy[t][0].IsOriginalLanguagePlaceholder
+                              ? ResolveLanguage(t, originalLanguage, assumeUndetermined)
+                              : null)))
             {
-                kept.UnionWith(FilterLanguage(group.ToList(), group.Key, s));
+                kept.UnionWith(FilterLanguage(group.ToList(), group.Key.Pref, s));
             }
 
             // 3. Fallbacks. A track stays as long as any entry keeping it is still
@@ -750,12 +758,21 @@ public static class MediaFileExtensions
         var matches = s.AllowedLanguages.Where(x => x.Name == language).ToList();
         matches.AddRange(s.AllowedLanguages.Where(x =>
             x.Name != language && !x.IsOriginalLanguagePlaceholder && IsoLanguage.Find(x.Name).Includes(lang)));
-        if (SameBaseLanguage(language, originalLanguage))
+        // When Sonarr/Radarr have not said what the original language is, the entry
+        // cannot tell which track is the original, so it keeps them all rather than
+        // dropping a film's own language because English is also there.
+        if (SameBaseLanguage(language, originalLanguage) || !IsKnownLanguage(originalLanguage))
         {
             matches.AddRange(s.AllowedLanguages.Where(x => x.IsOriginalLanguagePlaceholder));
         }
 
         return matches;
+    }
+
+    // A real language from Sonarr/Radarr: not missing, and not their "Unknown".
+    private static bool IsKnownLanguage(string? language)
+    {
+        return !string.IsNullOrWhiteSpace(language) && IsoLanguage.Find(language) != IsoLanguage.Unknown;
     }
 
     /// <summary>
@@ -779,7 +796,7 @@ public static class MediaFileExtensions
                 exact = Math.Min(exact, i);
             }
             else if (pref.IsOriginalLanguagePlaceholder
-                         ? SameBaseLanguage(trackLanguage, originalLanguage)
+                         ? SameBaseLanguage(trackLanguage, originalLanguage) || !IsKnownLanguage(originalLanguage)
                          : IsoLanguage.Find(pref.Name).Includes(lang))
             {
                 fallback = Math.Min(fallback, i);
