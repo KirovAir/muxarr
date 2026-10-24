@@ -25,6 +25,8 @@ public class MediaConverterService(
     private bool _firstRun = true;
     private bool _workedSinceIdle;
 
+    private const string PausedConfigKey = "QueuePaused";
+
     public override TimeSpan? Interval => TimeSpan.FromMinutes(60);
 
     public bool IsPaused { get; private set; }
@@ -35,6 +37,7 @@ public class MediaConverterService(
     public void TogglePause()
     {
         IsPaused = !IsPaused;
+        SavePaused();
         logger.LogInformation("Conversion queue {State}", IsPaused ? "paused" : "resumed");
         QueueStateChanged?.Invoke();
 
@@ -49,6 +52,22 @@ public class MediaConverterService(
     {
         var active = _activeConversion;
         return active?.Id == conversionId ? active.Progress : null;
+    }
+
+    // Saved so a restart doesn't quietly resume a queue someone paused.
+    private void SavePaused()
+    {
+        try
+        {
+            using var scope = ServiceScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            context.Configs.Set(IsPaused, PausedConfigKey);
+            context.SaveChanges();
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not save the paused state of the conversion queue");
+        }
     }
 
     public void CancelCurrentConversion()
@@ -110,6 +129,13 @@ public class MediaConverterService(
         if (_firstRun)
         {
             _firstRun = false;
+
+            if (context.Configs.Get<bool>(PausedConfigKey))
+            {
+                IsPaused = true;
+                logger.LogInformation("Conversion queue is paused, as it was before the restart");
+                QueueStateChanged?.Invoke();
+            }
 
             await CleanupLeftoverConversions(context, stoppingToken);
             await CleanupMuxbakFiles(context);
