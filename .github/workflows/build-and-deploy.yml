@@ -29,7 +29,7 @@ jobs:
         runs-on: ${{ matrix.os }}
         steps:
             -   name: Checkout code
-                uses: actions/checkout@v5
+                uses: actions/checkout@v7
 
             -   name: Install mkvtoolnix (Linux)
                 if: runner.os == 'Linux'
@@ -87,7 +87,7 @@ jobs:
                     ffmpeg -version | Select-Object -First 1
 
             -   name: Setup .NET 10
-                uses: actions/setup-dotnet@v5
+                uses: actions/setup-dotnet@v6
                 with:
                     dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -117,10 +117,10 @@ jobs:
                 run: echo "IMAGE_NAME=${IMAGE_NAME,,}" >> "$GITHUB_ENV"
 
             -   name: Checkout code
-                uses: actions/checkout@v5
+                uses: actions/checkout@v7
 
             -   name: Setup .NET 10
-                uses: actions/setup-dotnet@v5
+                uses: actions/setup-dotnet@v6
                 with:
                     dotnet-version: ${{ env.DOTNET_VERSION }}
 
