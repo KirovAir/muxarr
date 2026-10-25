@@ -5,16 +5,18 @@
 
 <PageTitle>@TitleHelper.GetTitle("Conversion Details")</PageTitle>
 
-<div class="container-fluid">
-    @if (Conversion == null)
-    {
+@if (Conversion == null)
+{
+    <div class="container-fluid">
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
             Conversion not found
         </div>
-        return;
-    }
+    </div>
+    return;
+}
 
+<div class="container-fluid">
     <nav class="mb-2">
         <a href="/conversions" class="text-muted small text-decoration-none">
             <i class="bi bi-arrow-left me-1"></i>Conversions

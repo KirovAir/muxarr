@@ -5,15 +5,18 @@
 
 <PageTitle>@TitleHelper.GetTitle("Media Details")</PageTitle>
 
-<div class="container-fluid">
-    @if (File == null)
-    {
+@if (File == null)
+{
+    <div class="container-fluid">
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
             File not found
         </div>
-        return;
-    }
+    </div>
+    return;
+}
+
+<div class="container-fluid">
     <nav class="mb-2">
         <a href="/library" class="text-muted small text-decoration-none">
             <i class="bi bi-arrow-left me-1"></i>Library
