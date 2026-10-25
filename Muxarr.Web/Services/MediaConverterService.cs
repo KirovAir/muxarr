@@ -938,9 +938,10 @@ public class MediaConverterService(
 
         try
         {
-            var result = await ProcessExecutor.ExecuteProcessAsync(
-                "/bin/sh", $"-c \"{resolvedCommand.Replace("\"", "\\\"")}\"",
-                TimeSpan.FromMinutes(5));
+            var result = await ProcessExecutor.ExecuteProcessAsync("/bin/sh",
+                timeout: TimeSpan.FromMinutes(5),
+                argumentList: ["-c", Config.BuildShellScript()],
+                environment: ProcessingConfig.ShellEnvironment(conversion.MediaFile.Path));
 
             if (!string.IsNullOrWhiteSpace(result.Output))
             {
