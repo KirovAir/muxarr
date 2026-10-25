@@ -900,6 +900,74 @@ public static class MediaFileExtensions
         return false;
     }
 
+    /// <summary>
+    /// What CheckHasNonStandardMetadata would change, one entry per field
+    /// ("a#1 original flag: no -> yes"), for the diagnostics export.
+    /// </summary>
+    public static List<string> DescribeMetadataChanges(this MediaFile file, Profile? profile)
+    {
+        var changes = new List<string>();
+        if (profile == null)
+        {
+            return changes;
+        }
+
+        var target = file.BuildTargetFromProfile(profile);
+        var originals = file.Snapshot.Tracks.ToDictionary(t => t.Index);
+        if (target.Title != null && !string.Equals(target.Title, file.Snapshot.Title ?? "", StringComparison.Ordinal))
+        {
+            changes.Add($"file title: \"{file.Snapshot.Title}\" -> \"{target.Title}\"");
+        }
+
+        static string YesNo(bool value) => value ? "yes" : "no";
+        foreach (var t in target.Tracks)
+        {
+            if (!originals.TryGetValue(t.Index, out var o))
+            {
+                continue;
+            }
+
+            var id = $"{t.Type.ToString()[0].ToString().ToLowerInvariant()}#{t.Index}";
+            void Flag(string what, bool? want, bool have)
+            {
+                if (want is { } w && w != have)
+                {
+                    changes.Add($"{id} {what}: {YesNo(have)} -> {YesNo(w)}");
+                }
+            }
+
+            if (t.Name != null && !string.Equals(t.Name, o.Name ?? "", StringComparison.Ordinal))
+            {
+                changes.Add($"{id} name: \"{o.Name}\" -> \"{t.Name}\"");
+            }
+
+            if (t.LanguageCode != null && !string.Equals(t.LanguageCode, o.LanguageCode, StringComparison.Ordinal))
+            {
+                changes.Add($"{id} language: {o.LanguageCode} -> {t.LanguageCode}");
+            }
+
+            Flag("default", t.IsDefault, o.IsDefault);
+            Flag("forced", t.IsForced, o.IsForced);
+            Flag("SDH", t.IsHearingImpaired, o.IsHearingImpaired);
+            Flag("audio description", t.IsVisualImpaired, o.IsVisualImpaired);
+            Flag("commentary", t.IsCommentary, o.IsCommentary);
+            Flag("original", t.IsOriginal, o.IsOriginal);
+            Flag("dub", t.IsDub, o.IsDub);
+        }
+
+        if (IsReordered(target.Tracks.Where(t => t.Type == MediaTrackType.Audio).ToList()))
+        {
+            changes.Add("audio order");
+        }
+
+        if (IsReordered(target.Tracks.Where(t => t.Type == MediaTrackType.Subtitles).ToList()))
+        {
+            changes.Add("subtitle order");
+        }
+
+        return changes;
+    }
+
     private static bool HasMetadataChanges(IMediaTrack original, TrackPlan target)
     {
         if (target.Name != null && !string.Equals(target.Name, original.Name ?? "", StringComparison.Ordinal))
