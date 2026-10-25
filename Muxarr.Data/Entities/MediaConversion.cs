@@ -11,7 +11,7 @@ public class MediaConversion : AuditableEntity, IHasId
     public int? MediaFileId { get; set; }
     public required string Name { get; set; } // Either file name or title. Just for reference after deletion.
     public string? TempFilePath { get; set; }
-    public string Log { get; set; } = string.Empty;
+    public List<ConversionLogEntry> LogEntries { get; set; } = [];
     public int Progress { get; set; }
     public long SizeBefore { get; set; }
     public long SizeAfter { get; set; }
@@ -25,6 +25,15 @@ public class MediaConversion : AuditableEntity, IHasId
     public DateTime? StartedDate { get; set; }
     public ConversionState State { get; set; } = ConversionState.New;
     public MediaFile? MediaFile { get; set; }
+}
+
+public class ConversionLogEntry
+{
+    public int Id { get; set; }
+    public int MediaConversionId { get; set; }
+    public DateTime Timestamp { get; set; }
+    public string Message { get; set; } = string.Empty;
+    public bool IsError { get; set; }
 }
 
 public enum ConversionState
@@ -55,10 +64,6 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
         builder.Property(e => e.TempFilePath)
             .HasMaxLength(4096);
 
-        builder.Property(e => e.Log)
-            .IsRequired()
-            .HasMaxLength(int.MaxValue); // or specific size limit if needed
-
         builder.Property(e => e.State)
             .HasConversion<string>()
             .IsRequired()
@@ -83,6 +88,11 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
 
         builder.HasIndex(e => new { e.State, e.CreatedDate });
 
+        builder.HasMany(m => m.LogEntries)
+            .WithOne()
+            .HasForeignKey(e => e.MediaConversionId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasOne(m => m.MediaFile)
             .WithMany(f => f.Conversions)
             .HasForeignKey(m => m.MediaFileId)
@@ -97,5 +107,18 @@ public class MediaConversionConfiguration : AuditEntityConfiguration<MediaConver
             .WithMany()
             .HasForeignKey(m => m.AfterSnapshotId)
             .OnDelete(DeleteBehavior.SetNull);
+    }
+}
+
+public class ConversionLogEntryConfiguration : IEntityTypeConfiguration<ConversionLogEntry>
+{
+    public void Configure(EntityTypeBuilder<ConversionLogEntry> builder)
+    {
+        builder.ToTable(nameof(ConversionLogEntry));
+
+        builder.HasKey(e => e.Id);
+
+        builder.Property(e => e.Timestamp).IsRequired();
+        builder.Property(e => e.Message).IsRequired();
     }
 }

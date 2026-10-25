@@ -53,7 +53,7 @@ public class ArrUpdateServiceTests
         var (newPath, conversion) = await Run(renamePreview: true);
 
         Assert.AreEqual(Path.Combine(_dir, "Show", "ep [new].mkv"), newPath);
-        StringAssert.Contains(conversion.Log, "Sonarr renamed the file to ep [new].mkv");
+        StringAssert.Contains(conversion.LogText(), "Sonarr renamed the file to ep [new].mkv");
 
         await using var context = new AppDbContext(_dbOptions);
         Assert.AreEqual(newPath, (await context.MediaInfos.SingleAsync()).Path);
@@ -65,7 +65,7 @@ public class ArrUpdateServiceTests
         var (newPath, conversion) = await Run(renamePreview: false);
 
         Assert.IsNull(newPath);
-        StringAssert.Contains(conversion.Log, "the name stays");
+        StringAssert.Contains(conversion.LogText(), "the name stays");
     }
 
     private async Task<(string? NewPath, MediaConversion Conversion)> Run(bool renamePreview)

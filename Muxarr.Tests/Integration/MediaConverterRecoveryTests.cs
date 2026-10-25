@@ -92,7 +92,7 @@ public class MediaConverterRecoveryTests : IntegrationTestBase
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
         Assert.IsFalse(File.Exists(tempPath), "orphaned temp file must be cleaned up");
-        StringAssert.Contains(result.Log, "in progress on startup",
+        StringAssert.Contains(result.LogText(), "in progress on startup",
             "log should explain why the conversion was marked failed");
     }
 }

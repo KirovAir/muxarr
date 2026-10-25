@@ -58,7 +58,7 @@
                 @foreach (var entry in Items)
                 {
                     <tr class="@GetRowClass(entry.Level)">
-                        <td class="text-nowrap small">@entry.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td class="text-nowrap small">@entry.Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                         <td>
                             <LogLevelBadge Level="@entry.Level"/>
                         </td>

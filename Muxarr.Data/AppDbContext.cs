@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Muxarr.Data.Entities;
 
 namespace Muxarr.Data;
@@ -20,6 +21,12 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
 
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
+    }
+
+    // Dates are stored in UTC, but SQLite loses the kind on read.
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -64,4 +71,7 @@ public class AppDbContext : DbContext, IDataProtectionKeyContext
         SetEntryData();
         return base.SaveChangesAsync(cancellationToken);
     }
+
+    private class UtcDateTimeConverter() : ValueConverter<DateTime, DateTime>(
+        v => v, v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 }

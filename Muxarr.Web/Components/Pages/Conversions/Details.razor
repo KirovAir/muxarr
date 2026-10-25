@@ -205,7 +205,7 @@
                 </div>
                 <div class="border rounded">
                     <pre class="m-0 p-3 small bg-body-tertiary text-body"
-                         style="max-height: 500px; overflow: auto;"><code class="text-body">@Conversion.Log</code></pre>
+                         style="max-height: 500px; overflow: auto;"><code class="text-body">@FormatLog(Conversion.LogEntries)</code></pre>
                 </div>
             </div>
         </div>
@@ -236,6 +236,7 @@
             .ThenInclude(s => s!.Tracks)
             .Include(x => x.AfterSnapshot)
             .ThenInclude(s => s!.Tracks)
+            .Include(x => x.LogEntries.OrderBy(e => e.Id))
             .FirstOrDefaultAsync(f => f.Id == Id);
     }
 
@@ -284,7 +285,7 @@
                 ToastService.ShowInfo($"Finished {e.Conversion.MediaFile.GetName()}!");
             }
 
-            Conversion.Log = e.Conversion.Log;
+            Conversion.LogEntries = e.Conversion.GetLogSnapshot();
             Conversion.Progress = e.Conversion.Progress;
             Conversion.State = e.Conversion.State;
             Conversion.StartedDate ??= e.Conversion.StartedDate;
@@ -292,6 +293,12 @@
 
             StateHasChanged();
         });
+    }
+
+    private static string FormatLog(IEnumerable<ConversionLogEntry> entries)
+    {
+        return string.Join(Environment.NewLine,
+            entries.Select(e => $"[{e.Timestamp.ToLocalTime():yyyy-MM-dd HH:mm:ss.fff}] {e.Message}"));
     }
 
     public override void Dispose()
