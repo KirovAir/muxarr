@@ -21,6 +21,7 @@ public class MediaConverterService(
     : ConfigurableServiceBase<ProcessingConfig>(serviceScopeFactory, logger)
 {
     private CancellationTokenSource? _currentConversionCts;
+    private MediaConversion? _activeConversion;
     private bool _firstRun = true;
     private bool _workedSinceIdle;
 
@@ -41,6 +42,13 @@ public class MediaConverterService(
         {
             _ = RunAsync(CancellationToken.None);
         }
+    }
+
+    // The database only gets the progress when a run ends.
+    public int? LiveProgress(int conversionId)
+    {
+        var active = _activeConversion;
+        return active?.Id == conversionId ? active.Progress : null;
     }
 
     public void CancelCurrentConversion()
@@ -135,12 +143,14 @@ public class MediaConverterService(
 
         _workedSinceIdle = true;
         _currentConversionCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        _activeConversion = conversion;
         try
         {
             await HandleConversion(conversion, context, scope, _currentConversionCts.Token);
         }
         finally
         {
+            _activeConversion = null;
             _currentConversionCts.Dispose();
             _currentConversionCts = null;
         }
