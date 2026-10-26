@@ -382,6 +382,10 @@ public class MediaConverterService(
         if (!conversion.IsCustomConversion)
         {
             conversion.ConversionPlan = conversion.MediaFile.BuildTargetFromProfile(conversion.MediaFile.Profile);
+            foreach (var line in conversion.MediaFile.DescribeRemovals(conversion.MediaFile.Profile))
+            {
+                conversion.Log(line, logger);
+            }
         }
         else
         {
@@ -406,6 +410,13 @@ public class MediaConverterService(
                 await context.SaveChangesAsync(token);
                 ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
                 return;
+            }
+
+            var planned = conversion.ConversionPlan.Tracks.Select(t => t.Index).ToHashSet();
+            foreach (var track in conversion.MediaFile.Snapshot.Tracks
+                         .Where(t => t.Type != MediaTrackType.Video && !planned.Contains(t.Index)).OrderBy(t => t.Index))
+            {
+                conversion.Log($"Removing {track.Describe()}: left out of this custom conversion.", logger);
             }
         }
 

@@ -303,13 +303,13 @@ public class ExtensionTests
     // --- ShouldResolveUndetermined ---
 
     [TestMethod]
-    [DataRow(true, "und", 1, "English", true, DisplayName = "All conditions met")]
-    [DataRow(false, "und", 1, "English", false, DisplayName = "Setting disabled")]
-    [DataRow(true, "und", 2, "English", false, DisplayName = "Multiple tracks")]
-    [DataRow(true, "eng", 1, "English", false, DisplayName = "Not undetermined")]
-    [DataRow(true, "und", 1, "NotARealLanguage", false, DisplayName = "Unresolvable language")]
+    [DataRow(true, "und", false, "English", true, DisplayName = "All conditions met")]
+    [DataRow(false, "und", false, "English", false, DisplayName = "Setting disabled")]
+    [DataRow(true, "und", true, "English", false, DisplayName = "Another track is tagged with the original language")]
+    [DataRow(true, "eng", false, "English", false, DisplayName = "Not undetermined")]
+    [DataRow(true, "und", false, "NotARealLanguage", false, DisplayName = "Unresolvable language")]
     public void ShouldResolveUndetermined(
-        bool settingEnabled, string langCode, int trackCount, string originalLang, bool expected)
+        bool settingEnabled, string langCode, bool originalTagged, string originalLang, bool expected)
     {
         var track = new TrackSnapshot
         {
@@ -318,14 +318,14 @@ public class ExtensionTests
         };
         var settings = new TrackSettings { AssumeUndeterminedIsOriginal = settingEnabled };
 
-        Assert.AreEqual(expected, track.ShouldResolveUndetermined(settings, trackCount, originalLang));
+        Assert.AreEqual(expected, track.ShouldResolveUndetermined(settings, originalTagged, originalLang));
     }
 
     [TestMethod]
     public void ShouldResolveUndetermined_FalseWhenNullSettings()
     {
         var track = new TrackSnapshot { LanguageCode = "und", LanguageName = "Undetermined", Type = MediaTrackType.Audio };
-        Assert.IsFalse(track.ShouldResolveUndetermined(null, 1, "English"));
+        Assert.IsFalse(track.ShouldResolveUndetermined(null, false, "English"));
     }
 
     // --- CorrectFlagsFromTrackName: hearing impaired ---
