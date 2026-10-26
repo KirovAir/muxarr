@@ -112,7 +112,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
-        Assert.IsFalse(result.Log.Contains("Falling through to remux"),
+        Assert.IsFalse(result.LogText().Contains("Falling through to remux"),
             "language edit must verify clean in-place, not fall through to a remux");
 
         var probed = await FileAssertions.ProbeAsync(path);
@@ -250,8 +250,8 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
-        StringAssert.Contains(result.Log, "truncated",
-            $"log should mention the duration mismatch that tripped the validator. Log: {result.Log}");
+        StringAssert.Contains(result.LogText(), "truncated",
+            $"log should mention the duration mismatch that tripped the validator. Log: {result.LogText()}");
 
         // Rollback must leave the original byte-identical to pre-conversion.
         Assert.IsTrue(File.Exists(path), "original file must still exist");
@@ -293,7 +293,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
 
             var result = await Fixture.ReloadConversion(conversion.Id);
             Assert.AreEqual(ConversionState.Failed, result.State,
-                $"backup cleanup failure still fails the conversion. Log:\n{result.Log}");
+                $"backup cleanup failure still fails the conversion. Log:\n{result.LogText()}");
             Assert.IsTrue(File.Exists(backup), "the undeletable backup should still be present");
 
             var probed = await FileAssertions.ProbeAsync(path);
@@ -525,8 +525,8 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
-        StringAssert.Contains(result.Log, "has changed since",
-            $"log should explain the source changed. Log: {result.Log}");
+        StringAssert.Contains(result.LogText(), "has changed since",
+            $"log should explain the source changed. Log: {result.LogText()}");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
@@ -555,9 +555,9 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
-        StringAssert.Contains(result.Log, "Source file has changed",
+        StringAssert.Contains(result.LogText(), "Source file has changed",
             "failure log must explain why the conversion was rejected");
-        StringAssert.Contains(result.Log, "99",
+        StringAssert.Contains(result.LogText(), "99",
             "log should name the missing track number");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }

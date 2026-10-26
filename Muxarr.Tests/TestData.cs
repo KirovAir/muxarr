@@ -11,6 +11,11 @@ namespace Muxarr.Tests;
 /// </summary>
 public static class TestData
 {
+    public static string LogText(this MediaConversion conversion)
+    {
+        return string.Join(Environment.NewLine, conversion.LogEntries.Select(e => e.Message));
+    }
+
     public static TrackSnapshot Video(int trackNumber = 0, string? trackName = null)
     {
         return new TrackSnapshot

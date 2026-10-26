@@ -338,24 +338,11 @@ public sealed class NotificationService
 
     private static string GetLastError(MediaConversion conversion)
     {
-        if (string.IsNullOrEmpty(conversion.Log))
-        {
-            return "Unknown error";
-        }
+        var log = conversion.GetLogSnapshot();
+        var entry = log.LastOrDefault(e => e.IsError) ?? log.LastOrDefault();
 
-        var lines = conversion.Log.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries);
-        if (lines.Length == 0)
-        {
-            return "Unknown error";
-        }
-
-        var lastLine = lines[^1];
-        var bracketEnd = lastLine.IndexOf(']');
-        if (bracketEnd >= 0 && bracketEnd + 1 < lastLine.Length)
-        {
-            return lastLine[(bracketEnd + 1)..].Trim();
-        }
-
-        return lastLine.Trim();
+        // A failed mux carries the whole tool output; its last line is the actual error.
+        var lastLine = entry?.Message.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim();
+        return string.IsNullOrEmpty(lastLine) ? "Unknown error" : lastLine;
     }
 }

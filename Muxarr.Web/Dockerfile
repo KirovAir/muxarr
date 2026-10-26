@@ -1,5 +1,5 @@
 ARG FFMPEG_VERSION=8.1
-ARG MKVTOOLNIX_VERSION=102.0
+ARG MKVTOOLNIX_VERSION=103.0
 
 # ffmpeg static build from BtbN (linked from ffmpeg.org). Debian's
 # apt ffmpeg is 5.1 - too old to round-trip MP4 udta.name titles.

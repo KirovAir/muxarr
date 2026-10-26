@@ -12,6 +12,7 @@ public class MigrationTests : FixtureTestBase
 {
     // Last migration before SnapshotNormalization. Tests seed against this schema.
     private const string PreSnapshotMigration = "20260409154440_RenamePostProcessingConfig";
+    private const string PreConversionLogMigration = "20261014183608_AddMediaFileSizeIndex";
 
     private AppDbContext CreateContext(string dbPath)
     {
@@ -377,6 +378,64 @@ public class MigrationTests : FixtureTestBase
         await AssertColumnAbsent(context, "MediaSnapshot", "_TempFileId");
         await AssertColumnAbsent(context, "MediaSnapshot", "_TempConvBeforeId");
         await AssertColumnAbsent(context, "MediaSnapshot", "_TempConvAfterId");
+    }
+
+    [TestMethod]
+    public async Task NormalizeConversionLog_SplitsTextLogIntoEntries()
+    {
+        var dbPath = TempPath("conversion-log.db");
+
+        await using (var context = CreateContext(dbPath))
+        {
+            await MigrateAsync(context, PreConversionLogMigration);
+            await ExecAsync(context, """
+                                     INSERT INTO MediaConversion
+                                         (Id, Name, Log, Progress, SizeBefore, SizeAfter, SizeDifference, State,
+                                          ConversionPlan, IsCustomConversion, StartedDate, CreatedDate, UpdatedDate)
+                                     VALUES
+                                         (1, 'a.mkv',
+                                          '[2026-10-01 10:00:00.123] Starting mux' || char(13) || char(10) ||
+                                          '[2026-10-01 10:00:01.000] Error during mux. Output: line one' || char(10) ||
+                                          '[mp4 @ 0x1] line two' || char(10) ||
+                                          '' || char(10) ||
+                                          '[2026-10-01 10:00:02.500] ',
+                                          0, 0, 0, 0, 'Failed', '{}', 0,
+                                          '2026-10-01 10:00:00', '2026-10-01 09:00:00', '2026-10-01 10:00:02'),
+                                         (2, 'b.mkv', 'no prefix at all', 0, 0, 0, 0, 'Completed', '{}', 0,
+                                          NULL, '2026-10-02 08:00:00', '2026-10-02 08:00:00'),
+                                         (3, 'c.mkv', '', 0, 0, 0, 0, 'New', '{}', 0,
+                                          NULL, '2026-10-03 08:00:00', '2026-10-03 08:00:00')
+                                     """);
+            await MigrateAsync(context, null);
+        }
+
+        await using (var context = CreateContext(dbPath))
+        {
+            var conversions = await context.MediaConversions.AsNoTracking()
+                .Include(c => c.LogEntries.OrderBy(e => e.Id))
+                .OrderBy(c => c.Id)
+                .ToListAsync();
+
+            var log = conversions[0].LogEntries;
+            Assert.AreEqual(3, log.Count);
+            Assert.AreEqual(new DateTime(2026, 10, 1, 10, 0, 0, 123, DateTimeKind.Utc), log[0].Timestamp);
+            Assert.AreEqual("Starting mux", log[0].Message);
+            Assert.AreEqual("Error during mux. Output: line one\n[mp4 @ 0x1] line two\n", log[1].Message);
+            Assert.AreEqual("", log[2].Message);
+
+            // Dates come back as UTC, nullable ones too.
+            Assert.AreEqual(DateTimeKind.Utc, log[0].Timestamp.Kind);
+            Assert.AreEqual(DateTimeKind.Utc, conversions[0].StartedDate!.Value.Kind);
+            Assert.AreEqual(DateTimeKind.Utc, conversions[0].CreatedDate.Kind);
+
+            var unprefixed = conversions[1].LogEntries.Single();
+            Assert.AreEqual("no prefix at all", unprefixed.Message);
+            Assert.AreEqual(conversions[1].CreatedDate, unprefixed.Timestamp);
+
+            Assert.AreEqual(0, conversions[2].LogEntries.Count);
+
+            await AssertColumnAbsent(context, "MediaConversion", "Log");
+        }
     }
 
     private static async Task<object?> ScalarAsync(AppDbContext context, string sql)

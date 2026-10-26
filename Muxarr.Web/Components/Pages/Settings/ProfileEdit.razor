@@ -4,16 +4,18 @@
 
 <PageTitle>@TitleHelper.GetTitle(_profile?.Name ?? "Profile")</PageTitle>
 
-<div class="container-fluid">
-    @if (_profile == null)
-    {
+@if (_profile == null)
+{
+    <div class="container-fluid">
         <div class="alert alert-warning">
             <i class="bi bi-exclamation-triangle me-2"></i>
             Profile not found
         </div>
-        return;
-    }
+    </div>
+    return;
+}
 
+<div class="container-fluid">
     <nav class="mb-2">
         <a href="/settings" class="text-muted small text-decoration-none">
             <i class="bi bi-arrow-left me-1"></i>Settings

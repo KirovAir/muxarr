@@ -26,7 +26,7 @@ public static class TimeHelper
             return Pluralize((int)timespan.TotalDays, "day") + " ago";
         }
 
-        return dateTime.ToString("MMMM d, yyyy");
+        return dateTime.ToLocalTime().ToString("MMMM d, yyyy");
     }
 
     public static string FormatMinutes(int totalMinutes, string zeroLabel = "disabled")

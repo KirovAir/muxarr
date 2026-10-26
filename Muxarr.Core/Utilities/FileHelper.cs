@@ -7,6 +7,19 @@ public static class FileHelper
     private const int DefaultBufferSize = 1024 * 1024; // 1MB buffer
     private const int ProgressSize = 1024 * 1024 * 100; // Progress event every 100MB
 
+    // Null when the disk can't report its free space.
+    public static long? GetAvailableFreeSpace(string directory)
+    {
+        try
+        {
+            return new DriveInfo(directory).AvailableFreeSpace;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Moves a file with progress reporting. On the same filesystem this is an instant
     /// atomic rename. On different filesystems it falls back to an async copy+delete
