@@ -173,6 +173,90 @@ public class UndeterminedTracksTests
         Assert.IsFalse(new List<TrackSnapshot> { Audio(1, "English") }.HasOriginalLanguageTrack(null));
     }
 
+    // --- Lords of Dogtown: an unlabeled main track beside tagged English commentaries ---
+
+    private static List<TrackSnapshot> LordsOfDogtownAudio() =>
+    [
+        Audio(1, "Undetermined", nameof(AudioCodec.DtsHdMa), isDefault: true),
+        Audio(2, "English", nameof(AudioCodec.Ac3), channels: 2, commentary: true),
+        Audio(3, "English", nameof(AudioCodec.Ac3), channels: 2, commentary: true)
+    ];
+
+    private static TrackSettings RemovingCommentary(bool assumeUndetermined)
+    {
+        var settings = OriginalThenEnglish(assumeUndetermined);
+        settings.RemoveCommentary = true;
+        return settings;
+    }
+
+    [TestMethod]
+    [DataRow(true, DisplayName = "Assume undetermined is original: on")]
+    [DataRow(false, DisplayName = "Assume undetermined is original: off")]
+    public void CommentaryOnlyTagged_MainTrackKept_CommentariesGo(bool assumeUndetermined)
+    {
+        var result = LordsOfDogtownAudio().GetAllowedTracks(RemovingCommentary(assumeUndetermined), "English");
+
+        CollectionAssert.AreEqual(new[] { 1 }, Indexes(result));
+    }
+
+    [TestMethod]
+    public void CommentaryOnlyTagged_CommentariesStayWhenTheProfileKeepsCommentary()
+    {
+        var result = LordsOfDogtownAudio().GetAllowedTracks(OriginalThenEnglish(false), "English");
+
+        CollectionAssert.AreEqual(new[] { 1, 2, 3 }, Indexes(result));
+    }
+
+    [TestMethod]
+    public void CommentaryDoesNotCountAsTheOriginalBeingTagged()
+    {
+        Assert.IsFalse(LordsOfDogtownAudio().HasOriginalLanguageTrack("English"));
+    }
+
+    [TestMethod]
+    public void ForeignFilmWithOnlyAnEnglishCommentary_KeepsTheFilm()
+    {
+        // Nothing wanted but a commentary: the film's own track beats a lone commentary.
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "German", isDefault: true),
+            Audio(2, "English", channels: 2, commentary: true)
+        };
+        var settings = new TrackSettings
+        {
+            Enabled = true, RemoveCommentary = true, AllowedLanguages = [IsoLanguage.Find("English")]
+        };
+
+        CollectionAssert.AreEqual(new[] { 1 }, Indexes(tracks.GetAllowedTracks(settings, "German")));
+        Assert.AreEqual("commentary", tracks.ExplainRemovals(settings, "German")[2]);
+    }
+
+    [TestMethod]
+    public void AudioDescriptionAlone_DoesNotStandInForTheFilm()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "Undetermined", isDefault: true),
+            Audio(2, "English", vi: true)
+        };
+
+        var result = tracks.GetAllowedTracks(OriginalThenEnglish(false), "English");
+
+        CollectionAssert.AreEqual(new[] { 1, 2 }, Indexes(result));
+    }
+
+    [TestMethod]
+    public void OnlyCommentaryInTheFile_StillKeepsOne()
+    {
+        var tracks = new List<TrackSnapshot>
+        {
+            Audio(1, "French", commentary: true),
+            Audio(2, "German", commentary: true)
+        };
+
+        Assert.AreEqual(1, tracks.GetAllowedTracks(RemovingCommentary(false), "English").Count);
+    }
+
     // --- Removal reasons for the conversion log ---
 
     [TestMethod]

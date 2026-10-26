@@ -651,36 +651,81 @@ public static class MediaFileExtensions
 
             allowedTracks = tracks.Where(kept.Contains).ToList();
 
-            // 4. If all tracks would be removed, keep at least one for audio (silence is never correct).
-            //    For subtitles, having none is fine — users can add "Undetermined" to their allowed
-            //    languages if they want to keep unlabeled tracks.
-            if (allowedTracks.Count == 0 && tracks[0].Type != MediaTrackType.Subtitles)
+            // 4. Audio always keeps the film itself: silence is never correct, and nor is
+            //    a film left with only its commentary or audio description (Lords of
+            //    Dogtown kept two English commentaries and lost its unlabeled main track).
+            //    When nothing kept is a main track, the best main track joins what is
+            //    kept, and the extras that were only kept for want of one go again.
+            //    For subtitles, having none is fine — users can add "Undetermined" to
+            //    their allowed languages if they want to keep unlabeled tracks.
+            if (tracks[0].Type != MediaTrackType.Subtitles && !allowedTracks.Any(t => !IsExtra(t)))
             {
-                (bool Wanted, bool CodecAllowed, bool NotCommentary, bool NotImpaired) Rank(T t) => (
-                    MatchingPreferences(t.LanguageName, originalLanguage, s).Count > 0 ||
-                    SameBaseLanguage(t.LanguageName, originalLanguage),
-                    !s.ExcludeCodecs || !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()),
-                    !t.IsCommentary,
-                    !IsImpaired(t));
+                bool CodecAllowed(T t) => !s.ExcludeCodecs || !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec());
+                List<T> candidates;
+                if (allowedTracks.Count == 0)
+                {
+                    // Nothing kept at all: the film's own track if it has one, else its
+                    // best extra. An excluded codec only ranks lower here, as silence
+                    // is worse.
+                    candidates = tracks.Where(t => !IsExtra(t)).ToList();
+                    if (candidates.Count == 0)
+                    {
+                        candidates = tracks;
+                    }
+                }
+                else
+                {
+                    // Only extras kept: a main track joins them, but not one in a codec
+                    // the profile excludes; then the extras are all there is to play.
+                    candidates = tracks.Where(t => !IsExtra(t) && CodecAllowed(t)).ToList();
+                }
 
-                var best = tracks
-                    .OrderByDescending(t => Rank(t).Wanted)
-                    .ThenByDescending(t => Rank(t).CodecAllowed)
-                    .ThenByDescending(t => Rank(t).NotCommentary)
-                    .ThenByDescending(t => Rank(t).NotImpaired)
-                    // The file's own main track: the default one, else the first.
-                    .ThenByDescending(t => t.IsDefault)
-                    .ThenBy(t => t.Index)
-                    .First();
+                if (candidates.Count > 0)
+                {
+                    (bool Wanted, bool CodecAllowed, bool NotCommentary, bool NotImpaired) Rank(T t) => (
+                        MatchingPreferences(t.LanguageName, originalLanguage, s).Count > 0 ||
+                        SameBaseLanguage(t.LanguageName, originalLanguage),
+                        CodecAllowed(t),
+                        !t.IsCommentary,
+                        !IsImpaired(t));
 
-                // A track with no language could be the one the user wants, so
-                // when the main track is one, its unlabeled peers stay with it:
-                // two unlabeled 5.1 tracks are as likely the same film in AC-3
-                // and DTS as one of them is a dub. A labeled foreign track is a
-                // known unwanted language, so only the one main track stays.
-                allowedTracks = IsUnlabeled(best)
-                    ? tracks.Where(t => t.Index == best.Index || (IsUnlabeled(t) && Rank(t) == Rank(best))).ToList()
-                    : [best];
+                    var best = candidates
+                        .OrderByDescending(t => Rank(t).Wanted)
+                        .ThenByDescending(t => Rank(t).CodecAllowed)
+                        .ThenByDescending(t => Rank(t).NotCommentary)
+                        .ThenByDescending(t => Rank(t).NotImpaired)
+                        // The file's own main track: the default one, else the first.
+                        .ThenByDescending(t => t.IsDefault)
+                        .ThenBy(t => t.Index)
+                        .First();
+
+                    // A track with no language could be the one the user wants, so
+                    // when the main track is one, its unlabeled peers stay with it:
+                    // two unlabeled 5.1 tracks are as likely the same film in AC-3
+                    // and DTS as one of them is a dub. A labeled foreign track is a
+                    // known unwanted language, so only the one main track stays.
+                    var added = IsUnlabeled(best)
+                        ? candidates.Where(t => t.Index == best.Index || (IsUnlabeled(t) && Rank(t) == Rank(best))).ToList()
+                        : [best];
+
+                    // Commentary and AD kept only because nothing else was left go now
+                    // that the film is there, as the profile asked.
+                    foreach (var extra in allowedTracks.ToList())
+                    {
+                        if (s.RemoveCommentary && extra.IsCommentary)
+                        {
+                            allowedTracks.Remove(extra);
+                            reasons[extra] = "commentary";
+                        }
+                        else if (s.RemoveImpaired && IsImpaired(extra))
+                        {
+                            allowedTracks.Remove(extra);
+                            reasons[extra] = "SDH or audio description";
+                        }
+                    }
+
+                    allowedTracks = allowedTracks.Concat(added).Distinct().OrderBy(t => t.Index).ToList();
+                }
             }
 
             if (removalReasons != null)
@@ -954,14 +999,25 @@ public static class MediaFileExtensions
     }
 
     /// <summary>
-    /// Whether any of these tracks is tagged with the original language. Pass the
-    /// file's tracks of one type, as the source has them.
+    /// Whether any of these tracks is the film itself tagged with the original language.
+    /// Pass the file's tracks of one type, as the source has them. Extras do not count:
+    /// a tagged English commentary beside an unlabeled main track (Lords of Dogtown)
+    /// says nothing about which language the main track is.
     /// </summary>
     public static bool HasOriginalLanguageTrack<T>(this IEnumerable<T> tracksOfType, string? originalLanguage)
         where T : IMediaTrack
     {
         return IsKnownLanguage(originalLanguage)
-               && tracksOfType.Any(t => !IsUnlabeled(t) && SameBaseLanguage(t.LanguageName, originalLanguage));
+               && tracksOfType.Any(t => !IsUnlabeled(t) && !IsExtra(t) && SameBaseLanguage(t.LanguageName, originalLanguage));
+    }
+
+    // Commentary, audio description and forced subtitles: tracks that go with the film
+    // rather than being it.
+    private static bool IsExtra(IMediaTrack track)
+    {
+        return track.IsCommentary
+               || track.IsVisualImpaired
+               || (track.Type == MediaTrackType.Subtitles && track.IsForced);
     }
 
     // No language on the track at all, or "und".
