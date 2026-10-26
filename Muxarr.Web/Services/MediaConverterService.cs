@@ -488,6 +488,7 @@ public class MediaConverterService(
             : (TimeSpan?)null;
 
         var tmp = conversion.MediaFile.Path + ".muxtmp";
+        var sidecars = new List<Sidecar>();
         try
         {
             conversion.TempFilePath = tmp;
@@ -496,6 +497,8 @@ public class MediaConverterService(
             conversion.Progress = 0;
             await context.SaveChangesAsync(token);
             ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
+
+            await ExtractSubtitlesAsync(conversion, !useFFmpeg, sidecars, context, conversionTimeout, token);
 
             if (useFFmpeg)
             {
@@ -507,6 +510,26 @@ public class MediaConverterService(
             }
 
             await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, measuredEnds, token);
+
+            // Only now that the new file is in place do the subtitles it no longer
+            // carries appear beside it. Until then the original still has them.
+            var written = sidecars.Where(s => File.Exists(s.Temp)).ToList();
+            foreach (var sidecar in written)
+            {
+                File.Move(sidecar.Temp, sidecar.Final, true);
+                conversion.Log($"Wrote {Path.GetFileName(sidecar.Final)}", logger);
+            }
+
+            // The files they replace go last, so a failure before this point
+            // leaves every existing sidecar where it was.
+            var replaced = written.SelectMany(s => s.Replaces)
+                .Where(path => !written.Any(s => s.Final.Equals(path, StringComparison.OrdinalIgnoreCase)))
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in replaced.Where(File.Exists))
+            {
+                File.Delete(path);
+                conversion.Log($"Removed {Path.GetFileName(path)}, replaced by an extracted subtitle", logger);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -531,6 +554,11 @@ public class MediaConverterService(
                     conversion.Log($"Cleaning up temp file: {Path.GetFileName(tmp)}", logger);
                     File.Delete(tmp);
                 }
+
+                foreach (var sidecar in sidecars.Where(s => File.Exists(s.Temp)))
+                {
+                    File.Delete(sidecar.Temp);
+                }
             }
             catch (Exception ex)
             {
@@ -547,6 +575,85 @@ public class MediaConverterService(
             }
 
             ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
+        }
+    }
+
+    private record Sidecar(string Temp, string Final, IReadOnlyList<string> Replaces);
+
+    // Writes the subtitles the plan takes out of the container to temporary files
+    // beside the media, and checks each one before the remux removes the track.
+    // A track with no events is dropped without a file.
+    private async Task ExtractSubtitlesAsync(MediaConversion conversion, bool matroska, List<Sidecar> sidecars,
+        AppDbContext context, TimeSpan? timeout, CancellationToken token)
+    {
+        var extracted = conversion.ConversionPlan.ExtractedSubtitles;
+        if (extracted.Count == 0)
+        {
+            return;
+        }
+
+        var mediaFile = conversion.MediaFile!;
+        var sourceByIndex = mediaFile.Snapshot.Tracks.ToDictionary(t => t.Index);
+        var replace = conversion.ConversionPlan.ReplaceExistingSubtitleFiles;
+        var existing = SubtitleExtractor.FindSidecars(mediaFile.Path);
+        // Kept files hold on to their names, so an extracted subtitle numbers
+        // around them; replaced ones give theirs up.
+        var taken = new HashSet<string>(replace ? Enumerable.Empty<string>() : existing.Select(e => Path.GetFileName(e.Path)),
+            StringComparer.OrdinalIgnoreCase);
+        var requests = new List<SubtitleExtractor.Request>();
+        var extensions = new Dictionary<string, string>();
+
+        foreach (var track in extracted)
+        {
+            if (!sourceByIndex.TryGetValue(track.Index, out var source))
+            {
+                throw new Exception($"Subtitle track {track.Index} is no longer in the file.");
+            }
+
+            var codec = source.GetSubtitleCodec();
+            var extension = SubtitleExtractor.FileExtension(codec)
+                            ?? throw new Exception($"Subtitle track {track.Index} ({codec}) cannot be written as text.");
+            var tag = SubtitleExtractor.LanguageTag(source.LanguageName, track.LanguageCode ?? source.LanguageCode)
+                      ?? throw new Exception($"Subtitle track {track.Index} has no language to name its file by.");
+            var forced = track.IsForced ?? source.IsForced;
+            var hearingImpaired = track.IsHearingImpaired ?? source.IsHearingImpaired;
+            var final = SubtitleExtractor.SidecarPath(mediaFile.Path, tag, forced, hearingImpaired, extension, taken);
+            List<string> replaces = replace
+                ? existing.Where(e => e.LanguageTag.Equals(tag, StringComparison.OrdinalIgnoreCase)
+                                      && e.Forced == forced && e.HearingImpaired == hearingImpaired)
+                    .Select(e => e.Path).ToList()
+                : [];
+
+            var sidecar = new Sidecar(final + ".muxtmp", final, replaces);
+            sidecars.Add(sidecar);
+            extensions[sidecar.Temp] = extension;
+            requests.Add(new SubtitleExtractor.Request(track.Index, codec, sidecar.Temp));
+        }
+
+        conversion.Log($"Extracting {requests.Count} subtitle track(s) to files..", logger);
+        await context.SaveChangesAsync(token);
+
+        var result = await SubtitleExtractor.Extract(mediaFile.Path, matroska, requests, timeout);
+        token.ThrowIfCancellationRequested();
+
+        if (!SubtitleExtractor.IsSuccess(result, matroska))
+        {
+            throw new Exception($"Subtitle extraction failed. Error: {result.Error} Output: {result.Output}");
+        }
+
+        foreach (var sidecar in sidecars)
+        {
+            if (!File.Exists(sidecar.Temp))
+            {
+                throw new Exception($"Subtitle extraction did not produce {Path.GetFileName(sidecar.Final)}.");
+            }
+
+            if (!SubtitleExtractor.HasEvents(sidecar.Temp, extensions[sidecar.Temp]))
+            {
+                conversion.Log($"{Path.GetFileName(sidecar.Final)} has no subtitle events, removed without a file.",
+                    logger);
+                File.Delete(sidecar.Temp);
+            }
         }
     }
 

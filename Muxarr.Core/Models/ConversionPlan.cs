@@ -22,6 +22,14 @@ public class ConversionPlan : IMedia<TrackPlan>
     // writers get their cut at execution time, and it only rides an existing remux.
     public bool TrimToVideoLength { get; set; }
 
+    // Subtitle tracks written out as sidecar files before the remux. They are
+    // not in Tracks, so the remux leaves them out of the container.
+    public List<TrackPlan> ExtractedSubtitles { get; set; } = [];
+
+    // Whether an extracted subtitle replaces the sidecars already there in its
+    // language, rather than taking the next free name beside them.
+    public bool ReplaceExistingSubtitleFiles { get; set; }
+
     bool IMedia<TrackPlan>.HasChapters => HasChapters ?? false;
     bool IMedia<TrackPlan>.HasAttachments => HasAttachments ?? false;
 }

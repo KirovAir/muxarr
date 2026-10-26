@@ -1305,8 +1305,31 @@ public static class MediaFileExtensions
             }).ToList()
         };
 
+        if (profile.SubtitleSettings.ExtractToFiles)
+        {
+            MoveTextSubtitlesToSidecars(target, sourceTracks);
+            target.ReplaceExistingSubtitleFiles =
+                profile.SubtitleSettings.ExistingFiles == ExistingSubtitleFiles.Replace;
+        }
+
         TargetResolver.ResolveForContainer(target, file.ToMediaSnapshot());
         return target;
+    }
+
+    // Kept text subtitles with a known language leave the container and are
+    // written as files instead. Image subtitles and untagged tracks stay put.
+    private static void MoveTextSubtitlesToSidecars(ConversionPlan target, IEnumerable<TrackSnapshot> sourceTracks)
+    {
+        var sourceByIndex = sourceTracks.ToDictionary(t => t.Index);
+        var extracted = target.Tracks
+            .Where(t => t.Type == MediaTrackType.Subtitles
+                        && sourceByIndex.TryGetValue(t.Index, out var source)
+                        && SubtitleExtractor.FileExtension(source.GetSubtitleCodec()) != null
+                        && SubtitleExtractor.LanguageTag(source.LanguageName, t.LanguageCode ?? source.LanguageCode) != null)
+            .ToList();
+
+        target.ExtractedSubtitles = extracted;
+        target.Tracks.RemoveAll(extracted.Contains);
     }
 
     // Custom-conversion desired state. User input is authoritative. The UI's
