@@ -36,6 +36,14 @@
     z-index: 1030;
 }
 
+/* ---- Main Content ---- */
+
+.mux-main-content {
+    flex: 1;
+    min-width: 0;
+    padding: 1.5rem;
+}
+
 /* ---- Sidebar ---- */
 
 .mux-sidebar {
@@ -469,14 +477,6 @@
     inset: 0;
     background: rgba(0, 0, 0, 0.6);
     z-index: 1035;
-}
-
-/* ---- Main Content ---- */
-
-.mux-main-content {
-    flex: 1;
-    min-width: 0;
-    padding: 1.5rem;
 }
 
 /* ---- Dark Theme — only what Bootstrap can't handle ---- */
