@@ -43,7 +43,7 @@
                         <h5 class="mb-0">Track Positions</h5>
                     </div>
                     <div class="table-responsive">
-                        <table class="table table-sm align-middle mb-0">
+                        <table class="table table-sm align-middle mb-0 mux-card-table">
                             <thead>
                             <tr>
                                 <th style="width: 35px;">#</th>
@@ -74,7 +74,7 @@
                                 }
 
                                 <tr>
-                                    <td>
+                                    <td class="mux-cell-inline">
                                         @(slot.Slot.Ordinal + 1)
                                         @if (slot.FileCount < _files.Count)
                                         {
@@ -83,7 +83,7 @@
                                             </ToolTip>
                                         }
                                     </td>
-                                    <td>
+                                    <td class="mux-cell-inline">
                                         @if (isVideo)
                                         {
                                             <MediaTrackLabel Track="Badge(MediaTrackType.Video)"/>
@@ -105,7 +105,7 @@
                                             }
                                         }
                                     </td>
-                                    <td>
+                                    <td class="mux-cell-inline">
                                         @foreach (var codec in slot.Codecs.Take(2))
                                         {
                                             <code class="me-1">@codec.Value</code>
@@ -121,7 +121,7 @@
                                             </ToolTip>
                                         }
                                     </td>
-                                    <td>
+                                    <td data-label="Apply to">
                                         @if (!isVideo)
                                         {
                                             <select class="form-select form-select-sm" value="@edit.OnlyWhereLanguage"
@@ -134,7 +134,7 @@
                                             </select>
                                         }
                                     </td>
-                                    <td>
+                                    <td data-label="Language">
                                         @if (!isVideo)
                                         {
                                             <select class="form-select form-select-sm" value="@edit.LanguageName"
@@ -147,7 +147,7 @@
                                             </select>
                                         }
                                     </td>
-                                    <td>
+                                    <td data-label="Name">
                                         <div class="d-flex gap-1">
                                             <input type="text" class="form-control form-control-sm"
                                                    placeholder="@(edit.ClearName ? "(cleared)" : "(unchanged)")"
@@ -162,7 +162,7 @@
                                             </ToolTip>
                                         </div>
                                     </td>
-                                    <td>
+                                    <td data-label="Flags">
                                         @if (!isVideo)
                                         {
                                             <div class="d-flex gap-1">

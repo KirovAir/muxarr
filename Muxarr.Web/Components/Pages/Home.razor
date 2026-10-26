@@ -108,7 +108,7 @@
                         else
                         {
                             <div class="table-responsive">
-                                <table class="table table-sm mb-0">
+                                <table class="table table-sm mb-0 mux-card-table">
                                     <thead>
                                     <tr>
                                         <th>Name</th>
@@ -126,13 +126,13 @@
                                                     @conversion.Name
                                                 </a>
                                             </td>
-                                            <td>
+                                            <td class="mux-cell-inline">
                                                 <ConversionStateBadge Conversion="conversion"/>
                                             </td>
-                                            <td>
+                                            <td class="mux-cell-inline">
                                                 <TimeAgo DateTime="conversion.CreatedDate"/>
                                             </td>
-                                            <td>
+                                            <td class="mux-cell-inline">
                                                 @if (conversion.State == ConversionState.Completed)
                                                 {
                                                     @conversion.GetSizeChangePercentage()
@@ -163,7 +163,7 @@
                         else
                         {
                             <div class="table-responsive">
-                                <table class="table table-sm mb-0">
+                                <table class="table table-sm mb-0 mux-card-table">
                                     <thead>
                                     <tr>
                                         <th>File</th>
@@ -180,10 +180,10 @@
                                                     @file.GetName()
                                                 </a>
                                             </td>
-                                            <td>
+                                            <td class="mux-cell-inline">
                                                 <FileSize SizeInBytes="file.Size"/>
                                             </td>
-                                            <td>
+                                            <td class="mux-cell-inline">
                                                 <TimeAgo DateTime="file.CreatedDate"/>
                                             </td>
                                         </tr>
