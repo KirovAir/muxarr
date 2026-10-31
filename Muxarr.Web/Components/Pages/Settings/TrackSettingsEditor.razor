@@ -53,10 +53,11 @@
                                @bind-Value="Settings.AssumeUndeterminedIsOriginal"/>
                 <label class="form-check-label" for="@($"assumeUnd{TrackTypeLabel}")">Assume undetermined language is
                     original language</label>
-                <small class="form-text text-muted d-block">When a file has exactly
-                    one @(TrackTypeLabel.ToLower()) track with no language set, this treats it as the original language
-                    detected by Sonarr/Radarr. Does not apply when there are multiple tracks. Alternatively, add
-                    "Undetermined" to the allowed languages above to always keep unlabeled tracks.</small>
+                <small class="form-text text-muted d-block">When none of a file's
+                    @(TrackTypeLabel.ToLower()) tracks is tagged with the original language detected by Sonarr/Radarr,
+                    this treats the ones with no language set as that language, however many there are. Does not
+                    apply when a track is already tagged with it. Alternatively, add "Undetermined" to the allowed
+                    languages above to always keep unlabeled tracks.</small>
             </div>
 
             <div class="mb-3 form-check form-switch">

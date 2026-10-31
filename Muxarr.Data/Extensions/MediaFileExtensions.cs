@@ -526,8 +526,70 @@ public static class MediaFileExtensions
         return result;
     }
 
+    /// <summary>
+    /// One line per audio or subtitle track the profile removes, with the reason,
+    /// for the conversion log. Empty when it keeps them all.
+    /// </summary>
+    public static List<string> DescribeRemovals(this MediaFile file, Profile? profile = null)
+    {
+        var p = profile ?? file.Profile;
+        var lines = new List<string>();
+        if (p == null || file.Snapshot.Tracks.Count == 0)
+        {
+            return lines;
+        }
+
+        var source = file.Snapshot.Tracks;
+        foreach (var (tracks, settings) in new[]
+                 {
+                     (source.GetAudioTracks(), p.AudioSettings), (source.GetSubtitleTracks(), p.SubtitleSettings)
+                 })
+        {
+            var reasons = tracks.ExplainRemovals(settings, file.OriginalLanguage);
+            lines.AddRange(tracks.Where(t => reasons.ContainsKey(t.Index))
+                .OrderBy(t => t.Index)
+                .Select(t => $"Removing {t.Describe()}: {reasons[t.Index]}."));
+        }
+
+        return lines;
+    }
+
+    /// <summary>"audio #2 English DTS 5.1 "Director's Cut"", for log lines.</summary>
+    public static string Describe(this IMediaTrack track)
+    {
+        var kind = track.Type switch
+        {
+            MediaTrackType.Audio => "audio",
+            MediaTrackType.Subtitles => "subtitle",
+            _ => "video"
+        };
+        var codec = string.IsNullOrEmpty(track.Codec) ? "" : $" {track.Codec.FormatCodec()}";
+        var layout = track.Type == MediaTrackType.Audio && track.GetChannelLayout() is { } l ? $" {l}" : "";
+        var name = string.IsNullOrEmpty(track.Name) ? "" : $" \"{track.Name}\"";
+        return $"{kind} #{track.Index} {track.LanguageName}{codec}{layout}{name}";
+    }
+
+    /// <summary>
+    /// Why each track of this type would be removed, by track index. Empty when
+    /// the profile keeps them all. Same decisions as GetAllowedTracks; this only
+    /// puts them into words for the conversion log.
+    /// </summary>
+    public static Dictionary<int, string> ExplainRemovals<T>(this List<T> tracks, TrackSettings s,
+        string? originalLanguage) where T : IMediaTrack
+    {
+        var reasons = new Dictionary<int, string>();
+        tracks.GetAllowedTracks(s, originalLanguage, reasons);
+        return reasons;
+    }
+
     public static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage)
         where T : IMediaTrack
+    {
+        return tracks.GetAllowedTracks(s, originalLanguage, null);
+    }
+
+    private static List<T> GetAllowedTracks<T>(this List<T> tracks, TrackSettings s, string? originalLanguage,
+        Dictionary<int, string>? removalReasons) where T : IMediaTrack
     {
         if (tracks.Count == 0)
         {
@@ -542,21 +604,37 @@ public static class MediaFileExtensions
 
         if (s.Enabled)
         {
-            var assumeUndetermined = tracks.Count == 1
-                                     && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
+            var originalTagged = tracks.HasOriginalLanguageTrack(originalLanguage);
+            string LanguageOf(T t) =>
+                ResolveLanguage(t, originalLanguage, t.ShouldResolveUndetermined(s, originalTagged, originalLanguage));
+
+            var reasons = new Dictionary<T, string>();
 
             // 1. Which entries keep each track, most specific first. A track no
             //    entry keeps is out. The first entry is the one it is bound to:
             //    that entry's overrides apply, and tracks bound to the same entry
             //    are filtered as one language ("French (Canada)" under "French").
             var keptBy = tracks.ToDictionary(t => t,
-                t => MatchingPreferences(ResolveLanguage(t, originalLanguage, assumeUndetermined), originalLanguage, s));
+                t => MatchingPreferences(LanguageOf(t), originalLanguage, s));
+            foreach (var t in tracks.Where(t => keptBy[t].Count == 0))
+            {
+                reasons[t] = $"{LanguageOf(t)} is not one of the profile's languages";
+            }
 
             // 2. The per-language rules: commentary, SDH/AD, codecs, track limits.
+            //    Without a known original language the Original Language entry keeps
+            //    every language (see MatchingPreferences), and each of those is still
+            //    filtered as its own language, not lumped into one.
             var kept = new HashSet<T>();
-            foreach (var group in tracks.Where(t => keptBy[t].Count > 0).GroupBy(t => keptBy[t][0]))
+            var originalUnknown = !IsKnownLanguage(originalLanguage);
+            foreach (var group in tracks.Where(t => keptBy[t].Count > 0).GroupBy(t =>
+                         (Pref: keptBy[t][0],
+                          Language: originalUnknown && keptBy[t][0].IsOriginalLanguagePlaceholder
+                              ? LanguageOf(t)
+                              : null)))
             {
-                kept.UnionWith(FilterLanguage(group.ToList(), group.Key, s));
+                kept.UnionWith(FilterLanguage(group.ToList(), group.Key.Pref, s,
+                    (t, why) => reasons[t] = why));
             }
 
             // 3. Fallbacks. A track stays as long as any entry keeping it is still
@@ -564,25 +642,103 @@ public static class MediaFileExtensions
             //    "Original Language" or base entry keeps tracks whose exact entry
             //    is a fallback the file did not need.
             var inactive = InactiveFallbacks(kept, keptBy, s);
+            foreach (var t in kept.Where(t => keptBy[t].All(inactive.Contains)))
+            {
+                reasons[t] = $"{LanguageOf(t)} is only a fallback, and a language above it is in the file";
+            }
+
             kept.RemoveWhere(t => keptBy[t].All(inactive.Contains));
 
             allowedTracks = tracks.Where(kept.Contains).ToList();
 
-            // 4. If all tracks would be removed, keep at least one for audio (silence is never correct).
-            //    For subtitles, having none is fine — users can add "Undetermined" to their allowed
-            //    languages if they want to keep unlabeled tracks.
-            if (allowedTracks.Count == 0 && tracks[0].Type != MediaTrackType.Subtitles)
+            // 4. Audio always keeps the film itself: silence is never correct, and nor is
+            //    a film left with only its commentary or audio description (Lords of
+            //    Dogtown kept two English commentaries and lost its unlabeled main track).
+            //    When nothing kept is a main track, the best main track joins what is
+            //    kept, and the extras that were only kept for want of one go again.
+            //    For subtitles, having none is fine — users can add "Undetermined" to
+            //    their allowed languages if they want to keep unlabeled tracks.
+            if (tracks[0].Type != MediaTrackType.Subtitles && !allowedTracks.Any(t => !IsExtra(t)))
             {
-                var bestTracks = tracks
-                    .OrderByDescending(t =>
-                        MatchingPreferences(t.LanguageName, originalLanguage, s).Count > 0 ||
-                        SameBaseLanguage(t.LanguageName, originalLanguage))
-                    .ThenByDescending(t => !s.ExcludeCodecs || !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
-                    .ThenByDescending(t => !t.IsCommentary)
-                    .ThenByDescending(t => !IsImpaired(t))
-                    .ThenByDescending(x => x.Index);
+                bool CodecAllowed(T t) => !s.ExcludeCodecs || !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec());
+                List<T> candidates;
+                if (allowedTracks.Count == 0)
+                {
+                    // Nothing kept at all: the film's own track if it has one, else its
+                    // best extra. An excluded codec only ranks lower here, as silence
+                    // is worse.
+                    candidates = tracks.Where(t => !IsExtra(t)).ToList();
+                    if (candidates.Count == 0)
+                    {
+                        candidates = tracks;
+                    }
+                }
+                else
+                {
+                    // Only extras kept: a main track joins them, but not one in a codec
+                    // the profile excludes; then the extras are all there is to play.
+                    candidates = tracks.Where(t => !IsExtra(t) && CodecAllowed(t)).ToList();
+                }
 
-                allowedTracks.Add(bestTracks.First());
+                if (candidates.Count > 0)
+                {
+                    (bool Wanted, bool CodecAllowed, bool NotCommentary, bool NotImpaired) Rank(T t) => (
+                        MatchingPreferences(t.LanguageName, originalLanguage, s).Count > 0 ||
+                        SameBaseLanguage(t.LanguageName, originalLanguage),
+                        CodecAllowed(t),
+                        !t.IsCommentary,
+                        !IsImpaired(t));
+
+                    var best = candidates
+                        .OrderByDescending(t => Rank(t).Wanted)
+                        .ThenByDescending(t => Rank(t).CodecAllowed)
+                        .ThenByDescending(t => Rank(t).NotCommentary)
+                        .ThenByDescending(t => Rank(t).NotImpaired)
+                        // The file's own main track: the default one, else the first.
+                        .ThenByDescending(t => t.IsDefault)
+                        .ThenBy(t => t.Index)
+                        .First();
+
+                    // A track with no language could be the one the user wants, so
+                    // when the main track is one, its unlabeled peers stay with it:
+                    // two unlabeled 5.1 tracks are as likely the same film in AC-3
+                    // and DTS as one of them is a dub. A labeled foreign track is a
+                    // known unwanted language, so only the one main track stays.
+                    var added = IsUnlabeled(best)
+                        ? candidates.Where(t => t.Index == best.Index || (IsUnlabeled(t) && Rank(t) == Rank(best))).ToList()
+                        : [best];
+
+                    // Commentary and AD kept only because nothing else was left go now
+                    // that the film is there, as the profile asked.
+                    foreach (var extra in allowedTracks.ToList())
+                    {
+                        if (s.RemoveCommentary && extra.IsCommentary)
+                        {
+                            allowedTracks.Remove(extra);
+                            reasons[extra] = "commentary";
+                        }
+                        else if (s.RemoveImpaired && IsImpaired(extra))
+                        {
+                            allowedTracks.Remove(extra);
+                            reasons[extra] = "SDH or audio description";
+                        }
+                    }
+
+                    allowedTracks = allowedTracks.Concat(added).Distinct().OrderBy(t => t.Index).ToList();
+                }
+            }
+
+            if (removalReasons != null)
+            {
+                foreach (var (t, why) in reasons.Where(r => !allowedTracks.Contains(r.Key)))
+                {
+                    removalReasons[t.Index] = why;
+                }
+
+                foreach (var t in tracks.Where(t => !allowedTracks.Contains(t) && !reasons.ContainsKey(t)))
+                {
+                    removalReasons[t.Index] = "removed by the profile";
+                }
             }
         }
 
@@ -635,23 +791,37 @@ public static class MediaFileExtensions
     // the language ends up with nothing. Those two each keep the track when
     // it is the only option left.
     private static IEnumerable<T> FilterLanguage<T>(List<T> tracksInLanguage, LanguagePreference pref,
-        TrackSettings s) where T : IMediaTrack
+        TrackSettings s, Action<T, string>? removed = null) where T : IMediaTrack
     {
-        var filteredTracks = tracksInLanguage.AsEnumerable();
+        var filteredTracks = tracksInLanguage.ToList();
+
+        // Each rule narrows the list; whatever it drops is reported with its reason.
+        void Narrow(List<T> next, string why)
+        {
+            if (removed != null)
+            {
+                foreach (var t in filteredTracks.Where(t => !next.Contains(t)))
+                {
+                    removed(t, why);
+                }
+            }
+
+            filteredTracks = next;
+        }
 
         if (s.ExcludeCodecs)
         {
-            filteredTracks = tracksInLanguage[0].Type == MediaTrackType.Audio
-                ? filteredTracks.Where(t => !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
-                : filteredTracks.Where(t => !s.ExcludedCodecs.Contains(t.GetSubtitleCodec()));
+            Narrow(tracksInLanguage[0].Type == MediaTrackType.Audio
+                ? filteredTracks.Where(t => !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec())).ToList()
+                : filteredTracks.Where(t => !s.ExcludedCodecs.Contains(t.GetSubtitleCodec())).ToList(),
+                "its codec is excluded");
         }
 
         if (s.RemoveCommentary)
         {
-            var remaining = filteredTracks.ToList();
-            if (remaining.Any(t => !t.IsCommentary))
+            if (filteredTracks.Any(t => !t.IsCommentary))
             {
-                filteredTracks = remaining.Where(t => !t.IsCommentary);
+                Narrow(filteredTracks.Where(t => !t.IsCommentary).ToList(), "commentary");
             }
         }
 
@@ -663,10 +833,9 @@ public static class MediaFileExtensions
 
             // Vouch against what survived the filters above, or a commentary
             // track just removed can stand in for the alternative we need.
-            var remaining = filteredTracks.ToList();
-            if (remaining.Any(t => !IsImpaired(t) && !(isSubtitles && t.IsForced)))
+            if (filteredTracks.Any(t => !IsImpaired(t) && !(isSubtitles && t.IsForced)))
             {
-                filteredTracks = remaining.Where(t => !IsImpaired(t));
+                Narrow(filteredTracks.Where(t => !IsImpaired(t)).ToList(), "SDH or audio description");
             }
         }
 
@@ -677,12 +846,13 @@ public static class MediaFileExtensions
         if (pref.MaxTracks is > 0)
         {
             var isAudio = tracksInLanguage[0].Type == MediaTrackType.Audio;
-            filteredTracks = filteredTracks
+            Narrow(filteredTracks
                 .OrderByDescending(t => isAudio
                     ? TrackQualityScorer.ScoreAudio(t, pref.QualityStrategy)
                     : TrackQualityScorer.ScoreSubtitle(t, pref.SubtitleStrategy))
                 .ThenBy(t => t.Index)
-                .Take(pref.MaxTracks.Value);
+                .Take(pref.MaxTracks.Value)
+                .ToList(), $"over the limit of {pref.MaxTracks.Value} {pref.Name} track{(pref.MaxTracks.Value == 1 ? "" : "s")}");
         }
 
         return filteredTracks;
@@ -750,12 +920,21 @@ public static class MediaFileExtensions
         var matches = s.AllowedLanguages.Where(x => x.Name == language).ToList();
         matches.AddRange(s.AllowedLanguages.Where(x =>
             x.Name != language && !x.IsOriginalLanguagePlaceholder && IsoLanguage.Find(x.Name).Includes(lang)));
-        if (SameBaseLanguage(language, originalLanguage))
+        // When Sonarr/Radarr have not said what the original language is, the entry
+        // cannot tell which track is the original, so it keeps them all rather than
+        // dropping a film's own language because English is also there.
+        if (SameBaseLanguage(language, originalLanguage) || !IsKnownLanguage(originalLanguage))
         {
             matches.AddRange(s.AllowedLanguages.Where(x => x.IsOriginalLanguagePlaceholder));
         }
 
         return matches;
+    }
+
+    // A real language from Sonarr/Radarr: not missing, and not their "Unknown".
+    private static bool IsKnownLanguage(string? language)
+    {
+        return !string.IsNullOrWhiteSpace(language) && IsoLanguage.Find(language) != IsoLanguage.Unknown;
     }
 
     /// <summary>
@@ -779,7 +958,7 @@ public static class MediaFileExtensions
                 exact = Math.Min(exact, i);
             }
             else if (pref.IsOriginalLanguagePlaceholder
-                         ? SameBaseLanguage(trackLanguage, originalLanguage)
+                         ? SameBaseLanguage(trackLanguage, originalLanguage) || !IsKnownLanguage(originalLanguage)
                          : IsoLanguage.Find(pref.Name).Includes(lang))
             {
                 fallback = Math.Min(fallback, i);
@@ -796,24 +975,55 @@ public static class MediaFileExtensions
 
     /// <summary>
     /// Whether an undetermined track should be resolved to the original language.
-    /// Checks: setting enabled, language code is "und", single track of type, original
-    /// language resolvable. A track whose name already resolved a language at scan
+    /// Checks: setting enabled, language code is "und", no track of its type already
+    /// tagged with the original language, original language resolvable. With no
+    /// track saying it is the original, the unlabeled ones are where the original
+    /// is (a film's own AC-3 and DTS, or its own audio beside a tagged dub); with
+    /// one, an unlabeled track beside it is something else.
+    /// A track whose name already resolved a language at scan
     /// time ("VFQ" → French (Canada)) keeps its und code but is not undetermined.
     /// An explicit "Undetermined" in the allowed list wins over the assumption: the
     /// filter keeps the track as undetermined, so the write must leave it that way
     /// or the next conversion removes it under a language the profile never allowed.
     /// </summary>
     public static bool ShouldResolveUndetermined(this IMediaTrack track, TrackSettings? settings,
-        int totalTracksOfType, string? originalLanguage)
+        bool originalLanguageTagged, string? originalLanguage)
     {
         var named = IsoLanguage.Find(track.LanguageName);
         return settings is { AssumeUndeterminedIsOriginal: true }
                && !settings.AllowedLanguages.Any(x => x.Name == IsoLanguage.UndeterminedName)
                && track.LanguageCode == "und"
                && (named == IsoLanguage.Unknown || named.Name == IsoLanguage.UndeterminedName)
-               && totalTracksOfType == 1
-               && !string.IsNullOrEmpty(originalLanguage)
-               && IsoLanguage.Find(originalLanguage) != IsoLanguage.Unknown;
+               && !originalLanguageTagged
+               && IsKnownLanguage(originalLanguage);
+    }
+
+    /// <summary>
+    /// Whether any of these tracks is the film itself tagged with the original language.
+    /// Pass the file's tracks of one type, as the source has them. Extras do not count:
+    /// a tagged English commentary beside an unlabeled main track (Lords of Dogtown)
+    /// says nothing about which language the main track is.
+    /// </summary>
+    public static bool HasOriginalLanguageTrack<T>(this IEnumerable<T> tracksOfType, string? originalLanguage)
+        where T : IMediaTrack
+    {
+        return IsKnownLanguage(originalLanguage)
+               && tracksOfType.Any(t => !IsUnlabeled(t) && !IsExtra(t) && SameBaseLanguage(t.LanguageName, originalLanguage));
+    }
+
+    // Commentary, audio description and forced subtitles: tracks that go with the film
+    // rather than being it.
+    private static bool IsExtra(IMediaTrack track)
+    {
+        return track.IsCommentary
+               || track.IsVisualImpaired
+               || (track.Type == MediaTrackType.Subtitles && track.IsForced);
+    }
+
+    // No language on the track at all, or "und".
+    private static bool IsUnlabeled(IMediaTrack track)
+    {
+        return track.LanguageName is IsoLanguage.UnknownName or IsoLanguage.UndeterminedName;
     }
 
     // Track property helpers — work on any IMediaTrack
@@ -964,7 +1174,7 @@ public static class MediaFileExtensions
     }
 
     private static void ApplyProfileMutations(List<TrackSnapshot> snapshots, Profile profile,
-        int totalAudioTracks, int totalSubtitleTracks, string? originalLanguage, bool standardizeNames = true)
+        bool audioOriginalTagged, bool subtitleOriginalTagged, string? originalLanguage, bool standardizeNames = true)
     {
         foreach (var snapshot in snapshots)
         {
@@ -982,8 +1192,8 @@ public static class MediaFileExtensions
                 ? profile.AudioSettings
                 : profile.SubtitleSettings;
 
-            var totalTracksOfType = snapshot.Type == MediaTrackType.Audio ? totalAudioTracks : totalSubtitleTracks;
-            snapshot.ApplyTrackMutations(settings, totalTracksOfType, originalLanguage, standardizeNames);
+            var originalTagged = snapshot.Type == MediaTrackType.Audio ? audioOriginalTagged : subtitleOriginalTagged;
+            snapshot.ApplyTrackMutations(settings, originalTagged, originalLanguage, standardizeNames);
         }
 
         ReassignPreviewDefaultFlags(snapshots, profile.AudioSettings, MediaTrackType.Audio, originalLanguage);
@@ -997,10 +1207,10 @@ public static class MediaFileExtensions
     /// undetermined language resolution, and optionally track name standardization.
     /// </summary>
     public static void ApplyTrackMutations(this TrackSnapshot track, TrackSettings? settings,
-        int totalTracksOfType, string? originalLanguage, bool standardizeNames = true)
+        bool originalLanguageTagged, string? originalLanguage, bool standardizeNames = true)
     {
         track.CorrectFlagsFromTrackName();
-        track.ApplyProfileState(settings, totalTracksOfType, originalLanguage, standardizeNames);
+        track.ApplyProfileState(settings, originalLanguageTagged, originalLanguage, standardizeNames);
     }
 
     /// <summary>
@@ -1011,9 +1221,9 @@ public static class MediaFileExtensions
     /// just put the old ones back.
     /// </summary>
     private static void ApplyProfileState(this TrackSnapshot track, TrackSettings? settings,
-        int totalTracksOfType, string? originalLanguage, bool standardizeNames)
+        bool originalLanguageTagged, string? originalLanguage, bool standardizeNames)
     {
-        if (track.ShouldResolveUndetermined(settings, totalTracksOfType, originalLanguage))
+        if (track.ShouldResolveUndetermined(settings, originalLanguageTagged, originalLanguage))
         {
             var iso = IsoLanguage.Find(originalLanguage!);
             track.LanguageName = originalLanguage!;
@@ -1057,9 +1267,9 @@ public static class MediaFileExtensions
     {
         var settings = profile == null ? null : SettingsFor(track.Type, profile);
         var family = file.Snapshot.ContainerType.ToContainerFamily();
-        var totalOfType = siblings.Count(t => t.Type == track.Type);
+        var originalTagged = siblings.Where(t => t.Type == track.Type).HasOriginalLanguageTrack(file.OriginalLanguage);
 
-        var standardized = StandardizedName(track, settings, family, totalOfType, file.OriginalLanguage);
+        var standardized = StandardizedName(track, settings, family, originalTagged, file.OriginalLanguage);
         var wasStandardized = standardized != null
                               && string.Equals(track.Name ?? "", standardized, StringComparison.Ordinal);
         var language = track.LanguageName;
@@ -1070,7 +1280,7 @@ public static class MediaFileExtensions
         var name = track.Name;
         if (wasStandardized)
         {
-            name = StandardizedName(track, settings, family, totalOfType, file.OriginalLanguage);
+            name = StandardizedName(track, settings, family, originalTagged, file.OriginalLanguage);
         }
         else
         {
@@ -1105,7 +1315,7 @@ public static class MediaFileExtensions
     // The name the profile's standardization would give this track, or null when
     // it doesn't standardize this type.
     private static string? StandardizedName(TrackSnapshot track, TrackSettings? settings,
-        ContainerFamily family, int totalTracksOfType, string? originalLanguage)
+        ContainerFamily family, bool originalLanguageTagged, string? originalLanguage)
     {
         if (settings is not { StandardizeTrackNames: true })
         {
@@ -1113,7 +1323,7 @@ public static class MediaFileExtensions
         }
 
         var preview = track.ToSnapshot();
-        preview.ApplyProfileState(settings, totalTracksOfType, originalLanguage, standardizeNames: true);
+        preview.ApplyProfileState(settings, originalLanguageTagged, originalLanguage, standardizeNames: true);
         return CarryInName(preview.Name, preview, family);
     }
 
@@ -1272,8 +1482,8 @@ public static class MediaFileExtensions
         var sourceTracks = file.Snapshot.Tracks;
         var allowed = GetAllowedTracks(file, profile).ToSnapshots();
         ApplyProfileMutations(allowed, profile,
-            sourceTracks.Count(t => t.Type == MediaTrackType.Audio),
-            sourceTracks.Count(t => t.Type == MediaTrackType.Subtitles),
+            sourceTracks.GetAudioTracks().HasOriginalLanguageTrack(file.OriginalLanguage),
+            sourceTracks.GetSubtitleTracks().HasOriginalLanguageTrack(file.OriginalLanguage),
             file.OriginalLanguage);
 
         var target = new ConversionPlan
