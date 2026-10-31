@@ -91,6 +91,12 @@ public sealed class ConverterIntegrationFixture : IDisposable
         return new ConverterIntegrationFixture(root, tempDir, dbPath);
     }
 
+    // A second converter on the same database, as after an app restart.
+    public MediaConverterService CreateConverter()
+    {
+        return ActivatorUtilities.CreateInstance<MediaConverterService>(_root);
+    }
+
     public async Task<T> WithDbContext<T>(Func<AppDbContext, Task<T>> fn)
     {
         using var scope = ScopeFactory.CreateScope();

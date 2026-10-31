@@ -167,6 +167,32 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
     }
 
     [TestMethod]
+    public async Task Pause_SurvivesARestart()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+        var hashBefore = FileAssertions.Sha256(path);
+        var droppedSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.Where(t => t.Index != droppedSub.Index).ToSnapshots());
+
+        Fixture.Converter.TogglePause();
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        var restarted = Fixture.CreateConverter();
+        await restarted.RunAsync(CancellationToken.None);
+
+        Assert.IsTrue(restarted.IsPaused, "a restart must keep the queue paused");
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.New);
+        FileAssertions.AssertSha256Equals(path, hashBefore, "a paused queue must not touch the file");
+
+        restarted.TogglePause();
+        await restarted.RunAsync(CancellationToken.None);
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+        Assert.IsFalse(Fixture.CreateConverter().IsPaused);
+    }
+
+    [TestMethod]
     public async Task Remux_Matroska_DropsSubtitleTrack()
     {
         var path = CopyFixture("test_complex.mkv");
