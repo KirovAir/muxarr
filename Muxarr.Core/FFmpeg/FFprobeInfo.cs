@@ -25,6 +25,11 @@ public class FFprobeStream
     [JsonPropertyName("codec_name")]
     public string? CodecName { get; set; }
 
+    // The four letters a container files the track under, e.g. the MP4 sample entry
+    // "dvhe" or "hev1". "[0][0][0][0]" when the container has none (Matroska).
+    [JsonPropertyName("codec_tag_string")]
+    public string? CodecTagString { get; set; }
+
     // Profile string for the codec, used to disambiguate variants that share
     // a codec name (notably DTS vs DTS-HD MA, which both come through as "dts").
     [JsonPropertyName("profile")]

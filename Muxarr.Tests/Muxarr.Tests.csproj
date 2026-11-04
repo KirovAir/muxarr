@@ -33,6 +33,9 @@
         <None Update="Fixtures\test_complex.mkv">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="Fixtures\dv_p5_dvhe.mp4">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
 </Project>

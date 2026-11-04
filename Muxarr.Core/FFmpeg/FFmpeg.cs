@@ -153,10 +153,52 @@ public static class FFmpeg
             throw new ArgumentException("At least one track is required.", nameof(delta));
         }
 
+        var streams = (await GetStreamInfo(input)).Result?.Streams ?? [];
         var args = BuildRemuxArguments(input, output, delta, GetMp4MuxerFormat(input), trimToMs);
 
         // A trimmed output stops at the cut, so that is what progress runs to.
-        return await ExecuteAsync(args, trimToMs ?? sourceDurationMs, onProgress, timeout);
+        var result = await ExecuteAsync(args, trimToMs ?? sourceDurationMs, onProgress, timeout);
+        if (IsSuccess(result) && !result.TimedOut)
+        {
+            RestoreDolbyVisionNames(output, delta, streams, line => onProgress?.Invoke(line, 100));
+        }
+
+        return result;
+    }
+
+    // ffmpeg files a dvhe track as hev1 (see Mp4SampleEntries). The output's tracks follow
+    // the plan's order, so each kept Dolby Vision track gets its source name back by position.
+    private static void RestoreDolbyVisionNames(string output, ConversionPlan delta,
+        IReadOnlyList<FFprobeStream> streams, Action<string> report)
+    {
+        var wanted = new Dictionary<int, string>();
+        for (var position = 0; position < delta.Tracks.Count; position++)
+        {
+            var track = delta.Tracks[position];
+            var source = streams.FirstOrDefault(s => s.Index == track.Index && s.CodecType == "video");
+            if (Mp4SampleEntries.IsDolbyVision(source?.CodecTagString))
+            {
+                wanted[position] = source!.CodecTagString!;
+            }
+        }
+
+        if (wanted.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var rename in Mp4SampleEntries.RestoreDolbyVisionNames(output, wanted))
+            {
+                report($"Filed output track {rename.Track} as '{rename.To}' again: ffmpeg wrote '{rename.From}', " +
+                       "a name players read as video without Dolby Vision.");
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            report($"Could not restore the Dolby Vision track name: {e.Message}");
+        }
     }
 
     internal static string GetMp4MuxerFormat(string path)
