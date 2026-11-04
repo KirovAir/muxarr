@@ -127,6 +127,22 @@ public static class MediaFileExtensions
         });
     }
 
+    // Matroska flags come from the track header, the one place our editors write them.
+    // ffmpeg replaces every flag of an AC-3 or E-AC-3 track with the one its bitstream's
+    // service type implies, so audio coded "for visually impaired listeners" reads as
+    // neither default nor original whatever the header says, and an edit setting either
+    // never shows up. The bitstream's hint is kept on top of the
+    // header's own accessibility and commentary flags.
+    private static void ReadMatroskaFlags(TrackSnapshot track, TrackProperties header, string? trackName)
+    {
+        track.IsDefault = header.DefaultTrack;
+        track.IsForced = header.ForcedTrack || TrackNameFlags.ContainsForced(trackName);
+        track.IsOriginal = header.FlagOriginal;
+        track.IsHearingImpaired |= header.FlagHearingImpaired;
+        track.IsVisualImpaired |= header.FlagVisualImpaired || header.FlagTextDescriptions;
+        track.IsCommentary |= header.FlagCommentary;
+    }
+
     // Reuse the existing snapshot when the new probe is byte-identical, so
     // unchanged re-scans don't grow the table and MediaConversion FKs stay stable.
     public static void AttachSnapshot(this MediaFile file, MediaSnapshot snapshot)
@@ -240,6 +256,11 @@ public static class MediaFileExtensions
                 IsDub = (trustDispositionDub && disposition.Dub == 1) || TrackNameFlags.ContainsDub(trackName),
                 DurationMs = ParseTrackDurationMs(stream, family)
             };
+
+            if (mkvTrack != null)
+            {
+                ReadMatroskaFlags(track, mkvTrack.Properties, trackName);
+            }
 
             track.RefineLanguageFromName();
             tracks.Add(track);
