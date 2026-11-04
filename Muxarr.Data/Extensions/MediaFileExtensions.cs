@@ -127,6 +127,17 @@ public static class MediaFileExtensions
         });
     }
 
+    // ffmpeg overwrites AC-3/E-AC-3 flags from the bitstream's service type, so read the header our editors write.
+    private static void ReadMatroskaFlags(TrackSnapshot track, TrackProperties header, string? trackName)
+    {
+        track.IsDefault = header.DefaultTrack;
+        track.IsForced = header.ForcedTrack || TrackNameFlags.ContainsForced(trackName);
+        track.IsOriginal = header.FlagOriginal;
+        track.IsHearingImpaired |= header.FlagHearingImpaired;
+        track.IsVisualImpaired |= header.FlagVisualImpaired || header.FlagTextDescriptions;
+        track.IsCommentary |= header.FlagCommentary;
+    }
+
     // Reuse the existing snapshot when the new probe is byte-identical, so
     // unchanged re-scans don't grow the table and MediaConversion FKs stay stable.
     public static void AttachSnapshot(this MediaFile file, MediaSnapshot snapshot)
@@ -240,6 +251,11 @@ public static class MediaFileExtensions
                 IsDub = (trustDispositionDub && disposition.Dub == 1) || TrackNameFlags.ContainsDub(trackName),
                 DurationMs = ParseTrackDurationMs(stream, family)
             };
+
+            if (mkvTrack != null)
+            {
+                ReadMatroskaFlags(track, mkvTrack.Properties, trackName);
+            }
 
             track.RefineLanguageFromName();
             tracks.Add(track);
