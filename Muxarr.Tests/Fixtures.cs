@@ -46,6 +46,7 @@ public static class Fixtures
         await GenerateGlobalTagMkvAsync("globaltag-lower.mkv", "title");
         await GenerateShadowTagMkvAsync("shadowtag.mkv");
         await GenerateTruncatedMkvAsync("truncated.mkv");
+        await GenerateDamagedMkvsAsync("cutoff.mkv", "damaged.mkv");
         await GenerateRichMp4Async("test_rich.mp4");
         await GenerateChapteredAsync("chapters.mkv", "mpeg4", "ac3", "matroska", 10);
         await GenerateChapteredAsync("chapters.mp4", "libx264", "aac", "mp4", 25);
@@ -410,6 +411,40 @@ public static class Fixtures
 
         var bytes = await File.ReadAllBytesAsync(full);
         await File.WriteAllBytesAsync(target, bytes[..(bytes.Length * 6 / 10)]);
+        File.Delete(full);
+    }
+
+    /// <summary>
+    /// Untagged 200s files, one cut off after 20% and one with zeros from 20% to 60%,
+    /// both still claiming the full length. Issue #97.
+    /// </summary>
+    private static async Task GenerateDamagedMkvsAsync(string cutoffName, string damagedName)
+    {
+        var cutoff = Path.Combine(PoolDir, cutoffName);
+        var damaged = Path.Combine(PoolDir, damagedName);
+        if (File.Exists(cutoff) && File.Exists(damaged))
+        {
+            return;
+        }
+
+        var video = Path.Combine(PoolDir, "damaged.m4v");
+        var audio = Path.Combine(PoolDir, "damaged.ac3");
+        var full = Path.Combine(PoolDir, "damaged.full.mkv");
+
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"testsrc=duration=200:size=160x120:rate=10\" " +
+                                          $"-c:v mpeg4 \"{video}\"", damagedName);
+        await RunOrInconclusive("ffmpeg", "-y -loglevel error " +
+                                          "-f lavfi -i \"sine=duration=200:frequency=440\" " +
+                                          $"-c:a ac3 \"{audio}\"", damagedName);
+        await RunOrInconclusive("mkvmerge", "--disable-track-statistics-tags " +
+                                            $"-o \"{full}\" \"{video}\" --language 0:eng \"{audio}\" " +
+                                            $"--language 0:ger \"{audio}\"", damagedName);
+
+        var bytes = await File.ReadAllBytesAsync(full);
+        await File.WriteAllBytesAsync(cutoff, bytes[..(bytes.Length / 5)]);
+        Array.Clear(bytes, bytes.Length / 5, bytes.Length * 2 / 5);
+        await File.WriteAllBytesAsync(damaged, bytes);
         File.Delete(full);
     }
 }

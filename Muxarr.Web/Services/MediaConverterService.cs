@@ -622,6 +622,13 @@ public class MediaConverterService(
                 $"Error during mux for: {mediaFile.GetName()}. Error: {result.Error} Output: {result.Output}");
         }
 
+        if (MkvMerge.SkippedDamagedData(result))
+        {
+            throw new Exception(
+                $"mkvmerge could not read part of {mediaFile.GetName()}, so the output would be missing it. " +
+                "The source file looks damaged, the original is left untouched.");
+        }
+
         if (result.ExitCode == 1)
         {
             conversion.Log($"Mux completed with warnings for {mediaFile.GetName()}.", logger);

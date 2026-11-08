@@ -18,6 +18,20 @@ public static class MkvMerge
         return result.ExitCode is 0 or 1;
     }
 
+    // A damaged source only gets a warning: mkvmerge resyncs past the damage and drops what it skipped.
+    private static readonly string[] DamageMessages =
+    [
+        "Error in the Matroska file structure",
+        "before the error was encountered",
+        "Resync failed",
+        "Resyncing successful"
+    ];
+
+    public static bool SkippedDamagedData(ProcessResult result)
+    {
+        return DamageMessages.Any(m => result.Output?.Contains(m, StringComparison.Ordinal) == true);
+    }
+
     public static async Task<ProcessJsonResult<MkvMergeInfo>> GetFileInfo(string file)
     {
         var result =

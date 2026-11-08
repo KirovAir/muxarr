@@ -302,6 +302,32 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
+    // Issue #97: a source whose data stops early or has a damaged stretch used to
+    // come out short and complete, because its untagged tracks were measured on
+    // the same broken data. Dropping a track takes the container off as yardstick.
+    [TestMethod]
+    [DataRow("cutoff.mkv", "its tracks stop at")]
+    [DataRow("damaged.mkv", "mkvmerge could not read part")]
+    public async Task Remux_DamagedSource_FailsAndKeepsTheOriginal(string fixture, string expectedLog)
+    {
+        var path = CopyFixture(fixture);
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+        var hashBefore = FileAssertions.Sha256(path);
+
+        var keep = file.Snapshot.Tracks
+            .Where(t => !(t.Type == MediaTrackType.Audio && t.LanguageCode == "ger"))
+            .ToSnapshots();
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromCustom(keep), true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
+        StringAssert.Contains(result.LogText(), expectedLog);
+        FileAssertions.AssertSha256Equals(path, hashBefore, "the original must be left untouched");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
     // A .muxbak that cannot be deleted (AV scanner, indexer) must not roll the
     // finished swap back over the validated output.
     [TestMethod]

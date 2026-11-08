@@ -94,6 +94,8 @@ public static class OutputValidator
             return 0;
         }
 
+        CheckSourceReachesItsEnd(source, measured);
+
         var kept = source.Snapshot.Tracks.Where(t => t.IsAllowed(target.Tracks)).ToList();
 
         if (target.TrimToVideoLength)
@@ -112,6 +114,27 @@ public static class OutputValidator
         // longer the yardstick; a kept track that reports one is still a floor.
         var longest = kept.Select(t => DurationOf(t, measured)).DefaultIfEmpty(0).Max();
         return Floor(longest, measured, "any kept track");
+    }
+
+    // Every track, dropped ones included, stopping well short of the container means the source itself is cut off.
+    private static void CheckSourceReachesItsEnd(MediaFile source, IReadOnlyDictionary<int, long>? measured)
+    {
+        var tracks = source.Snapshot.Tracks;
+        if (measured is not { Count: > 0 } || tracks.Any(t => t.DurationMs <= 0 && !measured.ContainsKey(t.Index)))
+        {
+            return;
+        }
+
+        // Packets beat a tag, and they also cover streams the snapshot leaves out.
+        var unmeasured = tracks.Where(t => !measured.ContainsKey(t.Index)).Select(t => t.DurationMs);
+        var end = Math.Max(measured.Values.Max(), unmeasured.DefaultIfEmpty(0).Max());
+        var tolerance = Math.Max(500, source.Snapshot.DurationMs / 100);
+        if (end < source.Snapshot.DurationMs - tolerance)
+        {
+            throw new Exception(
+                $"The source reports {source.Snapshot.DurationMs}ms but its tracks stop at {end}ms. " +
+                "It looks truncated or damaged, so the original is left untouched.");
+        }
     }
 
     private static long DurationOf(TrackSnapshot track, IReadOnlyDictionary<int, long>? measured)
