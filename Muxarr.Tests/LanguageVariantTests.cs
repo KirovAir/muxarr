@@ -417,7 +417,7 @@ public class LanguageVariantTests
         };
         var settings = new TrackSettings { AssumeUndeterminedIsOriginal = true };
 
-        Assert.IsFalse(track.ShouldResolveUndetermined(settings, 1, "English"));
+        Assert.IsFalse(track.ShouldResolveUndetermined(settings, false, "English"));
     }
 
     // --- Write path ---

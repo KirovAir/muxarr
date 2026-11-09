@@ -1023,7 +1023,7 @@ public class ConversionPipelineTests
     }
 
     [TestMethod]
-    public void Pipeline_NullOriginalLanguage_KeepOriginalEnabled_DoesNotCrash()
+    public void Pipeline_NullOriginalLanguage_OriginalEntryKeepsEveryLanguage()
     {
         // Sonarr/Radarr not synced - no original language known
         var file = MakeFile(null!,
@@ -1040,9 +1040,8 @@ public class ConversionPipelineTests
 
         var outputs = RunPipeline(file, profile);
 
-        // Only English should be kept - null original can't match anything
-        Assert.AreEqual(1, outputs.Count(t => t.Type == MediaTrackType.Audio));
-        Assert.AreEqual("eng", outputs.First(t => t.Type == MediaTrackType.Audio).LanguageCode);
+        // The French track may be the original; without knowing, nothing is dropped.
+        Assert.AreEqual(2, outputs.Count(t => t.Type == MediaTrackType.Audio));
     }
 
     [TestMethod]
