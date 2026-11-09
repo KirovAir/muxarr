@@ -399,6 +399,8 @@ public class MediaConverterService(
         // Re-scan file to get fresh track data before converting.
         // Prevents stale snapshots from a previous conversion or outdated scan.
         await scanner.ScanMediaFile(conversion.MediaFile, true, context, conversion.MediaFile.Profile);
+        // The version the copy is made from. Checked again right before the swap.
+        var source = FileStamp.Of(conversion.MediaFile.Path);
 
         if (conversion.MediaFile.HasScanWarning)
         {
@@ -465,6 +467,14 @@ public class MediaConverterService(
         else if (result.Strategy == ConversionPlanner.ConversionStrategy.MetadataEdit)
         {
             await RunMkvPropEditInPlaceAsync(conversion, delta, context, token);
+
+            // An edit that did not stick falls through to a remux of the file it just
+            // changed. That edited file is the one the copy is made from, so the check
+            // before the swap must compare against it, not mistake the edit for an upgrade.
+            if (conversion.State is not (ConversionState.Completed or ConversionState.Failed))
+            {
+                source = FileStamp.Of(conversion.MediaFile.Path);
+            }
         }
 
         if (conversion.State is ConversionState.Completed or ConversionState.Failed)
@@ -532,7 +542,7 @@ public class MediaConverterService(
                 await RunMkvMergeRemuxAsync(conversion, delta, tmp, context, conversionTimeout, token);
             }
 
-            await FinalizeTemporaryOutputAsync(conversion, tmp, context, scope, measuredEnds, token);
+            await FinalizeTemporaryOutputAsync(conversion, tmp, source, context, scope, measuredEnds, token);
         }
         catch (OperationCanceledException)
         {
@@ -748,8 +758,9 @@ public class MediaConverterService(
     /// rescans, runs post-processing and updates stats. Shared by both
     /// tempfile writers.
     /// </summary>
-    private async Task FinalizeTemporaryOutputAsync(MediaConversion conversion, string tmp, AppDbContext context,
-        IServiceScope scope, IReadOnlyDictionary<int, long>? measuredEnds, CancellationToken token)
+    private async Task FinalizeTemporaryOutputAsync(MediaConversion conversion, string tmp, FileStamp source,
+        AppDbContext context, IServiceScope scope, IReadOnlyDictionary<int, long>? measuredEnds,
+        CancellationToken token)
     {
         var fileInfo = new FileInfo(tmp);
         if (!fileInfo.Exists || fileInfo.Length == 0)
@@ -774,15 +785,29 @@ public class MediaConverterService(
 
         token.ThrowIfCancellationRequested();
 
+        // Sonarr or Radarr may have imported a new file to this path while the copy was made
+        // from the old one. Swapping the copy in would throw the new file away.
+        if (!FileStamp.Of(conversion.MediaFile!.Path).IsSameFileAs(source))
+        {
+            throw new Exception("The file was replaced while it was being converted, most likely by an upgrade " +
+                                "from Sonarr or Radarr. The new file was left as it is; queue it again to convert it.");
+        }
+
+        KeepPermissions(conversion.MediaFile.Path, tmp);
+
+        // On the disk before the original's backup can be deleted.
+        FileHelper.FlushToDisk(tmp);
+
         var backupFile = conversion.MediaFile!.Path + ".muxbak";
         var swapCommitted = false;
         try
         {
             conversion.Log("Renaming old file..", logger);
+            // Saved first: nothing between the two renames should be able to fail.
+            await context.SaveChangesAsync(token);
             File.Move(conversion.MediaFile.Path, backupFile);
 
             conversion.Log("Moving new file..", logger);
-            await context.SaveChangesAsync(token);
             await FileHelper.MoveFileAsync(tmp, conversion.MediaFile.Path,
                 i =>
                 {
@@ -831,6 +856,25 @@ public class MediaConverterService(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to update conversion stats");
+        }
+    }
+
+    // The tools write the copy with the container's umask (0644); Unraid shares are usually 0666,
+    // and other users and containers would lose write access to the converted file.
+    private void KeepPermissions(string original, string copy)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            File.SetUnixFileMode(copy, File.GetUnixFileMode(original));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Could not give {Copy} the permissions of {Original}", copy, original);
         }
     }
 

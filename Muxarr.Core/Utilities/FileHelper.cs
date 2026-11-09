@@ -21,6 +21,17 @@ public static class FileHelper
     }
 
     /// <summary>
+    /// Writes the file's data out to the disk. A file just written by another program can
+    /// still sit in memory for a while; once the backup of the original is deleted, a power
+    /// cut in that window would leave a short or empty file in its place.
+    /// </summary>
+    public static void FlushToDisk(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite);
+        stream.Flush(true);
+    }
+
+    /// <summary>
     /// Moves a file with progress reporting. On the same filesystem this is an instant
     /// atomic rename. On different filesystems it falls back to an async copy+delete
     /// with progress reporting and cancellation support.
