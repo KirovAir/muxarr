@@ -17,12 +17,24 @@ public static class MediaConversionExtensions
             logger?.LogInformation(message);
         }
 
-        var timestamp = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss.fff");
-        var logLine = $"[{timestamp}] {message}";
+        // Process output arrives on two threads while the UI and notifications read along.
+        lock (conversion.LogEntries)
+        {
+            conversion.LogEntries.Add(new ConversionLogEntry
+            {
+                Timestamp = DateTime.UtcNow,
+                Message = message,
+                IsError = isError
+            });
+        }
+    }
 
-        conversion.Log = string.IsNullOrEmpty(conversion.Log)
-            ? logLine
-            : $"{conversion.Log}{Environment.NewLine}{logLine}";
+    public static List<ConversionLogEntry> GetLogSnapshot(this MediaConversion conversion)
+    {
+        lock (conversion.LogEntries)
+        {
+            return conversion.LogEntries.ToList();
+        }
     }
 
     public static void LogError(this MediaConversion conversion, string message, ILogger? logger = null)

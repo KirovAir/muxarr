@@ -1,0 +1,48 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Muxarr</Name>
+  <Repository>ghcr.io/kirovair/muxarr:latest</Repository>
+  <Registry>https://github.com/KirovAir/muxarr/pkgs/container/muxarr</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/KirovAir/muxarr/issues</Support>
+  <Project>https://muxarr.app</Project>
+  <ReadMe>https://github.com/KirovAir/muxarr/blob/master/README.md</ReadMe>
+  <License>GPLv3</License>
+  <Overview>Bulk-strip unwanted audio and subtitle tracks from your media library by remux (no re-encode, no quality loss), with Sonarr/Radarr integration to keep each title's original language. Dropping spare audio tracks alone often reclaims 10-30% of a file, and a 4GB one still processes in about a minute even on a NAS.&#13;
+&#13;
+Under the hood it uses mkvmerge for Matroska and ffmpeg stream-copy for MP4-family, and validates the remuxed output before replacing the original, so a failed run leaves your source untouched. New imports can be auto-processed via webhook, and per-directory profiles let different folders (anime vs movies, say) follow different rules.&#13;
+&#13;
+Features:&#13;
+- Language priority and per-language track limits (e.g. keep only the best English audio), tuned for quality or smallest size.&#13;
+- Metadata cleanup of encoder/codec junk in track names, applied instantly with mkvpropedit (no remux for metadata-only changes).&#13;
+- Library overview of codecs, resolutions and languages, plus a stats API for dashboards.&#13;
+- Supports Matroska (.mkv, .webm) and MP4-family (.mp4, .m4v).&#13;
+&#13;
+Paths: mount your library at the SAME path your Sonarr/Radarr containers use (e.g. /media). If they differ, add a Path Mapping under Settings &gt; Integrations in Muxarr. Add more /media style mappings for libraries that live on other shares.</Overview>
+  <ExtraSearchTerms>mkvmerge mkvtoolnix mkvpropedit ffmpeg remux mux audio subtitle track strip clean cleanup commentary sdh dub dual anime metadata bitrate space saving webm m4v jellyfin plex emby sonarr radarr arr</ExtraSearchTerms>
+  <Category>MediaApp:Video Tools:Utilities Status:Stable</Category>
+  <WebUI>http://[IP]:[PORT:8183]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/unraid/muxarr.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/unraid/muxarr.png</Icon>
+  <Screenshot>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/dashboard.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/before.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/after.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/filedetails.png</Screenshot>
+  <Screenshot>https://raw.githubusercontent.com/KirovAir/muxarr/master/docs/screenshots/statistics.png</Screenshot>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Config Name="WebUI" Target="8183" Default="8183" Mode="tcp" Description="Web interface port." Type="Port" Display="always" Required="true" Mask="false">8183</Config>
+  <Config Name="Config" Target="/config" Default="/mnt/user/appdata/muxarr" Mode="rw" Description="Database and settings." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/muxarr</Config>
+  <Config Name="Media" Target="/media" Default="/mnt/user/media" Mode="rw" Description="Your media library. Mount this at the SAME container path your Sonarr/Radarr use, or set a Path Mapping in Muxarr. Add more Path entries for libraries on other shares." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/media</Config>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID for file permissions (99 = nobody on Unraid)." Type="Variable" Display="advanced" Required="false" Mask="false">99</Config>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID for file permissions (100 = users on Unraid)." Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
+  <Config Name="UMASK" Target="UMASK" Default="022" Mode="" Description="Permission mask for files Muxarr writes, e.g. 002 for group-writable libraries." Type="Variable" Display="advanced" Required="false" Mask="false">022</Config>
+  <Config Name="TZ" Target="TZ" Default="UTC" Mode="" Description="Timezone, e.g. Europe/London or America/New_York." Type="Variable" Display="advanced" Required="false" Mask="false">UTC</Config>
+</Container>

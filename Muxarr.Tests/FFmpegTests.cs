@@ -40,6 +40,18 @@ public class FFmpegTests
         StringAssert.Contains(args, "-f mp4");
     }
 
+    // ffmpeg logs "Requires -strict unofficial" at info level and writes the MP4 without
+    // the Dolby Vision box, so players stop detecting DV.
+    [TestMethod]
+    public void BuildArguments_KeepsDolbyVisionBox()
+    {
+        var args = FFmpeg.BuildRemuxArguments("/in.mp4", "/out.muxtmp", TestPlan.Of(new List<TrackPlan>()));
+
+        StringAssert.Contains(args, "-strict unofficial");
+        Assert.IsTrue(args.IndexOf("-strict unofficial", StringComparison.Ordinal) <
+                      args.IndexOf("-f mp4", StringComparison.Ordinal));
+    }
+
     // Trim is Matroska only; -shortest would cut at the shortest track, not the video.
     [TestMethod]
     public void BuildArguments_NeverEmitsShortest()

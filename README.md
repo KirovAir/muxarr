@@ -48,6 +48,8 @@ services:
     restart: unless-stopped
 ```
 
+On Unraid, install Muxarr from the Apps tab.
+
 Upgrading from an older version? See [Upgrading](#upgrading-from-older-versions) before changing your mounts.
 
 ## Features

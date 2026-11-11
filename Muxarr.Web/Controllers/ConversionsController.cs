@@ -27,7 +27,7 @@ public class ConversionsController(IDbContextFactory<AppDbContext> contextFactor
             query = query.Where(c => c.MediaFile != null && c.MediaFile.Path == filePath);
         }
 
-        // Project in SQL; a conversion row carries its whole log and the file its probe output.
+        // Project in SQL; the file row carries its whole probe output.
         var (data, total, totalPages) = await query
             .OrderByDescending(c => c.CreatedDate)
             .ThenByDescending(c => c.Id)

@@ -112,7 +112,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
-        Assert.IsFalse(result.Log.Contains("Falling through to remux"),
+        Assert.IsFalse(result.LogText().Contains("Falling through to remux"),
             "language edit must verify clean in-place, not fall through to a remux");
 
         var probed = await FileAssertions.ProbeAsync(path);
@@ -124,6 +124,75 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         Assert.AreEqual(ConversionPlanner.ConversionStrategy.Skip, replan.Strategy,
             "a re-plan after the edit must have nothing left to change");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    [TestMethod]
+    public async Task LiveProgress_FollowsTheRunningConversion()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+        var droppedSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.Where(t => t.Index != droppedSub.Index).ToSnapshots());
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        var samples = new List<(int Reported, int? Live)>();
+        void OnChanged(ConverterProgressEvent e)
+        {
+            if (e.Conversion.Id == conversion.Id && e.Conversion.State == ConversionState.Processing)
+            {
+                samples.Add((e.Conversion.Progress, Fixture.Converter.LiveProgress(conversion.Id)));
+            }
+        }
+
+        Fixture.Converter.ConverterStateChanged += OnChanged;
+        try
+        {
+            await Fixture.Converter.RunAsync(CancellationToken.None);
+        }
+        finally
+        {
+            Fixture.Converter.ConverterStateChanged -= OnChanged;
+        }
+
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+        Assert.IsTrue(samples.Any(s => s.Reported > 0), "expected progress past 0% during the run");
+        foreach (var (reported, live) in samples)
+        {
+            Assert.AreEqual(reported, live);
+        }
+
+        Assert.IsNull(Fixture.Converter.LiveProgress(conversion.Id), "nothing is running once the queue is empty");
+        Assert.IsNull(Fixture.Converter.LiveProgress(conversion.Id + 1000));
+    }
+
+    [TestMethod]
+    public async Task Pause_SurvivesARestart()
+    {
+        var path = CopyFixture("test_complex.mkv");
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+        var hashBefore = FileAssertions.Sha256(path);
+        var droppedSub = file.Snapshot.Tracks.First(t => t.Type == MediaTrackType.Subtitles);
+        var target = file.BuildTargetFromCustom(file.Snapshot.Tracks.Where(t => t.Index != droppedSub.Index).ToSnapshots());
+
+        Fixture.Converter.TogglePause();
+        var conversion = await Fixture.SeedConversion(file, target, true);
+
+        var restarted = Fixture.CreateConverter();
+        await restarted.RunAsync(CancellationToken.None);
+
+        Assert.IsTrue(restarted.IsPaused, "a restart must keep the queue paused");
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.New);
+        FileAssertions.AssertSha256Equals(path, hashBefore, "a paused queue must not touch the file");
+
+        restarted.TogglePause();
+        await restarted.RunAsync(CancellationToken.None);
+        await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
+
+        var again = Fixture.CreateConverter();
+        await again.RunAsync(CancellationToken.None);
+        Assert.IsFalse(again.IsPaused, "resuming must survive a restart too");
     }
 
     [TestMethod]
@@ -250,8 +319,8 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
-        StringAssert.Contains(result.Log, "truncated",
-            $"log should mention the duration mismatch that tripped the validator. Log: {result.Log}");
+        StringAssert.Contains(result.LogText(), "truncated",
+            $"log should mention the duration mismatch that tripped the validator. Log: {result.LogText()}");
 
         // Rollback must leave the original byte-identical to pre-conversion.
         Assert.IsTrue(File.Exists(path), "original file must still exist");
@@ -259,6 +328,32 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
             "restored file must match pre-conversion size");
         FileAssertions.AssertSha256Equals(path, hashBefore,
             "restored file must be byte-identical to the pre-conversion source");
+        FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
+    }
+
+    // Issue #97: a source whose data stops early or has a damaged stretch used to
+    // come out short and complete, because its untagged tracks were measured on
+    // the same broken data. Dropping a track takes the container off as yardstick.
+    [TestMethod]
+    [DataRow("cutoff.mkv", "its tracks stop at")]
+    [DataRow("damaged.mkv", "mkvmerge could not read part")]
+    public async Task Remux_DamagedSource_FailsAndKeepsTheOriginal(string fixture, string expectedLog)
+    {
+        var path = CopyFixture(fixture);
+        var profile = await Fixture.SeedProfile();
+        var file = await Fixture.ScanAndPersist(path, profile);
+        var hashBefore = FileAssertions.Sha256(path);
+
+        var keep = file.Snapshot.Tracks
+            .Where(t => !(t.Type == MediaTrackType.Audio && t.LanguageCode == "ger"))
+            .ToSnapshots();
+        var conversion = await Fixture.SeedConversion(file, file.BuildTargetFromCustom(keep), true);
+
+        await Fixture.Converter.RunAsync(CancellationToken.None);
+
+        var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
+        StringAssert.Contains(result.LogText(), expectedLog);
+        FileAssertions.AssertSha256Equals(path, hashBefore, "the original must be left untouched");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
@@ -293,7 +388,7 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
 
             var result = await Fixture.ReloadConversion(conversion.Id);
             Assert.AreEqual(ConversionState.Failed, result.State,
-                $"backup cleanup failure still fails the conversion. Log:\n{result.Log}");
+                $"backup cleanup failure still fails the conversion. Log:\n{result.LogText()}");
             Assert.IsTrue(File.Exists(backup), "the undeletable backup should still be present");
 
             var probed = await FileAssertions.ProbeAsync(path);
@@ -525,8 +620,8 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
-        StringAssert.Contains(result.Log, "has changed since",
-            $"log should explain the source changed. Log: {result.Log}");
+        StringAssert.Contains(result.LogText(), "has changed since",
+            $"log should explain the source changed. Log: {result.LogText()}");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }
 
@@ -555,9 +650,9 @@ public class MediaConverterEndToEndTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Failed);
-        StringAssert.Contains(result.Log, "Source file has changed",
+        StringAssert.Contains(result.LogText(), "Source file has changed",
             "failure log must explain why the conversion was rejected");
-        StringAssert.Contains(result.Log, "99",
+        StringAssert.Contains(result.LogText(), "99",
             "log should name the missing track number");
         FileAssertions.AssertNoStrayArtifacts(TempDir, Path.GetFileName(path));
     }

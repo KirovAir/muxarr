@@ -32,13 +32,15 @@ public class ProcessExecutor
     public static async Task<ProcessResult> ExecuteProcessAsync(string fileName,
         string? arguments = null,
         TimeSpan? timeout = null,
-        Action<string, bool>? onOutputLine = null)
+        Action<string, bool>? onOutputLine = null,
+        IReadOnlyList<string>? argumentList = null,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         using var process = new Process();
         process.StartInfo = new ProcessStartInfo
         {
             FileName = fileName,
-            Arguments = arguments,
+            Arguments = argumentList == null ? arguments : null,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -50,6 +52,17 @@ public class ProcessExecutor
         const string compatLocale = "C.UTF-8";
         process.StartInfo.EnvironmentVariables["LANG"] = compatLocale;
         process.StartInfo.EnvironmentVariables["LC_ALL"] = compatLocale;
+
+        // ArgumentList passes each value as-is, with no quoting to get wrong.
+        foreach (var argument in argumentList ?? [])
+        {
+            process.StartInfo.ArgumentList.Add(argument);
+        }
+
+        foreach (var (key, value) in environment ?? new Dictionary<string, string>())
+        {
+            process.StartInfo.EnvironmentVariables[key] = value;
+        }
 
         timeout ??= TimeSpan.FromSeconds(30);
 

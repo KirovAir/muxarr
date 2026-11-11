@@ -1102,4 +1102,29 @@ public class TrackFilterTests
 
         CollectionAssert.AreEquivalent(new[] { 1, 2 }, result.Select(t => t.Index).ToArray());
     }
+
+    // An excluded codec must not vouch for dropping the SDH track and then vanish itself.
+    [TestMethod]
+    public void ExcludedCodec_DoesNotVouchForRemovingImpaired()
+    {
+        var settings = new TrackSettings
+        {
+            Enabled = true,
+            AllowedLanguages = [IsoLanguage.Find("English")],
+            RemoveImpaired = true,
+            RemoveCommentary = true,
+            ExcludeCodecs = true,
+            ExcludedCodecs = [SubtitleCodec.Pgs]
+        };
+        var tracks = new List<TrackSnapshot>
+        {
+            Sub(1, "English", nameof(SubtitleCodec.Srt), hi: true),
+            Sub(2, "English", nameof(SubtitleCodec.Pgs)),
+            Sub(3, "English", nameof(SubtitleCodec.Pgs), commentary: true)
+        };
+
+        var result = tracks.GetAllowedTracks(settings, "English");
+
+        CollectionAssert.AreEqual(new[] { 1 }, result.Select(t => t.Index).ToArray());
+    }
 }

@@ -296,6 +296,9 @@ public static class FFmpeg
             }
         }
 
+        // The mp4 muxer drops the Dolby Vision box (dvcC/dvvC) without this.
+        sb.Append(" -strict unofficial");
+
         sb.Append($" -f {muxerFormat} \"{output}\"");
 
         return sb.ToString();

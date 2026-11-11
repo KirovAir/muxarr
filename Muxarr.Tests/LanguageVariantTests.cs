@@ -20,17 +20,17 @@ public class LanguageVariantTests
     // --- IsoLanguage: variant entries, BCP 47 tags, base links ---
 
     [TestMethod]
-    [DataRow("fr-CA", "French (Canada)", DisplayName = "IETF tag")]
-    [DataRow("fr-FR", "French (France)", DisplayName = "IETF tag")]
+    [DataRow("fr-CA", "French (Canada)", DisplayName = "IETF tag (fr-CA)")]
+    [DataRow("fr-FR", "French (France)", DisplayName = "IETF tag (fr-FR)")]
     [DataRow("frc", "French (Canada)", DisplayName = "Legacy scene alias still resolves")]
     [DataRow("pob", "Portuguese (Brazil)", DisplayName = "OpenSubtitles alias still resolves")]
     [DataRow("es-419", "Spanish (Latin America)", DisplayName = "UN M.49 region tag")]
     [DataRow("es-mx", "Spanish (Latin America)", DisplayName = "Older es-mx alias")]
     [DataRow("zh-Hant", "Chinese (Traditional)", DisplayName = "Script tag")]
     [DataRow("zh-cn", "Chinese (Simplified)", DisplayName = "Region alias for script tag")]
-    [DataRow("nl-BE", "Flemish", DisplayName = "IETF tag")]
-    [DataRow("pl-PL", "Polish", DisplayName = "Unlisted region falls back to base subtag")]
-    [DataRow("de-AT", "German", DisplayName = "Unlisted region falls back to base subtag")]
+    [DataRow("nl-BE", "Flemish", DisplayName = "IETF tag (nl-BE)")]
+    [DataRow("pl-PL", "Polish", DisplayName = "Unlisted region falls back to base subtag (pl-PL)")]
+    [DataRow("de-AT", "German", DisplayName = "Unlisted region falls back to base subtag (de-AT)")]
     [DataRow("en-US-x-custom", "English", DisplayName = "Multiple subtags stripped")]
     [DataRow("Latin-Spanish", "Unknown", DisplayName = "Hyphenated words are not tags")]
     public void Find_ResolvesIetfTags(string input, string expectedName)

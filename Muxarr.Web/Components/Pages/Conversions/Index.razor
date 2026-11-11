@@ -40,7 +40,7 @@
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-sm mb-0">
+                    <table class="table table-sm mb-0 mux-card-table">
                         <thead>
                         <tr>
                             <th>File</th>
@@ -59,16 +59,16 @@
                                         <span class="small">@_currentConversion.Name</span>
                                     </a>
                                 </td>
-                                <td>
+                                <td class="mux-cell-inline">
                                     <ConversionStateBadge Conversion="_currentConversion"/>
                                 </td>
-                                <td>
+                                <td class="mux-cell-inline">
                                     <ConversionProgressBar Conversion="_currentConversion"/>
                                 </td>
-                                <td>
+                                <td class="mux-cell-inline">
                                     <TimeAgo DateTime="_currentConversion.CreatedDate"/>
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center mux-cell-end">
                                     <button class="btn btn-outline-danger btn-sm" title="Cancel"
                                             @onclick="OnCancelCurrent">
                                         <i class="bi bi-x-circle"></i>
@@ -84,16 +84,16 @@
                                         <span class="small">@conversion.Name</span>
                                     </a>
                                 </td>
-                                <td>
+                                <td class="mux-cell-inline">
                                     <ConversionStateBadge Conversion="conversion"/>
                                 </td>
-                                <td>
+                                <td class="mux-cell-inline">
                                     <ConversionProgressBar Conversion="conversion"/>
                                 </td>
-                                <td>
+                                <td class="mux-cell-inline">
                                     <TimeAgo DateTime="conversion.CreatedDate"/>
                                 </td>
-                                <td class="text-center">
+                                <td class="text-center mux-cell-end">
                                     <button class="btn btn-outline-danger btn-sm" title="Cancel"
                                             @onclick="() => OnCancelQueued(conversion)">
                                         <i class="bi bi-x-circle"></i>
@@ -145,7 +145,7 @@
     </div>
     <Loader IsLoading="IsLoading">
         <div class="table-responsive">
-            <table class="table table-striped">
+            <table class="table table-striped mux-card-table">
                 <thead>
                 <tr>
                     <th>
@@ -185,7 +185,7 @@
                 @foreach (var conversion in Items)
                 {
                     <tr>
-                        <td>
+                        <td class="mux-cell-select">
                             <SelectionCheckbox TType="MediaConversion" Parent="this" Item="conversion"/>
                         </td>
                         <td>
@@ -195,13 +195,13 @@
                             </span>
                             </a>
                         </td>
-                        <td>
+                        <td class="mux-cell-inline">
                             <ConversionStateBadge Conversion="conversion"/>
                         </td>
-                        <td>
+                        <td class="mux-cell-inline">
                             <ConversionProgressBar Conversion="conversion"/>
                         </td>
-                        <td>
+                        <td class="mux-cell-inline">
                             @if (conversion.State == ConversionState.Completed)
                             {
                                 <span>@conversion.GetSizeChangePercentage()</span>
@@ -211,19 +211,19 @@
                                 }
                             }
                         </td>
-                        <td>
+                        <td class="mux-cell-inline" data-label="Queued">
                             <TimeAgo DateTime="conversion.CreatedDate"/>
                         </td>
-                        <td>
+                        <td class="mux-cell-inline" data-label="Started">
                             @if (conversion.StartedDate.HasValue)
                             {
                                 <TimeAgo DateTime="conversion.StartedDate.Value"/>
                             }
                         </td>
-                        <td>
+                        <td data-label="Before">
                             <MediaTrackLabels Tracks="conversion.BeforeSnapshot?.Tracks ?? []"></MediaTrackLabels>
                         </td>
-                        <td>
+                        <td data-label="After">
                             <MediaTrackLabels Tracks="conversion.AfterSnapshot?.Tracks ?? []"></MediaTrackLabels>
                         </td>
                     </tr>

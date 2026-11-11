@@ -127,6 +127,17 @@ public static class MediaFileExtensions
         });
     }
 
+    // ffmpeg overwrites AC-3/E-AC-3 flags from the bitstream's service type, so read the header our editors write.
+    private static void ReadMatroskaFlags(TrackSnapshot track, TrackProperties header, string? trackName)
+    {
+        track.IsDefault = header.DefaultTrack;
+        track.IsForced = header.ForcedTrack || TrackNameFlags.ContainsForced(trackName);
+        track.IsOriginal = header.FlagOriginal;
+        track.IsHearingImpaired |= header.FlagHearingImpaired;
+        track.IsVisualImpaired |= header.FlagVisualImpaired || header.FlagTextDescriptions;
+        track.IsCommentary |= header.FlagCommentary;
+    }
+
     // Reuse the existing snapshot when the new probe is byte-identical, so
     // unchanged re-scans don't grow the table and MediaConversion FKs stay stable.
     public static void AttachSnapshot(this MediaFile file, MediaSnapshot snapshot)
@@ -240,6 +251,11 @@ public static class MediaFileExtensions
                 IsDub = (trustDispositionDub && disposition.Dub == 1) || TrackNameFlags.ContainsDub(trackName),
                 DurationMs = ParseTrackDurationMs(stream, family)
             };
+
+            if (mkvTrack != null)
+            {
+                ReadMatroskaFlags(track, mkvTrack.Properties, trackName);
+            }
 
             track.RefineLanguageFromName();
             tracks.Add(track);
@@ -542,11 +558,7 @@ public static class MediaFileExtensions
 
         if (s.Enabled)
         {
-            // Don't remap undetermined tracks when the user explicitly allows "Undetermined" as a language.
-            // Their explicit allow should take precedence over the original-language assumption.
-            var undeterminedExplicitlyAllowed = s.AllowedLanguages.Any(x => x.Name == IsoLanguage.UndeterminedName);
-            var assumeUndetermined = !undeterminedExplicitlyAllowed
-                                     && tracks.Count == 1
+            var assumeUndetermined = tracks.Count == 1
                                      && tracks[0].ShouldResolveUndetermined(s, 1, originalLanguage);
 
             // 1. Which entries keep each track, most specific first. A track no
@@ -633,19 +645,29 @@ public static class MediaFileExtensions
             : track.LanguageName;
     }
 
-    // The rules that run within one language, in order. Commentary and SDH/AD
-    // removal each keep the track when it is the only option for the language.
+    // The rules that run within one language, in order. Codec exclusion goes
+    // first because it is unconditional: a track it removes must not vouch as
+    // the alternative that lets commentary or SDH/AD removal drop a track, or
+    // the language ends up with nothing. Those two each keep the track when
+    // it is the only option left.
     private static IEnumerable<T> FilterLanguage<T>(List<T> tracksInLanguage, LanguagePreference pref,
         TrackSettings s) where T : IMediaTrack
     {
         var filteredTracks = tracksInLanguage.AsEnumerable();
 
+        if (s.ExcludeCodecs)
+        {
+            filteredTracks = tracksInLanguage[0].Type == MediaTrackType.Audio
+                ? filteredTracks.Where(t => !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
+                : filteredTracks.Where(t => !s.ExcludedCodecs.Contains(t.GetSubtitleCodec()));
+        }
+
         if (s.RemoveCommentary)
         {
-            var nonCommentaryTracks = tracksInLanguage.Where(t => !t.IsCommentary).ToList();
-            if (nonCommentaryTracks.Any())
+            var remaining = filteredTracks.ToList();
+            if (remaining.Any(t => !t.IsCommentary))
             {
-                filteredTracks = filteredTracks.Where(t => !t.IsCommentary);
+                filteredTracks = remaining.Where(t => !t.IsCommentary);
             }
         }
 
@@ -662,13 +684,6 @@ public static class MediaFileExtensions
             {
                 filteredTracks = remaining.Where(t => !IsImpaired(t));
             }
-        }
-
-        if (s.ExcludeCodecs)
-        {
-            filteredTracks = tracksInLanguage[0].Type == MediaTrackType.Audio
-                ? filteredTracks.Where(t => !s.ExcludedAudioCodecs.Contains(t.GetAudioCodec()))
-                : filteredTracks.Where(t => !s.ExcludedCodecs.Contains(t.GetSubtitleCodec()));
         }
 
         // Apply per-language track limits (MaxTracks).
@@ -800,12 +815,16 @@ public static class MediaFileExtensions
     /// Checks: setting enabled, language code is "und", single track of type, original
     /// language resolvable. A track whose name already resolved a language at scan
     /// time ("VFQ" → French (Canada)) keeps its und code but is not undetermined.
+    /// An explicit "Undetermined" in the allowed list wins over the assumption: the
+    /// filter keeps the track as undetermined, so the write must leave it that way
+    /// or the next conversion removes it under a language the profile never allowed.
     /// </summary>
     public static bool ShouldResolveUndetermined(this IMediaTrack track, TrackSettings? settings,
         int totalTracksOfType, string? originalLanguage)
     {
         var named = IsoLanguage.Find(track.LanguageName);
         return settings is { AssumeUndeterminedIsOriginal: true }
+               && !settings.AllowedLanguages.Any(x => x.Name == IsoLanguage.UndeterminedName)
                && track.LanguageCode == "und"
                && (named == IsoLanguage.Unknown || named.Name == IsoLanguage.UndeterminedName)
                && totalTracksOfType == 1

@@ -12,6 +12,9 @@ public static class TrackNameFlags
     // Word-boundary matched to avoid false positives (e.g. "CC" in "Accessibility").
     private static readonly string[] HearingImpairedAbbreviations = ["CC", "HI", "HOH", "SDH", "SHD"];
 
+    // Audio quality terms that read as the "HI" abbreviation.
+    private static readonly string[] NotHearingImpaired = ["Hi-Res", "Hi Res", "Hi-Fi", "Hi Fi", "Hi-Def", "Hi Def"];
+
     // Substring matched - long enough to be safe.
     private static readonly string[] HearingImpairedKeywords =
     [
@@ -35,9 +38,15 @@ public static class TrackNameFlags
             return false;
         }
 
+        var abbreviations = name;
+        foreach (var phrase in NotHearingImpaired)
+        {
+            abbreviations = abbreviations.RemoveWholeWord(phrase);
+        }
+
         foreach (var abbr in HearingImpairedAbbreviations)
         {
-            if (name.ContainsWholeWord(abbr))
+            if (abbreviations.ContainsWholeWord(abbr))
             {
                 return true;
             }

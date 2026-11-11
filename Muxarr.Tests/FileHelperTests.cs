@@ -5,6 +5,24 @@ namespace Muxarr.Tests;
 [TestClass]
 public class FileHelperTests : FixtureTestBase
 {
+    // DriveInfo is handed a folder, not a drive root, so this only works if that resolves to its disk.
+    [TestMethod]
+    public void GetAvailableFreeSpace_ReportsTheDiskOfAFolder()
+    {
+        Assert.IsTrue(FileHelper.GetAvailableFreeSpace(TempDir) > 0);
+    }
+
+    [TestMethod]
+    public void GetAvailableFreeSpace_UnknownLocation_ReturnsNull()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Inconclusive("Windows reports the drive root's free space for any path.");
+        }
+
+        Assert.IsNull(FileHelper.GetAvailableFreeSpace(Path.Combine(TempDir, "missing", "dir")));
+    }
+
     [TestMethod]
     public async Task MoveFileAsync_SameDirectory_MovesFile()
     {

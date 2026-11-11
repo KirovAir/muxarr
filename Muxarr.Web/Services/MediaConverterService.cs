@@ -21,8 +21,11 @@ public class MediaConverterService(
     : ConfigurableServiceBase<ProcessingConfig>(serviceScopeFactory, logger)
 {
     private CancellationTokenSource? _currentConversionCts;
+    private MediaConversion? _activeConversion;
     private bool _firstRun = true;
     private bool _workedSinceIdle;
+
+    private const string PausedConfigKey = "QueuePaused";
 
     public override TimeSpan? Interval => TimeSpan.FromMinutes(60);
 
@@ -34,12 +37,36 @@ public class MediaConverterService(
     public void TogglePause()
     {
         IsPaused = !IsPaused;
+        SavePaused();
         logger.LogInformation("Conversion queue {State}", IsPaused ? "paused" : "resumed");
         QueueStateChanged?.Invoke();
 
         if (!IsPaused)
         {
             _ = RunAsync(CancellationToken.None);
+        }
+    }
+
+    // The database only gets the progress when a run ends.
+    public int? LiveProgress(int conversionId)
+    {
+        var active = _activeConversion;
+        return active?.Id == conversionId ? active.Progress : null;
+    }
+
+    // Saved so a restart doesn't quietly resume a queue someone paused.
+    private void SavePaused()
+    {
+        try
+        {
+            using var scope = ServiceScopeFactory.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            context.Configs.Set(IsPaused, PausedConfigKey);
+            context.SaveChanges();
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not save the paused state of the conversion queue");
         }
     }
 
@@ -103,6 +130,13 @@ public class MediaConverterService(
         {
             _firstRun = false;
 
+            if (context.Configs.Get<bool>(PausedConfigKey))
+            {
+                IsPaused = true;
+                logger.LogInformation("Conversion queue is paused, as it was before the restart");
+                QueueStateChanged?.Invoke();
+            }
+
             await CleanupLeftoverConversions(context, stoppingToken);
             await CleanupMuxbakFiles(context);
         }
@@ -135,12 +169,14 @@ public class MediaConverterService(
 
         _workedSinceIdle = true;
         _currentConversionCts = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+        _activeConversion = conversion;
         try
         {
             await HandleConversion(conversion, context, scope, _currentConversionCts.Token);
         }
         finally
         {
+            _activeConversion = null;
             _currentConversionCts.Dispose();
             _currentConversionCts = null;
         }
@@ -441,6 +477,20 @@ public class MediaConverterService(
             return;
         }
 
+        // The copy is written next to the original, so that disk needs room for about one more of it.
+        var directory = Path.GetDirectoryName(conversion.MediaFile.Path)!;
+        if (FileHelper.GetAvailableFreeSpace(directory) is { } free && free < conversion.MediaFile.Size)
+        {
+            conversion.Log($"Not enough free space in {directory} for the converted copy: it needs about " +
+                           $"{conversion.MediaFile.Size.DisplayFileSize()} and {free.DisplayFileSize()} is free.",
+                logger, true);
+            conversion.State = ConversionState.Failed;
+            context.Update(conversion);
+            await context.SaveChangesAsync(token);
+            ConverterStateChanged?.Invoke(new ConverterProgressEvent(conversion));
+            return;
+        }
+
         // Only a remux uses this, and a dropped track retires the container duration.
         Dictionary<int, long>? measuredEnds = null;
         var dropsTracks = conversion.ConversionPlan.Tracks.Count < conversion.BeforeSnapshot!.Tracks.Count;
@@ -703,6 +753,13 @@ public class MediaConverterService(
         {
             throw new Exception(
                 $"Error during mux for: {mediaFile.GetName()}. Error: {result.Error} Output: {result.Output}");
+        }
+
+        if (MkvMerge.SkippedDamagedData(result))
+        {
+            throw new Exception(
+                $"mkvmerge could not read part of {mediaFile.GetName()}, so the output would be missing it. " +
+                "The source file looks damaged, the original is left untouched.");
         }
 
         if (result.ExitCode == 1)
@@ -1045,9 +1102,10 @@ public class MediaConverterService(
 
         try
         {
-            var result = await ProcessExecutor.ExecuteProcessAsync(
-                "/bin/sh", $"-c \"{resolvedCommand.Replace("\"", "\\\"")}\"",
-                TimeSpan.FromMinutes(5));
+            var result = await ProcessExecutor.ExecuteProcessAsync("/bin/sh",
+                timeout: TimeSpan.FromMinutes(5),
+                argumentList: ["-c", Config.BuildShellScript()],
+                environment: ProcessingConfig.ShellEnvironment(conversion.MediaFile.Path));
 
             if (!string.IsNullOrWhiteSpace(result.Output))
             {

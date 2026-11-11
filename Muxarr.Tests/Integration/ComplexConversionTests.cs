@@ -471,9 +471,9 @@ public class ComplexConversionTests : IntegrationTestBase
         await Fixture.Converter.RunAsync(CancellationToken.None);
 
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
-        StringAssert.Contains(result.Log, "mkvpropedit", "should use metadata-edit path");
-        Assert.IsFalse(result.Log.Contains("Nothing to do"),
-            $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.Log}");
+        StringAssert.Contains(result.LogText(), "mkvpropedit", "should use metadata-edit path");
+        Assert.IsFalse(result.LogText().Contains("Nothing to do"),
+            $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.LogText()}");
 
         var probed = await FileAssertions.ProbeAsync(path);
         var probeFrench = probed.Snapshot.Tracks.First(t => t.Index == frenchDub.Index);
@@ -517,8 +517,8 @@ public class ComplexConversionTests : IntegrationTestBase
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
-        Assert.IsFalse(result.Log.Contains("Nothing to do"),
-            $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.Log}");
+        Assert.IsFalse(result.LogText().Contains("Nothing to do"),
+            $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.LogText()}");
 
         var probed = await FileAssertions.ProbeAsync(path);
         var probeFrench = probed.Snapshot.Tracks.First(t => t.Index == frenchDub.Index);
@@ -553,8 +553,8 @@ public class ComplexConversionTests : IntegrationTestBase
 
         await Fixture.Converter.RunAsync(CancellationToken.None);
         var result = await Fixture.AssertStateAsync(conversion.Id, ConversionState.Completed);
-        Assert.IsFalse(result.Log.Contains("Nothing to do"),
-            $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.Log}");
+        Assert.IsFalse(result.LogText().Contains("Nothing to do"),
+            $"mkvpropedit must not fail with 'Nothing to do'. Log: {result.LogText()}");
 
         var probed = await FileAssertions.ProbeAsync(path);
         var probeSub = probed.Snapshot.Tracks.First(t => t.Index == englishSub.Index);
