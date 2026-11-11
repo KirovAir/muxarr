@@ -153,10 +153,23 @@ public static class FFmpeg
             throw new ArgumentException("At least one track is required.", nameof(delta));
         }
 
-        var args = BuildRemuxArguments(input, output, delta, GetMp4MuxerFormat(input), trimToMs);
+        var muxerFormat = GetMp4MuxerFormat(input);
+        var pictures = muxerFormat == "mp4" ? await GetAttachedPictures(input) : [];
+        var args = BuildRemuxArguments(input, output, delta, muxerFormat, trimToMs, pictures);
 
         // A trimmed output stops at the cut, so that is what progress runs to.
         return await ExecuteAsync(args, trimToMs ?? sourceDurationMs, onProgress, timeout);
+    }
+
+    // Cover art: video streams with the attached_pic disposition. They are not tracks, so the
+    // plan never lists them.
+    private static async Task<List<int>> GetAttachedPictures(string input)
+    {
+        var info = await GetStreamInfo(input);
+        return info.Result?.Streams
+            .Where(s => s.CodecType == "video" && s.Disposition?.AttachedPic == 1)
+            .Select(s => s.Index)
+            .ToList() ?? [];
     }
 
     internal static string GetMp4MuxerFormat(string path)
@@ -238,8 +251,9 @@ public static class FFmpeg
     }
 
     public static string BuildRemuxArguments(string input, string output, ConversionPlan delta,
-        string muxerFormat = "mp4", long? trimToMs = null)
+        string muxerFormat = "mp4", long? trimToMs = null, IReadOnlyList<int>? attachedPictures = null)
     {
+        var pictures = attachedPictures ?? [];
         var tracks = delta.Tracks;
         var faststart = delta.Faststart ?? false;
 
@@ -253,13 +267,25 @@ public static class FFmpeg
             sb.Append($" -map 0:{track.Index}");
         }
 
+        // After the tracks, so the tracks keep their output positions.
+        foreach (var picture in pictures)
+        {
+            sb.Append($" -map 0:{picture}");
+        }
+
         if (delta.HasChapters == false)
         {
             sb.Append(" -map_chapters -1");
         }
 
-        var movflags = faststart ? "+use_metadata_tags+faststart" : "+use_metadata_tags";
-        sb.Append($" -c copy -map_metadata 0 -movflags {movflags}");
+        // The mp4 muxer writes cover art only into the iTunes tag box, which +use_metadata_tags
+        // replaces. A file with cover art keeps its iTunes tags instead.
+        var movflags = (pictures.Count > 0 ? "" : "+use_metadata_tags") + (faststart ? "+faststart" : "");
+        sb.Append(" -c copy -map_metadata 0");
+        if (movflags.Length > 0)
+        {
+            sb.Append($" -movflags {movflags}");
+        }
 
         // Never -shortest: it anchors on the shortest stream, which on a
         // subtitled file is the last cue. The ms suffix is locale-proof.
