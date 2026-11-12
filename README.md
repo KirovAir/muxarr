@@ -163,6 +163,10 @@ Do not move your media mounts. Your profiles and Sonarr/Radarr path mappings ref
 
 Until you do, Muxarr keeps running from `/data` and shows a reminder in the app. Nothing is moved or deleted automatically, so rolling back to an older version only takes pointing the mount at `:/data` again. If your appdata folder is empty (you never mounted one, or you mounted `/config` on an older version that ignored it), the database sits in a Docker volume: stop the container, run `docker cp muxarr:/data/. /path/to/appdata/` before removing it, then mount that folder at `/config`.
 
+## One-Click Deploy
+
+[![Deploy on RepoCloud](https://d16t0pc4846x52.cloudfront.net/deploylobe.svg)](https://repocloud.io/details/Muxarr/)
+
 ## Configuration
 
 ### Environment Variables
